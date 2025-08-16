@@ -1,0 +1,11 @@
+[package]
+name = "hfi_wasm_plugin"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+proxy-wasm = "0.2.1"
+log = "0.4.20"

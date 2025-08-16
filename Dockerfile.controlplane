@@ -1,0 +1,27 @@
+# Use a specific version of the Go image for reproducibility.
+FROM golang:1.24.3-alpine
+
+# Install curl for healthcheck
+RUN apk add --no-cache curl
+
+# Set the working directory inside the container.
+WORKDIR /app
+
+# Copy Go module files and download dependencies.
+# This leverages Docker's layer caching.
+COPY control-plane/go.mod control-plane/go.sum ./
+RUN go mod download
+
+# Copy the rest of the application's source code.
+COPY control-plane/. .
+
+# Build the Go application.
+# -o specifies the output file name.
+# CGO_ENABLED=0 is important for creating a static binary that works in minimal containers like Alpine.
+RUN CGO_ENABLED=0 go build -o /hfi-control-plane .
+
+# Expose the port the application runs on.
+EXPOSE 8080
+
+# The command to run when the container starts.
+CMD ["/hfi-control-plane"]

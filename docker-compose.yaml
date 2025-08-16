@@ -1,0 +1,63 @@
+services:
+  # Control Plane Service
+  # This service runs the Go application that serves policies to the Wasm plugin.
+  control-plane:
+    build:
+      context: .
+      dockerfile: Dockerfile.controlplane
+    ports:
+      - "8080:8080"
+    networks:
+      - hfi-net
+    # Use a healthcheck to ensure the control plane is ready before Envoy starts.
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/health"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+
+  # Wasm Plugin Builder Service (Rust)
+  # This service builds the Rust Wasm plugin using the updated Dockerfile.wasm.
+  # The compiled artifact is then copied to a volume for use by Envoy.
+  wasm-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile.wasm
+    # The output of this service is the compiled .wasm file in its container filesystem.
+    # We define a volume to share this artifact with the Envoy service.
+    volumes:
+      - wasm-plugin:/opt/wasm-plugin
+    command: ["sh", "-c", "cp /plugin.wasm /opt/wasm-plugin/plugin.wasm && echo 'Wasm plugin built successfully'"]
+
+  # Envoy Proxy Service
+  # This service runs the Envoy proxy, which loads the Wasm plugin.
+  envoy:
+    image: envoyproxy/envoy:v1.28.0
+    ports:
+      - "18000:18000" # External traffic
+      - "19000:19000" # Admin interface
+    volumes:
+      # Mount the compiled .wasm file from the shared volume.
+      - wasm-plugin:/etc/envoy/
+      # Mount the Envoy configuration file.
+      - ./envoy.yaml:/etc/envoy/envoy.yaml
+    networks:
+      - hfi-net
+    # This is crucial. It ensures that the wasm-builder has finished and its
+    # artifact is available before Envoy starts. It also waits for the control-plane
+    # to be healthy.
+    depends_on:
+      wasm-builder:
+        condition: service_completed_successfully
+      control-plane:
+        condition: service_healthy
+    command: envoy -c /etc/envoy/envoy.yaml --log-level info
+
+networks:
+  hfi-net:
+    driver: bridge
+
+volumes:
+  # This volume is used to pass the compiled .wasm file from the builder to Envoy.
+  wasm-plugin:
+    driver: local
