@@ -1,0 +1,60 @@
+{
+  "version": "1.0",
+  "rules": [
+    {
+      "name": "abort-api-requests",
+      "match": {
+        "path": {
+          "prefix": "/api/"
+        },
+        "method": {
+          "exact": "POST"
+        },
+        "headers": [
+          {
+            "name": "x-user-id",
+            "exact": "test-user"
+          }
+        ]
+      },
+      "fault": {
+        "abort": {
+          "httpStatus": 503,
+          "body": "Service temporarily unavailable"
+        },
+        "percentage": 50
+      }
+    },
+    {
+      "name": "delay-get-requests",
+      "match": {
+        "path": {
+          "regex": "^/api/users/\\d+$"
+        },
+        "method": {
+          "exact": "GET"
+        }
+      },
+      "fault": {
+        "delay": {
+          "fixedDelay": "2s"
+        },
+        "percentage": 100
+      }
+    },
+    {
+      "name": "catch-all-delay",
+      "match": {
+        "path": {
+          "prefix": "/"
+        }
+      },
+      "fault": {
+        "delay": {
+          "fixedDelay": "100ms"
+        },
+        "percentage": 10
+      }
+    }
+  ]
+}

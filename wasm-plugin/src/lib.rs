@@ -1,16 +1,25 @@
-use log::{info, warn};
+use log::{info, warn, debug};
 use proxy_wasm::traits::{Context, HttpContext, RootContext};
 use proxy_wasm::types::{Action, LogLevel};
 use std::time::Duration;
+use std::sync::Arc;
+
+pub mod config;
+pub mod matcher;
+
+use config::CompiledRuleSet;
+use matcher::{RequestInfo, find_first_match};
 
 const CONTROL_PLANE_CLUSTER: &str = "hfi_control_plane";
 
+#[cfg(not(test))]
 #[no_mangle]
 pub fn _start() {
     proxy_wasm::set_log_level(LogLevel::Info);
     proxy_wasm::set_root_context(|_| -> Box<dyn RootContext> {
         Box::new(PluginRootContext {
             control_plane_address: String::new(),
+            current_rules: None,
         })
     });
 }
@@ -20,6 +29,7 @@ pub fn _start() {
 // Root context for the entire plugin
 struct PluginRootContext {
     control_plane_address: String,
+    current_rules: Option<Arc<CompiledRuleSet>>,
 }
 
 impl PluginRootContext {
@@ -50,6 +60,22 @@ impl Context for PluginRootContext {
         if let Some(body) = self.get_http_call_response_body(0, body_size) {
             if let Ok(body_str) = std::str::from_utf8(&body) {
                 info!("Received config update from control plane: {}", body_str.trim());
+                
+                // Try to parse the received configuration
+                match CompiledRuleSet::from_slice(&body) {
+                    Ok(ruleset) => {
+                        info!("Successfully parsed {} rules from control plane", ruleset.rules.len());
+                        self.current_rules = Some(Arc::new(ruleset));
+                        
+                        // Log rule details for debugging
+                        for (i, rule) in self.current_rules.as_ref().unwrap().rules.iter().enumerate() {
+                            debug!("Rule {}: {} with {} fault percentage", i, rule.name, rule.fault.percentage);
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Failed to parse configuration from control plane: {}", e);
+                    }
+                }
             } else {
                 warn!("Received non-UTF8 response body from control plane");
             }
@@ -98,7 +124,9 @@ impl RootContext for PluginRootContext {
     }
 
     fn create_http_context(&self, _context_id: u32) -> Option<Box<dyn HttpContext>> {
-        Some(Box::new(PluginHttpContext))
+        Some(Box::new(PluginHttpContext {
+            rules: self.current_rules.clone(),
+        }))
     }
 
     fn get_type(&self) -> Option<proxy_wasm::types::ContextType> {
@@ -109,13 +137,38 @@ impl RootContext for PluginRootContext {
 // --- HTTP Context ---
 
 // HTTP context for each request
-struct PluginHttpContext;
+struct PluginHttpContext {
+    rules: Option<Arc<CompiledRuleSet>>,
+}
 
 impl Context for PluginHttpContext {}
 
 impl HttpContext for PluginHttpContext {
     fn on_http_request_headers(&mut self, _num_headers: usize, _end_of_stream: bool) -> Action {
-        info!("Handling request...");
+        debug!("Handling request headers...");
+        
+        // If no rules are configured, allow all requests to pass through
+        let Some(ref rules_arc) = self.rules else {
+            debug!("No rules configured, allowing request to continue");
+            return Action::Continue;
+        };
+        
+        // Extract request information
+        let request_info = RequestInfo::from_http_context(self);
+        info!("Processing request: {} {}", request_info.method, request_info.path);
+        
+        // Find matching rule
+        if let Some(matched_rule) = find_first_match(&request_info, &rules_arc.rules) {
+            info!("Request matched rule '{}' with {}% fault probability", 
+                  matched_rule.name, matched_rule.fault.percentage);
+            
+            // TODO: In W-4, we'll implement the fault executor here
+            // For now, just log the match and continue
+            debug!("Fault execution not yet implemented, continuing request");
+        } else {
+            debug!("No rules matched, allowing request to continue");
+        }
+        
         Action::Continue
     }
 
