@@ -1,17 +1,56 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"hfi/control-plane/storage"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
+	// 解析命令行参数
+	var (
+		storageType = flag.String("storage", "memory", "Storage backend type: memory or etcd")
+		etcdEndpoints = flag.String("etcd-endpoints", "localhost:2379", "Comma-separated list of etcd endpoints")
+		listenAddr = flag.String("listen", "0.0.0.0:8080", "Address to listen on")
+	)
+	flag.Parse()
+
+	// 支持环境变量覆盖命令行参数
+	if envStorage := os.Getenv("STORAGE_BACKEND"); envStorage != "" {
+		*storageType = envStorage
+	}
+	if envEtcdEndpoints := os.Getenv("ETCD_ENDPOINTS"); envEtcdEndpoints != "" {
+		*etcdEndpoints = envEtcdEndpoints
+	}
+	if envListen := os.Getenv("LISTEN_ADDR"); envListen != "" {
+		*listenAddr = envListen
+	}
+
+	log.Printf("Starting Control Plane with storage backend: %s", *storageType)
+	if *storageType == "etcd" {
+		log.Printf("etcd endpoints: %s", *etcdEndpoints)
+	}
+
 	// 1. 初始化存储
-	store := storage.NewMemoryStore()
+	store, err := initializeStore(*storageType, *etcdEndpoints)
+	if err != nil {
+		log.Fatalf("Failed to initialize storage: %v", err)
+	}
+
+	// 如果是 etcd store，确保在程序退出时清理资源
+	if etcdStore, ok := store.(*storage.EtcdStore); ok {
+		defer func() {
+			if err := etcdStore.Close(); err != nil {
+				log.Printf("Error closing etcd store: %v", err)
+			}
+		}()
+	}
 
 	// 2. 初始化配置分发器
 	distributor := NewConfigDistributor(store)
@@ -27,17 +66,39 @@ func main() {
 			c.JSON(200, gin.H{"status": "healthy"})
 		})
 
-		// 实现策略创建/更新的 POST 端点
+		// 策略管理端点
 		v1.POST("/policies", createPolicyHandler(store))
+		v1.GET("/policies/:id", getPolicyHandler(store))
+		v1.GET("/policies", listPoliciesHandler(store))
+		v1.DELETE("/policies/:id", deletePolicyHandler(store))
 
 		// 将 SSE 端点处理器与分发器连接
 		v1.GET("/config/stream", sseHandler(distributor))
 	}
 
 	// 5. 启动服务器
-	log.Println("Control Plane server listening on 0.0.0.0:8080")
-	if err := router.Run("0.0.0.0:8080"); err != nil {
+	log.Printf("Control Plane server starting with %s storage backend", *storageType)
+	log.Printf("Server listening on %s", *listenAddr)
+	if err := router.Run(*listenAddr); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
+	}
+}
+
+// initializeStore 根据存储类型初始化相应的存储后端
+func initializeStore(storageType, etcdEndpoints string) (storage.IPolicyStore, error) {
+	switch strings.ToLower(storageType) {
+	case "memory":
+		log.Println("Using memory storage backend")
+		return storage.NewMemoryStore(), nil
+	case "etcd":
+		log.Println("Using etcd storage backend")
+		endpoints := strings.Split(etcdEndpoints, ",")
+		for i, endpoint := range endpoints {
+			endpoints[i] = strings.TrimSpace(endpoint)
+		}
+		return storage.NewEtcdStore(endpoints)
+	default:
+		return nil, fmt.Errorf("unsupported storage type: %s (supported: memory, etcd)", storageType)
 	}
 }
 
@@ -57,6 +118,53 @@ func createPolicyHandler(store storage.IPolicyStore) gin.HandlerFunc {
 
 		log.Printf("Policy '%s' created/updated successfully.", policy.Metadata.Name)
 		c.JSON(http.StatusCreated, policy)
+	}
+}
+
+// getPolicyHandler 创建一个处理获取单个策略请求的 Gin 处理器。
+func getPolicyHandler(store storage.IPolicyStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		if id == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "policy id is required"})
+			return
+		}
+
+		policy, exists := store.Get(id)
+		if !exists {
+			c.JSON(http.StatusNotFound, gin.H{"error": "policy not found"})
+			return
+		}
+
+		c.JSON(http.StatusOK, policy)
+	}
+}
+
+// listPoliciesHandler 创建一个处理列出所有策略请求的 Gin 处理器。
+func listPoliciesHandler(store storage.IPolicyStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		policies := store.List()
+		c.JSON(http.StatusOK, gin.H{"policies": policies})
+	}
+}
+
+// deletePolicyHandler 创建一个处理删除策略请求的 Gin 处理器。
+func deletePolicyHandler(store storage.IPolicyStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		if id == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "policy id is required"})
+			return
+		}
+
+		err := store.Delete(id)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "policy not found: " + err.Error()})
+			return
+		}
+
+		log.Printf("Policy '%s' deleted successfully.", id)
+		c.JSON(http.StatusOK, gin.H{"message": "policy deleted successfully"})
 	}
 }
 

@@ -1,0 +1,262 @@
+package storage
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/api/v3/mvccpb"
+)
+
+const (
+	// policyPrefix is the etcd key prefix for all policies
+	policyPrefix = "hfi/policies/"
+)
+
+// EtcdStore implements IPolicyStore using etcd as the backend storage.
+type EtcdStore struct {
+	client    *clientv3.Client
+	ctx       context.Context
+	cancel    context.CancelFunc
+	watchers  []chan WatchEvent
+	watcherMu sync.RWMutex
+}
+
+// NewEtcdStore creates a new EtcdStore instance.
+func NewEtcdStore(endpoints []string) (*EtcdStore, error) {
+	client, err := clientv3.New(clientv3.Config{
+		Endpoints:   endpoints,
+		DialTimeout: 5 * time.Second,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create etcd client: %w", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	
+	store := &EtcdStore{
+		client:   client,
+		ctx:      ctx,
+		cancel:   cancel,
+		watchers: make([]chan WatchEvent, 0),
+	}
+
+	// Start the global watcher goroutine
+	go store.startGlobalWatcher()
+
+	return store, nil
+}
+
+// Close closes the etcd connection and cancels all watchers.
+func (e *EtcdStore) Close() error {
+	e.cancel()
+	e.watcherMu.Lock()
+	for _, watcher := range e.watchers {
+		close(watcher)
+	}
+	e.watchers = nil
+	e.watcherMu.Unlock()
+	return e.client.Close()
+}
+
+// policyKey returns the etcd key for a given policy name.
+func (e *EtcdStore) policyKey(name string) string {
+	return policyPrefix + name
+}
+
+// CreateOrUpdate creates a new policy or updates an existing one atomically.
+func (e *EtcdStore) CreateOrUpdate(policy *FaultInjectionPolicy) error {
+	if policy == nil || policy.Metadata.Name == "" {
+		return fmt.Errorf("policy or policy name cannot be empty")
+	}
+
+	data, err := json.Marshal(policy)
+	if err != nil {
+		return fmt.Errorf("failed to marshal policy: %w", err)
+	}
+
+	key := e.policyKey(policy.Metadata.Name)
+	
+	// Use a transaction to ensure atomicity
+	txn := e.client.Txn(e.ctx)
+	_, err = txn.Then(clientv3.OpPut(key, string(data))).Commit()
+	if err != nil {
+		return fmt.Errorf("failed to put policy to etcd: %w", err)
+	}
+
+	return nil
+}
+
+// Get retrieves a policy by its name.
+func (e *EtcdStore) Get(name string) (*FaultInjectionPolicy, bool) {
+	if name == "" {
+		return nil, false
+	}
+
+	key := e.policyKey(name)
+	resp, err := e.client.Get(e.ctx, key)
+	if err != nil {
+		return nil, false
+	}
+
+	if len(resp.Kvs) == 0 {
+		return nil, false
+	}
+
+	var policy FaultInjectionPolicy
+	if err := json.Unmarshal(resp.Kvs[0].Value, &policy); err != nil {
+		return nil, false
+	}
+
+	return &policy, true
+}
+
+// Delete removes a policy by its name.
+func (e *EtcdStore) Delete(name string) error {
+	if name == "" {
+		return fmt.Errorf("policy name cannot be empty")
+	}
+
+	key := e.policyKey(name)
+	_, err := e.client.Delete(e.ctx, key)
+	if err != nil {
+		return fmt.Errorf("failed to delete policy from etcd: %w", err)
+	}
+
+	return nil
+}
+
+// List retrieves all policies.
+func (e *EtcdStore) List() []*FaultInjectionPolicy {
+	resp, err := e.client.Get(e.ctx, policyPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return []*FaultInjectionPolicy{}
+	}
+
+	policies := make([]*FaultInjectionPolicy, 0, len(resp.Kvs))
+	for _, kv := range resp.Kvs {
+		var policy FaultInjectionPolicy
+		if err := json.Unmarshal(kv.Value, &policy); err != nil {
+			// Log error but continue with other policies
+			continue
+		}
+		policies = append(policies, &policy)
+	}
+
+	return policies
+}
+
+// Watch returns a channel that receives notifications of policy changes.
+func (e *EtcdStore) Watch() <-chan WatchEvent {
+	ch := make(chan WatchEvent, 100) // Buffer to prevent blocking
+	
+	e.watcherMu.Lock()
+	e.watchers = append(e.watchers, ch)
+	e.watcherMu.Unlock()
+
+	return ch
+}
+
+// startGlobalWatcher starts a global watcher that monitors all policy changes
+// and distributes events to all registered watchers.
+func (e *EtcdStore) startGlobalWatcher() {
+	watchCh := e.client.Watch(e.ctx, policyPrefix, clientv3.WithPrefix())
+
+	for {
+		select {
+		case <-e.ctx.Done():
+			return
+		case wresp, ok := <-watchCh:
+			if !ok {
+				// Watch channel closed, recreate it
+				watchCh = e.client.Watch(e.ctx, policyPrefix, clientv3.WithPrefix())
+				continue
+			}
+
+			if wresp.Err() != nil {
+				// Log error and continue watching
+				continue
+			}
+
+			// Process all events in this watch response
+			for _, event := range wresp.Events {
+				e.processWatchEvent(event)
+			}
+		}
+	}
+}
+
+// processWatchEvent converts an etcd event to our WatchEvent and distributes it.
+func (e *EtcdStore) processWatchEvent(event *clientv3.Event) {
+	var watchEvent WatchEvent
+	var policy *FaultInjectionPolicy
+
+	// Extract policy name from key
+	key := string(event.Kv.Key)
+	if !strings.HasPrefix(key, policyPrefix) {
+		return
+	}
+
+	switch event.Type {
+	case mvccpb.PUT:
+		// Parse the policy from the event value
+		var p FaultInjectionPolicy
+		if err := json.Unmarshal(event.Kv.Value, &p); err != nil {
+			return // Skip malformed policies
+		}
+		policy = &p
+		watchEvent = WatchEvent{
+			Type:   EventTypePut,
+			Policy: policy,
+		}
+	case mvccpb.DELETE:
+		// For delete events, we only have the key, not the full policy
+		// Extract the policy name from the key
+		policyName := strings.TrimPrefix(key, policyPrefix)
+		policy = &FaultInjectionPolicy{
+			Metadata: Metadata{Name: policyName},
+		}
+		watchEvent = WatchEvent{
+			Type:   EventTypeDelete,
+			Policy: policy,
+		}
+	default:
+		return // Ignore other event types
+	}
+
+	// Distribute the event to all watchers
+	e.distributeWatchEvent(watchEvent)
+}
+
+// distributeWatchEvent sends the watch event to all registered watchers.
+func (e *EtcdStore) distributeWatchEvent(event WatchEvent) {
+	e.watcherMu.RLock()
+	defer e.watcherMu.RUnlock()
+
+	for i, watcher := range e.watchers {
+		select {
+		case watcher <- event:
+			// Event sent successfully
+		default:
+			// Watcher channel is full or closed, remove it
+			e.removeWatcherAt(i)
+		}
+	}
+}
+
+// removeWatcherAt removes a watcher at the specified index (not thread-safe).
+func (e *EtcdStore) removeWatcherAt(index int) {
+	if index < 0 || index >= len(e.watchers) {
+		return
+	}
+
+	// Close the channel
+	close(e.watchers[index])
+
+	// Remove from slice
+	e.watchers = append(e.watchers[:index], e.watchers[index+1:]...)
+}

@@ -1,6 +1,35 @@
 use serde::{Deserialize, Deserializer};
 use regex::Regex;
 
+// API 响应结构 - 用于解析 Control Plane 的 /v1/policies 响应
+#[derive(Debug, Clone, Deserialize)]
+pub struct PoliciesResponse {
+    pub policies: Vec<PolicyWrapper>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PolicyWrapper {
+    pub metadata: PolicyMetadata,
+    pub spec: PolicySpec,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PolicyMetadata {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PolicySpec {
+    pub rules: Vec<RuleSpec>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RuleSpec {
+    #[serde(rename = "match")]
+    pub match_condition: MatchCondition,
+    pub fault: Fault,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct CompiledRuleSet {
     pub version: String,
@@ -63,8 +92,9 @@ pub struct AbortAction {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DelayAction {
-    #[serde(rename = "fixedDelay")]
+    #[serde(rename = "fixed_delay")]
     pub fixed_delay: String,
+    #[serde(skip)]
     pub parsed_duration_ms: Option<u64>,
 }
 
@@ -178,10 +208,53 @@ impl CompiledRuleSet {
     pub fn from_slice(bytes: &[u8]) -> Result<Self, serde_json::Error> {
         let mut ruleset: CompiledRuleSet = serde_json::from_slice(bytes)?;
         
-        // Pre-process delay durations
+        // Pre-process delay durations for each rule
         for rule in &mut ruleset.rules {
             if let Some(ref mut delay) = rule.fault.delay {
                 delay.parsed_duration_ms = parse_duration(&delay.fixed_delay);
+                if delay.parsed_duration_ms.is_some() {
+                    log::debug!("Parsed delay '{}' to {}ms for rule '{}'", 
+                               delay.fixed_delay, 
+                               delay.parsed_duration_ms.unwrap(), 
+                               rule.name);
+                }
+            }
+        }
+        
+        Ok(ruleset)
+    }
+
+    /// Create CompiledRuleSet from Control Plane API response
+    pub fn from_policies_response(bytes: &[u8]) -> Result<Self, serde_json::Error> {
+        let response: PoliciesResponse = serde_json::from_slice(bytes)?;
+        
+        let mut rules = Vec::new();
+        for policy in response.policies {
+            for rule_spec in policy.spec.rules {
+                let compiled_rule = CompiledRule {
+                    name: policy.metadata.name.clone(),
+                    match_condition: rule_spec.match_condition,
+                    fault: rule_spec.fault,
+                };
+                rules.push(compiled_rule);
+            }
+        }
+        
+        let mut ruleset = CompiledRuleSet {
+            version: "1.0".to_string(),
+            rules,
+        };
+        
+        // Pre-process delay durations for each rule
+        for rule in &mut ruleset.rules {
+            if let Some(ref mut delay) = rule.fault.delay {
+                delay.parsed_duration_ms = parse_duration(&delay.fixed_delay);
+                if delay.parsed_duration_ms.is_some() {
+                    log::debug!("Parsed delay '{}' to {}ms for rule '{}'", 
+                               delay.fixed_delay, 
+                               delay.parsed_duration_ms.unwrap(), 
+                               rule.name);
+                }
             }
         }
         
