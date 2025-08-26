@@ -1,0 +1,24 @@
+{
+  "metadata": {
+    "name": "test-delay-policy"
+  },
+  "spec": {
+    "rules": [
+      {
+        "match": {
+          "httpMethod": "GET",
+          "path": "/api/products",
+          "headers": {
+            "version": "v1"
+          }
+        },
+        "fault": {
+          "delay": {
+            "percentage": 50,
+            "fixedDelayMs": 2000
+          }
+        }
+      }
+    ]
+  }
+}

@@ -60,6 +60,15 @@ services:
       - wasm-plugin:/opt/wasm-plugin
     command: ["sh", "-c", "cp /plugin.wasm /opt/wasm-plugin/plugin.wasm && echo 'Wasm plugin built successfully'"]
 
+  # Test Backend Service
+  # Simple HTTP server for testing fault injection
+  backend:
+    image: nginx:alpine
+    networks:
+      - hfi-net
+    volumes:
+      - ./test-html:/usr/share/nginx/html
+    
   # Envoy Proxy Service
   # This service runs the Envoy proxy, which loads the Wasm plugin.
   envoy:

@@ -1,0 +1,12 @@
+metadata:
+  name: "test-50-percent-policy"
+spec:
+  rules:
+    - match:
+        httpMethod: "GET"
+        path:
+          exact: "/"
+      fault:
+        percentage: 50
+        delay:
+          fixed_delay: "500ms"

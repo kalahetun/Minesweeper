@@ -1,0 +1,20 @@
+metadata:
+  name: "test-abort-policy"
+spec:
+  rules:
+    - match:
+        httpMethod: "GET"
+        path: "/api/users"
+        headers:
+          user-type: "premium"
+      fault:
+        abort:
+          percentage: 20
+          httpStatus: 500
+    - match:
+        httpMethod: "POST"
+        path: "/api/orders"
+      fault:
+        delay:
+          percentage: 30
+          fixedDelayMs: 1000

@@ -1,0 +1,12 @@
+metadata:
+  name: "test-abort-root-policy"  # 使用相同名称来更新现有策略
+spec:
+  rules:
+    - match:
+        httpMethod: "GET"
+        path:
+          exact: "/"
+      fault:
+        percentage: 100
+        delay:
+          fixed_delay: "1000ms"

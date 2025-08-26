@@ -26,7 +26,7 @@ static_resources:
                         - match:
                             prefix: "/"
                           route:
-                            cluster: google_service
+                            cluster: local_backend
                 http_filters:
                   - name: envoy.filters.http.wasm
                     typed_config:
@@ -45,26 +45,20 @@ static_resources:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
 
   clusters:
-    - name: google_service
+    - name: local_backend
       connect_timeout: 5s
       type: LOGICAL_DNS
-      # Note: use an IP address for the DNS lookup to avoid blocking on startup.
       dns_lookup_family: V4_ONLY
       lb_policy: ROUND_ROBIN
       load_assignment:
-        cluster_name: google_service
+        cluster_name: local_backend
         endpoints:
           - lb_endpoints:
               - endpoint:
                   address:
                     socket_address:
-                      address: www.google.com
-                      port_value: 443
-      transport_socket:
-        name: envoy.transport_sockets.tls
-        typed_config:
-          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-          sni: www.google.com
+                      address: backend
+                      port_value: 80
     # This cluster is used by the Wasm plugin to communicate with the control plane.
     # It's a static cluster that points to the host machine where the control plane is running.
     - name: hfi_control_plane

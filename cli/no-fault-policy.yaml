@@ -1,0 +1,11 @@
+metadata:
+  name: "test-abort-root-policy"
+spec:
+  rules:
+    - match:
+        httpMethod: "GET"
+        path: "/nonmatch"  # 不匹配的路径，所以不会应用故障
+      fault:
+        delay:
+          percentage: 100
+          fixedDelayMs: 1000

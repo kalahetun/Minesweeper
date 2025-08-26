@@ -1,0 +1,6 @@
+FROM nginx:alpine
+COPY <<EOF /usr/share/nginx/html/index.html
+<html>
+<head><title>Test Backend</title></head>
+</html>
+EOF

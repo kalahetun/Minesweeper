@@ -1,0 +1,11 @@
+metadata:
+  # Missing name field
+spec:
+  rules:
+    - match:
+        httpMethod: "GET"
+        path: "/api/test"
+      fault:
+        abort:
+          percentage: 50
+          httpStatus: 500

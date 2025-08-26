@@ -1,0 +1,11 @@
+metadata:
+  name: "test-abort-root-policy"
+spec:
+  rules:
+    - match:
+        httpMethod: "GET"
+        path: "/"
+      fault:
+        abort:
+          percentage: 100
+          httpStatus: 503

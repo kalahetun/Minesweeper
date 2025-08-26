@@ -1,0 +1,15 @@
+metadata:
+  name: "test-header-policy"
+spec:
+  rules:
+    - match:
+        httpMethod: "GET"
+        path:
+          exact: "/"
+        headers:
+          - name: "x-user-id"
+            exact: "test"
+      fault:
+        percentage: 100
+        delay:
+          fixed_delay: "800ms"
