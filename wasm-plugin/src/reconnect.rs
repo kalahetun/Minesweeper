@@ -1,0 +1,174 @@
+use log::{debug, warn, error};
+use std::time::Duration;
+
+/// 重连状态管理器，实现指数退避重连机制
+pub struct ReconnectManager {
+    /// 当前重连尝试次数
+    pub attempts: u32,
+    /// 初始重连延迟
+    pub initial_delay: Duration,
+    /// 最大重连延迟
+    pub max_delay: Duration,
+    /// 最大重连尝试次数
+    pub max_attempts: u32,
+    /// 当前重连延迟
+    pub current_delay: Duration,
+    /// 是否正在重连过程中
+    pub is_reconnecting: bool,
+}
+
+impl ReconnectManager {
+    /// 创建新的重连管理器
+    pub fn new() -> Self {
+        Self {
+            attempts: 0,
+            initial_delay: Duration::from_secs(1),
+            max_delay: Duration::from_secs(60),
+            max_attempts: 10,
+            current_delay: Duration::from_secs(1),
+            is_reconnecting: false,
+        }
+    }
+
+    /// 创建自定义配置的重连管理器
+    pub fn with_config(
+        initial_delay: Duration,
+        max_delay: Duration,
+        max_attempts: u32,
+    ) -> Self {
+        Self {
+            attempts: 0,
+            initial_delay,
+            max_delay,
+            max_attempts,
+            current_delay: initial_delay,
+            is_reconnecting: false,
+        }
+    }
+
+    /// 处理连接失败，计算下次重连延迟
+    pub fn on_failure(&mut self) -> Option<Duration> {
+        self.attempts += 1;
+        
+        if self.attempts > self.max_attempts {
+            error!(
+                "Max reconnection attempts reached: {}/{}",
+                self.attempts, self.max_attempts
+            );
+            return None;
+        }
+
+        // 指数退避算法: delay = min(initial_delay * 2^attempts, max_delay)
+        let exponential_delay = self.initial_delay
+            .checked_mul(2_u32.checked_pow(self.attempts.saturating_sub(1)).unwrap_or(1))
+            .unwrap_or(self.max_delay);
+        
+        self.current_delay = std::cmp::min(exponential_delay, self.max_delay);
+        self.is_reconnecting = true;
+
+        warn!(
+            "Connection failed, scheduling reconnect attempt {}/{} in {:?}",
+            self.attempts, self.max_attempts, self.current_delay
+        );
+
+        Some(self.current_delay)
+    }
+
+    /// 处理连接成功，重置重连状态
+    pub fn on_success(&mut self) {
+        if self.attempts > 0 {
+            debug!(
+                "Reconnection successful after {} attempts",
+                self.attempts
+            );
+        }
+
+        self.attempts = 0;
+        self.current_delay = self.initial_delay;
+        self.is_reconnecting = false;
+    }
+
+    /// 检查是否应该尝试重连
+    pub fn should_reconnect(&self) -> bool {
+        self.attempts < self.max_attempts
+    }
+
+    /// 获取当前重连延迟
+    pub fn get_current_delay(&self) -> Duration {
+        self.current_delay
+    }
+
+    /// 检查是否正在重连中
+    pub fn is_reconnecting(&self) -> bool {
+        self.is_reconnecting
+    }
+
+    /// 获取当前尝试次数
+    pub fn get_attempts(&self) -> u32 {
+        self.attempts
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_exponential_backoff() {
+        let mut manager = ReconnectManager::with_config(
+            Duration::from_millis(100),
+            Duration::from_secs(10),
+            5,
+        );
+
+        // 第一次失败
+        let delay1 = manager.on_failure().unwrap();
+        assert_eq!(delay1, Duration::from_millis(100));
+        assert_eq!(manager.get_attempts(), 1);
+
+        // 第二次失败
+        let delay2 = manager.on_failure().unwrap();
+        assert_eq!(delay2, Duration::from_millis(200));
+        assert_eq!(manager.get_attempts(), 2);
+
+        // 第三次失败
+        let delay3 = manager.on_failure().unwrap();
+        assert_eq!(delay3, Duration::from_millis(400));
+        assert_eq!(manager.get_attempts(), 3);
+
+        // 成功后重置
+        manager.on_success();
+        assert_eq!(manager.get_attempts(), 0);
+        assert!(!manager.is_reconnecting());
+    }
+
+    #[test]
+    fn test_max_attempts() {
+        let mut manager = ReconnectManager::with_config(
+            Duration::from_millis(100),
+            Duration::from_secs(10),
+            2,
+        );
+
+        // 前两次失败应该返回延迟
+        assert!(manager.on_failure().is_some());
+        assert!(manager.on_failure().is_some());
+        
+        // 第三次失败应该返回 None（超过最大尝试次数）
+        assert!(manager.on_failure().is_none());
+    }
+
+    #[test]
+    fn test_max_delay() {
+        let mut manager = ReconnectManager::with_config(
+            Duration::from_millis(100),
+            Duration::from_millis(300),
+            10,
+        );
+
+        manager.on_failure(); // 100ms
+        manager.on_failure(); // 200ms
+        let delay3 = manager.on_failure().unwrap(); // should be capped at 300ms
+        assert_eq!(delay3, Duration::from_millis(300));
+    }
+}
