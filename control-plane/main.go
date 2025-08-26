@@ -4,16 +4,27 @@ import (
 	"flag"
 	"fmt"
 	"hfi/control-plane/api"
+	"hfi/control-plane/logger"
+	"hfi/control-plane/middleware"
 	"hfi/control-plane/service"
 	"hfi/control-plane/storage"
-	"log"
 	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 func main() {
+	// Initialize structured logging
+	if err := logger.Init(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
+		os.Exit(1)
+	}
+	defer logger.Sync()
+
+	log := logger.WithComponent("main")
+
 	// 解析命令行参数
 	var (
 		storageType = flag.String("storage", "memory", "Storage backend type: memory or etcd")
@@ -33,26 +44,29 @@ func main() {
 		*listenAddr = envListen
 	}
 
-	log.Printf("Starting Control Plane with storage backend: %s", *storageType)
+	log.Info("Starting Control Plane",
+		zap.String("storage_backend", *storageType),
+		zap.String("listen_addr", *listenAddr))
+
 	if *storageType == "etcd" {
-		log.Printf("etcd endpoints: %s", *etcdEndpoints)
+		log.Info("Using etcd storage backend",
+			zap.String("etcd_endpoints", *etcdEndpoints))
 	}
 
 	// 1. 初始化存储
 	store, err := initializeStore(*storageType, *etcdEndpoints)
 	if err != nil {
-		log.Fatalf("Failed to initialize storage: %v", err)
+		log.Fatal("Failed to initialize storage", zap.Error(err))
 	}
 
 	// 如果是 etcd store，确保在程序退出时清理资源
 	if etcdStore, ok := store.(*storage.EtcdStore); ok {
 		defer func() {
 			if err := etcdStore.Close(); err != nil {
-				log.Printf("Error closing etcd store: %v", err)
+				log.Error("Failed to close etcd store", zap.Error(err))
 			}
 		}()
 	}
-
 	// 2. 初始化配置分发器
 	distributor := NewConfigDistributor(store)
 
@@ -63,9 +77,11 @@ func main() {
 	policyController := api.NewPolicyController(policyService)
 
 	// 5. 初始化 Gin 引擎
-	router := gin.Default()
+	router := gin.New()
 	
-	// 6. 添加错误处理中间件
+	// 6. 添加中间件
+	router.Use(middleware.RequestIDMiddleware())
+	router.Use(middleware.LoggingMiddleware())
 	router.Use(api.ErrorHandlerMiddleware())
 
 	// 7. 定义 v1 路由组
@@ -87,21 +103,28 @@ func main() {
 	}
 
 	// 8. 启动服务器
-	log.Printf("Control Plane server starting with %s storage backend", *storageType)
-	log.Printf("Server listening on %s", *listenAddr)
+	log.Info("Control Plane server starting",
+		zap.String("storage_backend", *storageType),
+		zap.String("listen_addr", *listenAddr))
+
+	log.Info("Server listening", zap.String("address", *listenAddr))
+	
 	if err := router.Run(*listenAddr); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		log.Fatal("Failed to start server", zap.Error(err))
 	}
 }
 
 // initializeStore 根据存储类型初始化相应的存储后端
 func initializeStore(storageType, etcdEndpoints string) (storage.IPolicyStore, error) {
+	log := logger.WithComponent("storage")
+	
 	switch strings.ToLower(storageType) {
 	case "memory":
-		log.Println("Using memory storage backend")
+		log.Info("Using memory storage backend")
 		return storage.NewMemoryStore(), nil
 	case "etcd":
-		log.Println("Using etcd storage backend")
+		log.Info("Using etcd storage backend", 
+			zap.String("endpoints", etcdEndpoints))
 		endpoints := strings.Split(etcdEndpoints, ",")
 		for i, endpoint := range endpoints {
 			endpoints[i] = strings.TrimSpace(endpoint)

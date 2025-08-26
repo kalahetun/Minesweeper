@@ -10,6 +10,8 @@ import (
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/api/v3/mvccpb"
+	"go.uber.org/zap"
+	"hfi/control-plane/logger"
 )
 
 const (
@@ -28,11 +30,16 @@ type EtcdStore struct {
 
 // NewEtcdStore creates a new EtcdStore instance.
 func NewEtcdStore(endpoints []string) (*EtcdStore, error) {
+	log := logger.WithComponent("storage.etcd")
+	
 	client, err := clientv3.New(clientv3.Config{
 		Endpoints:   endpoints,
 		DialTimeout: 5 * time.Second,
 	})
 	if err != nil {
+		log.Error("Failed to create etcd client", 
+			zap.Strings("endpoints", endpoints),
+			zap.Error(err))
 		return nil, fmt.Errorf("failed to create etcd client: %w", err)
 	}
 
@@ -48,6 +55,8 @@ func NewEtcdStore(endpoints []string) (*EtcdStore, error) {
 	// Start the global watcher goroutine
 	go store.startGlobalWatcher()
 
+	log.Info("etcd store initialized successfully", 
+		zap.Strings("endpoints", endpoints))
 	return store, nil
 }
 
