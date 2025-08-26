@@ -3,9 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"hfi/control-plane/api"
+	"hfi/control-plane/service"
 	"hfi/control-plane/storage"
 	"log"
-	"net/http"
 	"os"
 	"strings"
 
@@ -55,10 +56,19 @@ func main() {
 	// 2. 初始化配置分发器
 	distributor := NewConfigDistributor(store)
 
-	// 3. 初始化 Gin 引擎
-	router := gin.Default()
+	// 3. 初始化服务层
+	policyService := service.NewPolicyService(store)
+	
+	// 4. 初始化控制器
+	policyController := api.NewPolicyController(policyService)
 
-	// 4. 定义 v1 路由组
+	// 5. 初始化 Gin 引擎
+	router := gin.Default()
+	
+	// 6. 添加错误处理中间件
+	router.Use(api.ErrorHandlerMiddleware())
+
+	// 7. 定义 v1 路由组
 	v1 := router.Group("/v1")
 	{
 		// 健康检查端点
@@ -67,16 +77,16 @@ func main() {
 		})
 
 		// 策略管理端点
-		v1.POST("/policies", createPolicyHandler(store))
-		v1.GET("/policies/:id", getPolicyHandler(store))
-		v1.GET("/policies", listPoliciesHandler(store))
-		v1.DELETE("/policies/:id", deletePolicyHandler(store))
+		v1.POST("/policies", policyController.CreateOrUpdate)
+		v1.GET("/policies/:id", policyController.Get)
+		v1.GET("/policies", policyController.List)
+		v1.DELETE("/policies/:id", policyController.Delete)
 
 		// 将 SSE 端点处理器与分发器连接
 		v1.GET("/config/stream", sseHandler(distributor))
 	}
 
-	// 5. 启动服务器
+	// 8. 启动服务器
 	log.Printf("Control Plane server starting with %s storage backend", *storageType)
 	log.Printf("Server listening on %s", *listenAddr)
 	if err := router.Run(*listenAddr); err != nil {
@@ -99,72 +109,6 @@ func initializeStore(storageType, etcdEndpoints string) (storage.IPolicyStore, e
 		return storage.NewEtcdStore(endpoints)
 	default:
 		return nil, fmt.Errorf("unsupported storage type: %s (supported: memory, etcd)", storageType)
-	}
-}
-
-// createPolicyHandler 创建一个处理策略创建/更新请求的 Gin 处理器。
-func createPolicyHandler(store storage.IPolicyStore) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var policy storage.FaultInjectionPolicy
-		if err := c.ShouldBindJSON(&policy); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body: " + err.Error()})
-			return
-		}
-
-		if err := store.CreateOrUpdate(&policy); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save policy: " + err.Error()})
-			return
-		}
-
-		log.Printf("Policy '%s' created/updated successfully.", policy.Metadata.Name)
-		c.JSON(http.StatusCreated, policy)
-	}
-}
-
-// getPolicyHandler 创建一个处理获取单个策略请求的 Gin 处理器。
-func getPolicyHandler(store storage.IPolicyStore) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		id := c.Param("id")
-		if id == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "policy id is required"})
-			return
-		}
-
-		policy, exists := store.Get(id)
-		if !exists {
-			c.JSON(http.StatusNotFound, gin.H{"error": "policy not found"})
-			return
-		}
-
-		c.JSON(http.StatusOK, policy)
-	}
-}
-
-// listPoliciesHandler 创建一个处理列出所有策略请求的 Gin 处理器。
-func listPoliciesHandler(store storage.IPolicyStore) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		policies := store.List()
-		c.JSON(http.StatusOK, gin.H{"policies": policies})
-	}
-}
-
-// deletePolicyHandler 创建一个处理删除策略请求的 Gin 处理器。
-func deletePolicyHandler(store storage.IPolicyStore) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		id := c.Param("id")
-		if id == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "policy id is required"})
-			return
-		}
-
-		err := store.Delete(id)
-		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "policy not found: " + err.Error()})
-			return
-		}
-
-		log.Printf("Policy '%s' deleted successfully.", id)
-		c.JSON(http.StatusOK, gin.H{"message": "policy deleted successfully"})
 	}
 }
 

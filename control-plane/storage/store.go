@@ -21,7 +21,7 @@ type IPolicyStore interface {
 	// CreateOrUpdate creates a new policy or updates an existing one.
 	CreateOrUpdate(policy *FaultInjectionPolicy) error
 	// Get retrieves a policy by its name.
-	Get(name string) (*FaultInjectionPolicy, bool)
+	Get(name string) (*FaultInjectionPolicy, error)
 	// Delete removes a policy by its name.
 	Delete(name string) error
 	// List retrieves all policies.

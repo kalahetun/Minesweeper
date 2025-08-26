@@ -92,27 +92,27 @@ func (e *EtcdStore) CreateOrUpdate(policy *FaultInjectionPolicy) error {
 }
 
 // Get retrieves a policy by its name.
-func (e *EtcdStore) Get(name string) (*FaultInjectionPolicy, bool) {
+func (e *EtcdStore) Get(name string) (*FaultInjectionPolicy, error) {
 	if name == "" {
-		return nil, false
+		return nil, ErrNotFound
 	}
 
 	key := e.policyKey(name)
 	resp, err := e.client.Get(e.ctx, key)
 	if err != nil {
-		return nil, false
+		return nil, fmt.Errorf("failed to get policy from etcd: %w", err)
 	}
 
 	if len(resp.Kvs) == 0 {
-		return nil, false
+		return nil, ErrNotFound
 	}
 
 	var policy FaultInjectionPolicy
 	if err := json.Unmarshal(resp.Kvs[0].Value, &policy); err != nil {
-		return nil, false
+		return nil, fmt.Errorf("failed to unmarshal policy: %w", err)
 	}
 
-	return &policy, true
+	return &policy, nil
 }
 
 // Delete removes a policy by its name.
@@ -122,7 +122,19 @@ func (e *EtcdStore) Delete(name string) error {
 	}
 
 	key := e.policyKey(name)
-	_, err := e.client.Delete(e.ctx, key)
+	
+	// First check if the key exists
+	resp, err := e.client.Get(e.ctx, key)
+	if err != nil {
+		return fmt.Errorf("failed to check policy existence: %w", err)
+	}
+	
+	if len(resp.Kvs) == 0 {
+		return ErrNotFound
+	}
+	
+	// Delete the key
+	_, err = e.client.Delete(e.ctx, key)
 	if err != nil {
 		return fmt.Errorf("failed to delete policy from etcd: %w", err)
 	}

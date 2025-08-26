@@ -36,12 +36,15 @@ func (s *memoryStore) CreateOrUpdate(policy *FaultInjectionPolicy) error {
 }
 
 // Get retrieves a policy by its name.
-func (s *memoryStore) Get(name string) (*FaultInjectionPolicy, bool) {
+func (s *memoryStore) Get(name string) (*FaultInjectionPolicy, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	policy, ok := s.policies[name]
-	return policy, ok
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return policy, nil
 }
 
 // Delete removes a policy by its name.
@@ -54,7 +57,7 @@ func (s *memoryStore) Delete(name string) error {
 		s.broadcast(WatchEvent{Type: EventTypeDelete, Policy: policy})
 		return nil
 	}
-	return fmt.Errorf("policy with name '%s' not found", name)
+	return ErrNotFound
 }
 
 // List retrieves all policies.
