@@ -1,0 +1,143 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hfi-control-plane
+  namespace: default
+  labels:
+    app: hfi-control-plane
+    component: control-plane
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hfi-control-plane
+  template:
+    metadata:
+      labels:
+        app: hfi-control-plane
+    spec:
+      containers:
+      - name: control-plane
+        image: hfi/control-plane:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: STORAGE_BACKEND
+          value: "etcd"
+        - name: ETCD_ENDPOINTS
+          value: "http://hfi-etcd.default.svc.cluster.local:2379"
+        - name: LOG_LEVEL
+          value: "info"
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /v1/health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /v1/health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hfi-control-plane
+  namespace: default
+  labels:
+    app: hfi-control-plane
+    component: control-plane
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: hfi-control-plane
+---
+# etcd deployment for storage backend
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hfi-etcd
+  namespace: default
+  labels:
+    app: hfi-etcd
+    component: storage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hfi-etcd
+  template:
+    metadata:
+      labels:
+        app: hfi-etcd
+    spec:
+      containers:
+      - name: etcd
+        image: quay.io/coreos/etcd:v3.5.0
+        command:
+        - etcd
+        - --name=etcd0
+        - --data-dir=/etcd-data
+        - --listen-client-urls=http://0.0.0.0:2379
+        - --advertise-client-urls=http://0.0.0.0:2379
+        - --listen-peer-urls=http://0.0.0.0:2380
+        - --initial-advertise-peer-urls=http://0.0.0.0:2380
+        - --initial-cluster=etcd0=http://0.0.0.0:2380
+        - --initial-cluster-token=etcd-cluster-1
+        - --initial-cluster-state=new
+        - --log-level=info
+        - --logger=zap
+        - --log-outputs=stderr
+        ports:
+        - containerPort: 2379
+          name: client
+        - containerPort: 2380
+          name: peer
+        volumeMounts:
+        - name: etcd-data
+          mountPath: /etcd-data
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+      volumes:
+      - name: etcd-data
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hfi-etcd
+  namespace: default
+  labels:
+    app: hfi-etcd
+    component: storage
+spec:
+  type: ClusterIP
+  ports:
+  - port: 2379
+    targetPort: 2379
+    protocol: TCP
+    name: client
+  selector:
+    app: hfi-etcd

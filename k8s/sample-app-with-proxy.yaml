@@ -1,0 +1,160 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-app-with-proxy
+  namespace: default
+  labels:
+    app: sample-app
+    component: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sample-app
+  template:
+    metadata:
+      labels:
+        app: sample-app
+    spec:
+      initContainers:
+      # Init container to copy Wasm plugin binary to shared volume
+      - name: wasm-init
+        image: hfi/wasm-plugin:latest
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh"]
+        args:
+        - -c
+        - |
+          echo "Copying Wasm plugin to shared volume..."
+          cp /usr/local/bin/hfi_plugin.wasm /shared/hfi_plugin.wasm
+          echo "Wasm plugin copied successfully"
+          ls -la /shared/
+        volumeMounts:
+        - name: wasm-plugin
+          mountPath: /shared
+      containers:
+      # Main application container
+      - name: httpbin
+        image: kennethreitz/httpbin:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /get
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /get
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      
+      # Envoy sidecar container
+      - name: envoy-proxy
+        image: envoyproxy/envoy:v1.28-latest
+        ports:
+        - containerPort: 8000
+          name: proxy
+        - containerPort: 9901
+          name: admin
+        command: ["/usr/local/bin/envoy"]
+        args:
+        - -c
+        - /etc/envoy/envoy.yaml
+        - --log-level
+        - info
+        volumeMounts:
+        - name: envoy-config
+          mountPath: /etc/envoy
+          readOnly: true
+        - name: wasm-plugin
+          mountPath: /etc/envoy
+          subPath: hfi_plugin.wasm
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /ready
+            port: 9901
+          initialDelaySeconds: 15
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 9901
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      
+      volumes:
+      # ConfigMap containing Envoy configuration
+      - name: envoy-config
+        configMap:
+          name: hfi-envoy-config
+      # Shared volume for Wasm plugin binary
+      - name: wasm-plugin
+        emptyDir: {}
+      
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample-app-service
+  namespace: default
+  labels:
+    app: sample-app
+    component: demo
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: proxy
+  - port: 9901
+    targetPort: 9901
+    protocol: TCP
+    name: admin
+  selector:
+    app: sample-app
+---
+# Optional: Expose the service externally for testing
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample-app-nodeport
+  namespace: default
+  labels:
+    app: sample-app
+    component: demo
+spec:
+  type: NodePort
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: proxy
+    nodePort: 30080
+  - port: 9901
+    targetPort: 9901
+    protocol: TCP
+    name: admin
+    nodePort: 30901
+  selector:
+    app: sample-app
