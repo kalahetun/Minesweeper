@@ -55,7 +55,7 @@ metadata:
 spec:
   rules:
     - match:
-        httpMethod: "GET"
+        method: "GET"
         path:
           exact: "/"
       fault:
@@ -84,7 +84,7 @@ metadata:
 spec:
   rules:
     - match:
-        httpMethod: "GET"
+        method: "GET"
         path:
           exact: "/"
       fault:
@@ -113,7 +113,7 @@ metadata:
 spec:
   rules:
     - match:
-        httpMethod: "GET"
+        method: "GET"
         path:
           exact: "/"
       fault:
@@ -139,7 +139,7 @@ metadata:
 spec:
   rules:
     - match:
-        httpMethod: "GET"
+        method: "GET"
         path:
           exact: "/"
         headers:
@@ -184,7 +184,7 @@ spec:
   rules:
     # Rule 1: Abort特定用户的请求
     - match:
-        httpMethod: "POST"
+        method: "POST"
         path:
           prefix: "/api/orders"
         headers:
@@ -197,7 +197,7 @@ spec:
     
     # Rule 2: 给高级用户增加延迟
     - match:
-        httpMethod: "GET"
+        method: "GET"
         path:
           regex: "/api/users/\\d+"
         headers:
@@ -210,7 +210,7 @@ spec:
     
     # Rule 3: 模拟服务不稳定
     - match:
-        httpMethod: "GET"
+        method: "GET"
         path:
           exact: "/api/health"
       fault:

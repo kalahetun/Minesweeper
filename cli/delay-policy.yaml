@@ -1,11 +1,12 @@
 metadata:
-  name: "test-abort-root-policy"  # 使用相同名称来更新现有策略
+  name: "test-delay-policy"
 spec:
   rules:
     - match:
-        httpMethod: "GET"
+        method:
+          exact: "GET"
         path:
-          exact: "/"
+          exact: "/test"
       fault:
         percentage: 100
         delay:

@@ -3,7 +3,8 @@ metadata:
 spec:
   rules:
     - match:
-        httpMethod: "GET"
+        method:
+          exact: "GET"
         path:
           exact: "/"
       fault:
