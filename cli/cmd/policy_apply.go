@@ -84,21 +84,37 @@ func validatePolicy(policy *types.FaultInjectionPolicy) error {
 		return fmt.Errorf("policy name is required")
 	}
 
-	if policy.Spec == nil {
-		return fmt.Errorf("policy spec is required")
+	if len(policy.Spec.Rules) == 0 {
+		return fmt.Errorf("at least one rule is required")
 	}
 
-	// Basic spec validation - check if spec has rules
-	if specMap, ok := policy.Spec.(map[string]interface{}); ok {
-		if rules, exists := specMap["rules"]; exists {
-			if rulesSlice, ok := rules.([]interface{}); ok && len(rulesSlice) == 0 {
-				return fmt.Errorf("at least one rule is required")
-			}
-		} else {
-			return fmt.Errorf("spec must contain rules")
+	// Validate each rule
+	for i, rule := range policy.Spec.Rules {
+		if err := validateRule(rule); err != nil {
+			return fmt.Errorf("rule %d: %w", i, err)
 		}
-	} else {
-		return fmt.Errorf("spec must be an object")
+	}
+
+	return nil
+}
+
+// validateRule validates a single rule
+func validateRule(rule types.Rule) error {
+	// At least one match condition should be specified
+	hasMatch := rule.Match.Method != nil || rule.Match.Path != nil || len(rule.Match.Headers) > 0
+	if !hasMatch {
+		return fmt.Errorf("at least one match condition is required")
+	}
+
+	// At least one fault action should be specified  
+	hasFault := rule.Fault.Delay != nil || rule.Fault.Abort != nil
+	if !hasFault {
+		return fmt.Errorf("at least one fault action is required")
+	}
+
+	// Percentage should be between 0 and 100
+	if rule.Fault.Percentage < 0 || rule.Fault.Percentage > 100 {
+		return fmt.Errorf("percentage must be between 0 and 100")
 	}
 
 	return nil

@@ -32,8 +32,6 @@ Examples:
 func init() {
 	// Add subcommands
 	policyCmd.AddCommand(applyCmd)
-	
-	// Future subcommands will be added here:
-	// policyCmd.AddCommand(getCmd) 
-	// policyCmd.AddCommand(deleteCmd)
+	policyCmd.AddCommand(getCmd)
+	policyCmd.AddCommand(deleteCmd)
 }

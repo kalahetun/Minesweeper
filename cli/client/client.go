@@ -131,18 +131,105 @@ func (c *APIClient) CreateOrUpdatePolicy(ctx context.Context, policy *types.Faul
 
 // GetPolicyByName retrieves a specific policy by name
 func (c *APIClient) GetPolicyByName(ctx context.Context, name string) (*types.FaultInjectionPolicy, error) {
-	// TODO: Implement in next task
-	return nil, fmt.Errorf("not implemented yet")
+	url := fmt.Sprintf("%s/v1/policies/%s", c.baseURL, name)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, &APIError{
+			StatusCode: resp.StatusCode,
+			ErrCode:    "NotFound",
+			Message:    fmt.Sprintf("policy %q not found", name),
+		}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, &APIError{
+			StatusCode: resp.StatusCode,
+			Message:    string(bodyBytes),
+		}
+	}
+
+	var policy types.FaultInjectionPolicy
+	if err := json.NewDecoder(resp.Body).Decode(&policy); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &policy, nil
 }
 
 // ListPolicies retrieves all policies
 func (c *APIClient) ListPolicies(ctx context.Context) ([]*types.FaultInjectionPolicy, error) {
-	// TODO: Implement in next task
-	return nil, fmt.Errorf("not implemented yet")
+	url := fmt.Sprintf("%s/v1/policies", c.baseURL)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, &APIError{
+			StatusCode: resp.StatusCode,
+			Message:    string(bodyBytes),
+		}
+	}
+
+	// Control Plane returns {"policies": [...]}, so we need a wrapper struct
+	var response struct {
+		Policies []*types.FaultInjectionPolicy `json:"policies"`
+	}
+	
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return response.Policies, nil
 }
 
 // DeletePolicy deletes a policy by name
 func (c *APIClient) DeletePolicy(ctx context.Context, name string) error {
-	// TODO: Implement in next task
-	return fmt.Errorf("not implemented yet")
+	url := fmt.Sprintf("%s/v1/policies/%s", c.baseURL, name)
+	req, err := http.NewRequestWithContext(ctx, "DELETE", url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return &APIError{
+			StatusCode: resp.StatusCode,
+			ErrCode:    "NotFound",
+			Message:    fmt.Sprintf("policy %q not found", name),
+		}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return &APIError{
+			StatusCode: resp.StatusCode,
+			Message:    string(bodyBytes),
+		}
+	}
+
+	return nil
 }
