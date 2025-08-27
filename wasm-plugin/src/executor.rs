@@ -1,13 +1,22 @@
 use crate::config::{Fault, AbortAction, DelayAction};
 use proxy_wasm::traits::HttpContext;
 use proxy_wasm::types::Action;
-use log::{info, warn};
+use log::{info, warn, debug};
+
+/// Metrics IDs for fault injection counters
+#[derive(Clone, Copy)]
+pub struct MetricsIds {
+    pub aborts_total: Option<u32>,
+    pub delays_total: Option<u32>,
+    pub delay_duration_histogram: Option<u32>,
+}
 
 /// Execute fault injection logic
 pub fn execute_fault(
     fault: &Fault,
     http_context: &dyn HttpContext,
     context_id: u32,
+    metrics: MetricsIds,
 ) -> Action {
     // Probability check
     let random_value = generate_random_percentage();
@@ -24,10 +33,10 @@ pub fn execute_fault(
     // Execute fault based on type
     if let Some(ref abort) = fault.abort {
         info!("Executing abort fault with status {}", abort.http_status);
-        execute_abort(abort, http_context)
+        execute_abort(abort, http_context, metrics)
     } else if let Some(ref delay) = fault.delay {
         info!("Executing delay fault: {}", delay.fixed_delay);
-        execute_delay(delay, context_id)
+        execute_delay(delay, context_id, metrics)
     } else {
         warn!("No fault action specified, continuing");
         Action::Continue
@@ -35,7 +44,7 @@ pub fn execute_fault(
 }
 
 /// Execute abort fault
-fn execute_abort(abort: &AbortAction, http_context: &dyn HttpContext) -> Action {
+fn execute_abort(abort: &AbortAction, http_context: &dyn HttpContext, metrics: MetricsIds) -> Action {
     let body = abort.body.as_deref().unwrap_or("Fault injection: Service unavailable");
     let headers = vec![
         ("content-type", "text/plain"),
@@ -44,15 +53,48 @@ fn execute_abort(abort: &AbortAction, http_context: &dyn HttpContext) -> Action 
     
     info!("Sending abort response: status={}, body_len={}", abort.http_status, body.len());
     
+    // Increment abort counter metric
+    if let Some(metric_id) = metrics.aborts_total {
+        if let Err(e) = increment_counter(metric_id, 1) {
+            warn!("Failed to increment abort counter: {:?}", e);
+        } else {
+            debug!("Incremented hfi.faults.aborts_total counter");
+        }
+    } else {
+        debug!("Aborts total metric not available");
+    }
+    
     // send_http_response returns (), not a Result
     http_context.send_http_response(abort.http_status, headers, Some(body.as_bytes()));
     Action::Pause
 }
 
 /// Execute delay fault (simplified for W-4)
-fn execute_delay(delay: &DelayAction, context_id: u32) -> Action {
+fn execute_delay(delay: &DelayAction, context_id: u32, metrics: MetricsIds) -> Action {
     if let Some(duration_ms) = delay.parsed_duration_ms {
         info!("Applying delay of {}ms for context {}", duration_ms, context_id);
+        
+        // Increment delay counter metric
+        if let Some(metric_id) = metrics.delays_total {
+            if let Err(e) = increment_counter(metric_id, 1) {
+                warn!("Failed to increment delay counter: {:?}", e);
+            } else {
+                debug!("Incremented hfi.faults.delays_total counter");
+            }
+        } else {
+            debug!("Delays total metric not available");
+        }
+        
+        // Record delay duration in histogram
+        if let Some(metric_id) = metrics.delay_duration_histogram {
+            if let Err(e) = record_histogram(metric_id, duration_ms) {
+                warn!("Failed to record delay duration histogram: {:?}", e);
+            } else {
+                debug!("Recorded delay duration {}ms in histogram", duration_ms);
+            }
+        } else {
+            debug!("Delay duration histogram metric not available");
+        }
         
         // For demonstration, use a simple blocking approach
         // In production, this would use proper async delay mechanisms with timers
@@ -98,6 +140,18 @@ pub fn generate_random_percentage() -> u32 {
         // Return value between 0-100
         (SEED % 101) as u32
     }
+}
+
+/// Increment a counter metric
+fn increment_counter(metric_id: u32, value: u64) -> Result<(), proxy_wasm::types::Status> {
+    debug!("Incrementing counter with ID {} by {}", metric_id, value);
+    proxy_wasm::hostcalls::increment_metric(metric_id, value as i64)
+}
+
+/// Record a value in a histogram metric
+fn record_histogram(metric_id: u32, value: u64) -> Result<(), proxy_wasm::types::Status> {
+    debug!("Recording histogram with ID {} value: {}", metric_id, value);
+    proxy_wasm::hostcalls::record_metric(metric_id, value)
 }
 
 /// Manages delayed requests
@@ -190,7 +244,12 @@ mod tests {
         };
         
         let mock_context = MockHttpContext::new();
-        let result = execute_fault(&fault, &mock_context, 1);
+        let metrics = MetricsIds {
+            aborts_total: None,
+            delays_total: None,
+            delay_duration_histogram: None,
+        };
+        let result = execute_fault(&fault, &mock_context, 1, metrics);
         
         assert_eq!(result, Action::Pause);
         
@@ -215,7 +274,12 @@ mod tests {
         };
         
         let mock_context = MockHttpContext::new();
-        let result = execute_fault(&fault, &mock_context, 1);
+        let metrics = MetricsIds {
+            aborts_total: None,
+            delays_total: None,
+            delay_duration_histogram: None,
+        };
+        let result = execute_fault(&fault, &mock_context, 1, metrics);
         
         // For W-4, delay just logs and continues
         assert_eq!(result, Action::Continue);
@@ -235,7 +299,12 @@ mod tests {
         };
         
         let mock_context = MockHttpContext::new();
-        let result = execute_fault(&fault, &mock_context, 1);
+        let metrics = MetricsIds {
+            aborts_total: None,
+            delays_total: None,
+            delay_duration_histogram: None,
+        };
+        let result = execute_fault(&fault, &mock_context, 1, metrics);
         
         assert_eq!(result, Action::Continue);
         assert!(mock_context.get_sent_response().is_none());
@@ -262,7 +331,12 @@ mod tests {
         };
         
         let mock_context = MockHttpContext::new();
-        let result = execute_fault(&fault, &mock_context, 1);
+        let metrics = MetricsIds {
+            aborts_total: None,
+            delays_total: None,
+            delay_duration_histogram: None,
+        };
+        let result = execute_fault(&fault, &mock_context, 1, metrics);
         
         assert_eq!(result, Action::Continue);
     }

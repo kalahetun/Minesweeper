@@ -40,6 +40,9 @@ pub fn _start() {
             delay_manager: DelayManager::new(),
             reconnect_manager: ReconnectManager::new(),
             config_call_id: None,
+            aborts_total_metric: None,
+            delays_total_metric: None,
+            delay_duration_histogram: None,
         })
     });
 }
@@ -53,6 +56,10 @@ struct PluginRootContext {
     delay_manager: DelayManager,
     reconnect_manager: ReconnectManager,
     config_call_id: Option<u32>,
+    // Metrics IDs
+    aborts_total_metric: Option<u32>,
+    delays_total_metric: Option<u32>,
+    delay_duration_histogram: Option<u32>,
 }
 
 impl FaultExecutorContext for PluginRootContext {
@@ -62,6 +69,62 @@ impl FaultExecutorContext for PluginRootContext {
 }
 
 impl PluginRootContext {
+    fn define_metrics(&mut self) {
+        // Define abort counter metric
+        match proxy_wasm::hostcalls::define_metric(
+            proxy_wasm::types::MetricType::Counter,
+            "hfi.faults.aborts_total"
+        ) {
+            Ok(metric_id) => {
+                info!("Defined aborts_total metric with ID: {}", metric_id);
+                self.aborts_total_metric = Some(metric_id);
+            }
+            Err(e) => {
+                warn!("Failed to define aborts_total metric: {:?}", e);
+            }
+        }
+
+        // Define delay counter metric
+        match proxy_wasm::hostcalls::define_metric(
+            proxy_wasm::types::MetricType::Counter,
+            "hfi.faults.delays_total"
+        ) {
+            Ok(metric_id) => {
+                info!("Defined delays_total metric with ID: {}", metric_id);
+                self.delays_total_metric = Some(metric_id);
+            }
+            Err(e) => {
+                warn!("Failed to define delays_total metric: {:?}", e);
+            }
+        }
+
+        // Define delay duration histogram metric
+        match proxy_wasm::hostcalls::define_metric(
+            proxy_wasm::types::MetricType::Histogram,
+            "hfi.faults.delay_duration_milliseconds"
+        ) {
+            Ok(metric_id) => {
+                info!("Defined delay_duration_milliseconds metric with ID: {}", metric_id);
+                self.delay_duration_histogram = Some(metric_id);
+            }
+            Err(e) => {
+                warn!("Failed to define delay_duration_milliseconds metric: {:?}", e);
+            }
+        }
+    }
+
+    fn get_aborts_total_metric(&self) -> Option<u32> {
+        self.aborts_total_metric
+    }
+
+    fn get_delays_total_metric(&self) -> Option<u32> {
+        self.delays_total_metric
+    }
+
+    fn get_delay_duration_histogram(&self) -> Option<u32> {
+        self.delay_duration_histogram
+    }
+    
     fn dispatch_config_request(&mut self) {
         // 如果正在重连中，不要发起新的请求
         if self.reconnect_manager.is_reconnecting() {
@@ -209,6 +272,10 @@ impl Context for PluginRootContext {
 impl RootContext for PluginRootContext {
     fn on_configure(&mut self, _plugin_configuration_size: usize) -> bool {
         info!("Plugin configured...");
+        
+        // Define metrics
+        self.define_metrics();
+        
         if let Some(config_bytes) = self.get_plugin_configuration() {
             if let Ok(config_str) = std::str::from_utf8(&config_bytes) {
                 let config_str = config_str.trim();
@@ -252,6 +319,11 @@ impl RootContext for PluginRootContext {
         Some(Box::new(PluginHttpContext {
             context_id,
             rules: self.current_rules.clone(),
+            metrics: executor::MetricsIds {
+                aborts_total: self.aborts_total_metric,
+                delays_total: self.delays_total_metric,
+                delay_duration_histogram: self.delay_duration_histogram,
+            },
         }))
     }
 
@@ -266,6 +338,7 @@ impl RootContext for PluginRootContext {
 struct PluginHttpContext {
     context_id: u32,
     rules: Arc<RwLock<Option<CompiledRuleSet>>>,
+    metrics: executor::MetricsIds,
 }
 
 impl Context for PluginHttpContext {}
@@ -303,7 +376,7 @@ impl HttpContext for PluginHttpContext {
                   matched_rule.name, matched_rule.fault.percentage);
             
             // Execute fault injection using the executor module
-            return executor::execute_fault(&matched_rule.fault, self, self.context_id);
+            return executor::execute_fault(&matched_rule.fault, self, self.context_id, self.metrics);
         } else {
             debug!("No rules matched, allowing request to continue");
         }
