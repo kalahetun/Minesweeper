@@ -35,6 +35,42 @@ func (s *memoryStore) CreateOrUpdate(policy *FaultInjectionPolicy) error {
 	return nil
 }
 
+// Create creates a new policy. Returns ErrAlreadyExists if the policy already exists.
+func (s *memoryStore) Create(policy *FaultInjectionPolicy) error {
+	if policy == nil || policy.Metadata.Name == "" {
+		return ErrInvalidInput
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.policies[policy.Metadata.Name]; exists {
+		return ErrAlreadyExists
+	}
+
+	s.policies[policy.Metadata.Name] = policy
+	s.broadcast(WatchEvent{Type: EventTypePut, Policy: policy})
+	return nil
+}
+
+// Update updates an existing policy. Returns ErrNotFound if the policy doesn't exist.
+func (s *memoryStore) Update(policy *FaultInjectionPolicy) error {
+	if policy == nil || policy.Metadata.Name == "" {
+		return ErrInvalidInput
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.policies[policy.Metadata.Name]; !exists {
+		return ErrNotFound
+	}
+
+	s.policies[policy.Metadata.Name] = policy
+	s.broadcast(WatchEvent{Type: EventTypePut, Policy: policy})
+	return nil
+}
+
 // Get retrieves a policy by its name.
 func (s *memoryStore) Get(name string) (*FaultInjectionPolicy, error) {
 	s.mu.RLock()

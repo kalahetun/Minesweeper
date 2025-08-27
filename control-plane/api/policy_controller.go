@@ -46,6 +46,77 @@ func (pc *PolicyController) CreateOrUpdate(c *gin.Context) {
 	c.JSON(http.StatusCreated, policy)
 }
 
+// Create handles POST /v1/policies/create
+func (pc *PolicyController) Create(c *gin.Context) {
+	log := logger.WithComponent("api.policy")
+	
+	var policy storage.FaultInjectionPolicy
+	if err := c.ShouldBindJSON(&policy); err != nil {
+		log.Warn("Invalid request body for create", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body: " + err.Error()})
+		return
+	}
+
+	policyName := policy.Metadata.Name
+	policyLog := logger.WithPolicyName(policyName)
+	
+	if err := pc.policyService.CreatePolicy(&policy); err != nil {
+		policyLog.Error("Failed to create policy", zap.Error(err))
+		c.Error(err)
+		return
+	}
+
+	policyLog.Info("Policy created successfully")
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "policy created successfully",
+		"policy":  policy,
+	})
+}
+
+// Update handles PUT /v1/policies/:id
+func (pc *PolicyController) Update(c *gin.Context) {
+	log := logger.WithComponent("api.policy")
+	id := c.Param("id")
+	
+	if id == "" {
+		log.Warn("Missing policy ID in update request")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "policy id is required"})
+		return
+	}
+
+	var policy storage.FaultInjectionPolicy
+	if err := c.ShouldBindJSON(&policy); err != nil {
+		log.Warn("Invalid request body for update", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body: " + err.Error()})
+		return
+	}
+
+	// Ensure the policy name in the body matches the URL parameter
+	if policy.Metadata.Name != id {
+		log.Warn("Policy name mismatch", 
+			zap.String("url_id", id), 
+			zap.String("body_name", policy.Metadata.Name))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "policy name in URL must match policy name in body",
+		})
+		return
+	}
+
+	policyLog := logger.WithPolicyName(id)
+	
+	if err := pc.policyService.UpdatePolicy(&policy); err != nil {
+		policyLog.Error("Failed to update policy", zap.Error(err))
+		c.Error(err)
+		return
+	}
+
+	policyLog.Info("Policy updated successfully")
+	c.JSON(http.StatusOK, gin.H{
+		"message": "policy updated successfully",
+		"policy":  policy,
+	})
+}
+
 // Get handles GET /v1/policies/:id
 func (pc *PolicyController) Get(c *gin.Context) {
 	log := logger.WithComponent("api.policy")

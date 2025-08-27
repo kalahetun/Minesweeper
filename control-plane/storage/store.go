@@ -20,6 +20,10 @@ type WatchEvent struct {
 type IPolicyStore interface {
 	// CreateOrUpdate creates a new policy or updates an existing one.
 	CreateOrUpdate(policy *FaultInjectionPolicy) error
+	// Create creates a new policy. Returns ErrAlreadyExists if the policy already exists.
+	Create(policy *FaultInjectionPolicy) error
+	// Update updates an existing policy. Returns ErrNotFound if the policy doesn't exist.
+	Update(policy *FaultInjectionPolicy) error
 	// Get retrieves a policy by its name.
 	Get(name string) (*FaultInjectionPolicy, error)
 	// Delete removes a policy by its name.

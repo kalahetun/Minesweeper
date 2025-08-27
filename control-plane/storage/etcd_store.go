@@ -100,6 +100,82 @@ func (e *EtcdStore) CreateOrUpdate(policy *FaultInjectionPolicy) error {
 	return nil
 }
 
+// Create creates a new policy. Returns ErrAlreadyExists if the policy already exists.
+func (e *EtcdStore) Create(policy *FaultInjectionPolicy) error {
+	if policy == nil || policy.Metadata.Name == "" {
+		return ErrInvalidInput
+	}
+
+	data, err := json.Marshal(policy)
+	if err != nil {
+		return fmt.Errorf("failed to marshal policy: %w", err)
+	}
+
+	key := e.policyKey(policy.Metadata.Name)
+	
+	// Use etcd transaction to check if key doesn't exist before creating
+	txn := e.client.Txn(e.ctx)
+	resp, err := txn.If(
+		// Condition: key doesn't exist (CreateRevision == 0)
+		clientv3.Compare(clientv3.CreateRevision(key), "=", 0),
+	).Then(
+		// If condition is true: create the key
+		clientv3.OpPut(key, string(data)),
+	).Else(
+		// If condition is false: key already exists
+		clientv3.OpGet(key),
+	).Commit()
+
+	if err != nil {
+		return fmt.Errorf("failed to create policy in etcd: %w", err)
+	}
+
+	// If the transaction condition was false, the key already exists
+	if !resp.Succeeded {
+		return ErrAlreadyExists
+	}
+
+	return nil
+}
+
+// Update updates an existing policy. Returns ErrNotFound if the policy doesn't exist.
+func (e *EtcdStore) Update(policy *FaultInjectionPolicy) error {
+	if policy == nil || policy.Metadata.Name == "" {
+		return ErrInvalidInput
+	}
+
+	data, err := json.Marshal(policy)
+	if err != nil {
+		return fmt.Errorf("failed to marshal policy: %w", err)
+	}
+
+	key := e.policyKey(policy.Metadata.Name)
+	
+	// Use etcd transaction to check if key exists before updating
+	txn := e.client.Txn(e.ctx)
+	resp, err := txn.If(
+		// Condition: key exists (CreateRevision > 0)
+		clientv3.Compare(clientv3.CreateRevision(key), ">", 0),
+	).Then(
+		// If condition is true: update the key
+		clientv3.OpPut(key, string(data)),
+	).Else(
+		// If condition is false: key doesn't exist
+		clientv3.OpGet(key),
+	).Commit()
+
+	if err != nil {
+		return fmt.Errorf("failed to update policy in etcd: %w", err)
+	}
+
+	// If the transaction condition was false, the key doesn't exist
+	if !resp.Succeeded {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
 // Get retrieves a policy by its name.
 func (e *EtcdStore) Get(name string) (*FaultInjectionPolicy, error) {
 	if name == "" {

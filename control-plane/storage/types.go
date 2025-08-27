@@ -2,7 +2,8 @@ package storage
 
 // Metadata contains common metadata for all policy types.
 type Metadata struct {
-	Name string `json:"name"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
 }
 
 // FaultInjectionPolicy defines the structure for a fault injection policy.
