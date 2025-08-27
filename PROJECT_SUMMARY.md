@@ -10,6 +10,8 @@
 - ✅ **ARCHITECTURE.md** - 系统架构文档
 - ✅ **DEVELOPMENT.md** - 本地开发环境搭建指南
 - ✅ **CONTRIBUTING.md** - 贡献指南和开发规范
+- ✅ **CONTROL_PLANE_DEEP_DIVE.md** - Control Plane 深度解析文档
+- ✅ **WASM_PLUGIN_DEEP_DIVE.md** - WASM 插件深度解析文档
 
 ### 🛠️ 构建工具
 - ✅ **Makefile** - 统一构建和开发工具
@@ -126,6 +128,8 @@ make stop-local
 | [QUICKSTART.md](QUICKSTART.md) | 15分钟入门教程 | 新用户 |
 | [docs/dev_doc/ARCHITECTURE.md](docs/dev_doc/ARCHITECTURE.md) | 系统架构和设计 | 开发者 |
 | [docs/dev_doc/DEVELOPMENT.md](docs/dev_doc/DEVELOPMENT.md) | 开发环境搭建 | 开发者 |
+| [docs/dev_doc/CONTROL_PLANE_DEEP_DIVE.md](docs/dev_doc/CONTROL_PLANE_DEEP_DIVE.md) | Control Plane 深度解析 | 后端开发者 |
+| [docs/dev_doc/WASM_PLUGIN_DEEP_DIVE.md](docs/dev_doc/WASM_PLUGIN_DEEP_DIVE.md) | WASM 插件深度解析 | Rust/WASM 开发者 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南 | 贡献者 |
 
 ## 🎯 快速验证
@@ -187,7 +191,7 @@ git push origin feature/your-feature
 
 - **代码行数**: 约 15,000+ 行
 - **支持语言**: Go, Rust, YAML, Markdown
-- **文档页数**: 5 个主要文档
+- **文档页数**: 10 个主要文档
 - **构建目标**: 30+ Makefile 目标
 - **Docker 服务**: 5 个服务 (控制平面、Envoy、后端、etcd、监控)
 
