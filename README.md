@@ -149,21 +149,47 @@ curl http://localhost:19000/stats | grep hfi.faults
 
 ## 🛠️ 开发
 
-### 构建控制平面
+### 使用 Makefile 构建 (推荐)
+
+```bash
+# 查看所有可用目标
+make help
+
+# 一键构建所有组件
+make build-all
+
+# 运行所有测试
+make test
+
+# 启动本地开发环境
+make run-local
+
+# 停止本地环境
+make stop-local
+
+# 一键验证 (构建 + 测试)
+make verify
+```
+
+### 手动构建
+
+如需要手动构建单个组件：
+
+#### 构建控制平面
 
 ```bash
 cd control-plane
 go build -o hfi-control-plane .
 ```
 
-### 构建 WASM 插件
+#### 构建 WASM 插件
 
 ```bash
 cd wasm-plugin
 cargo build --target wasm32-unknown-unknown --release
 ```
 
-### 构建 CLI
+#### 构建 CLI
 
 ```bash
 cd cli
@@ -173,6 +199,10 @@ go build -o hfi-cli main.go
 ### 运行测试
 
 ```bash
+# 使用 Makefile (推荐)
+make test
+
+# 手动运行
 # 控制平面测试
 cd control-plane && go test ./...
 
@@ -183,12 +213,21 @@ docker-compose up -d
 
 ## 📚 文档
 
+### 用户文档
 - [快速开始](QUICKSTART.md) - 15分钟入门指南
-- [架构设计](doc/Design.md) - 系统设计文档
-- [API 参考](doc/API_REFERENCE.md) - REST API 文档
-- [策略语法](doc/POLICY_SYNTAX.md) - 故障注入策略语法
-- [运维指南](doc/OPERATIONS.md) - 生产环境运维
-- [故障排除](docs/TROUBLESHOOTING.md) - 常见问题解决
+- [策略示例](cli/examples/README.md) - 故障注入策略示例和最佳实践
+- [CLI 最佳实践](docs/CLI_BEST_PRACTICES.md) - 命令行工具使用指南
+- [故障排除](docs/WASM_ERROR_TROUBLESHOOTING.md) - 常见问题解决
+
+### 开发者文档
+- [系统架构](docs/dev_doc/ARCHITECTURE.md) - 宏观架构设计和技术选型
+- [详细设计](docs/dev_doc/design_doc/) - 各模块详细设计文档
+- [开发计划](docs/dev_doc/design_doc/Development_plan.md) - 完整开发规划和任务状态
+
+### API 文档
+- [REST API 参考](docs/API_REFERENCE.md) - 控制平面 API 文档
+- [策略语法](docs/POLICY_SYNTAX.md) - 故障注入策略语法规范
+- [运维指南](docs/OPERATIONS.md) - 生产环境部署和运维
 
 ## 🤝 贡献
 

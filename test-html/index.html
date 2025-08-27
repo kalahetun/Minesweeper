@@ -1,5 +1,160 @@
 <!DOCTYPE html>
-<html>
-<head><title>Test Backend</title></head>
-<body><h1>Hello from Test Backend!</h1><p>This is a simple test page.</p></body>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HFI 测试后端</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .info {
+            background-color: #e2e3e5;
+            color: #383d41;
+            border: 1px solid #d6d8db;
+        }
+        .endpoint {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-left: 4px solid #007bff;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        .button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 HFI 测试后端服务</h1>
+        
+        <div class="status success">
+            ✅ 后端服务运行正常
+        </div>
+        
+        <div class="info">
+            <strong>服务信息:</strong><br>
+            • 服务名称: HFI 测试后端<br>
+            • 运行时间: <span id="uptime">计算中...</span><br>
+            • 当前时间: <span id="current-time"></span>
+        </div>
+        
+        <h2>🔗 可用端点</h2>
+        
+        <div class="endpoint">
+            GET / - 主页 (当前页面)
+        </div>
+        
+        <div class="endpoint">
+            GET /api/users - 模拟用户数据
+        </div>
+        
+        <div class="endpoint">
+            GET /api/products - 模拟产品数据
+        </div>
+        
+        <div class="endpoint">
+            GET /api/health - 健康检查
+        </div>
+        
+        <div class="endpoint">
+            GET /api/slow - 慢响应端点 (用于测试延迟注入)
+        </div>
+        
+        <div class="endpoint">
+            GET /api/error - 错误端点 (用于测试错误注入)
+        </div>
+        
+        <h2>🧪 测试操作</h2>
+        
+        <a href="/api/users" class="button">获取用户数据</a>
+        <a href="/api/products" class="button">获取产品数据</a>
+        <a href="/api/health" class="button">健康检查</a>
+        <a href="/api/slow" class="button">慢响应测试</a>
+        <a href="/api/error" class="button">错误测试</a>
+        
+        <h2>📖 使用说明</h2>
+        <p>
+            这是一个简单的测试后端服务，用于验证 HFI (HTTP Fault Injection) 系统的故障注入功能。
+            您可以：
+        </p>
+        <ul>
+            <li>通过 Envoy 代理访问这些端点 (端口 18000)</li>
+            <li>直接访问后端服务 (端口 8081)</li>
+            <li>使用 HFI CLI 工具配置故障注入策略</li>
+            <li>观察故障注入的效果</li>
+        </ul>
+        
+        <div class="info">
+            <strong>代理访问:</strong> http://localhost:18000<br>
+            <strong>直接访问:</strong> http://localhost:8081<br>
+            <strong>Envoy 管理:</strong> http://localhost:19000
+        </div>
+    </div>
+    
+    <script>
+        // 更新当前时间
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('current-time').textContent = now.toLocaleString('zh-CN');
+        }
+        
+        // 计算运行时间 (简单模拟)
+        function updateUptime() {
+            const start = new Date();
+            const startTime = start.getTime();
+            
+            setInterval(() => {
+                const now = new Date();
+                const uptime = Math.floor((now.getTime() - startTime) / 1000);
+                const minutes = Math.floor(uptime / 60);
+                const seconds = uptime % 60;
+                document.getElementById('uptime').textContent = `${minutes}分${seconds}秒`;
+            }, 1000);
+        }
+        
+        // 初始化
+        updateTime();
+        updateUptime();
+        setInterval(updateTime, 1000);
+    </script>
+</body>
 </html>
