@@ -1,0 +1,24 @@
+.crossnote/
+/target/
+/node_modules/
+*.log
+*.rs.bk
+*.swp
+.DS_Store
+.idea/
+.vscode/
+Cargo.lock
+npm-debug.log
+dist/
+build/
+.env
+*.tmp
+*.bak
+.gitignore
+/doc
+/wasm-plugin/target
+# Compiled artifacts
+*.wasm
+plugin.wasm
+/executor/plugin.wasm
+/executor/cli/hfi-cli

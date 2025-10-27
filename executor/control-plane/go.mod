@@ -6,6 +6,7 @@ require (
 	github.com/gin-gonic/gin v1.10.1
 	go.etcd.io/etcd/api/v3 v3.6.4
 	go.etcd.io/etcd/client/v3 v3.6.4
+	go.uber.org/zap v1.27.0
 )
 
 require (
@@ -35,7 +36,6 @@ require (
 	github.com/ugorji/go/codec v1.2.12 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.6.4 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/arch v0.8.0 // indirect
 	golang.org/x/crypto v0.36.0 // indirect
 	golang.org/x/net v0.38.0 // indirect

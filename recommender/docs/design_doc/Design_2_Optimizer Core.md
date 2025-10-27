@@ -1,4 +1,4 @@
-### **2. Optimizer Core (优化器核心)**
+# **2. Optimizer Core (优化器核心)**
 
 这是封装了贝叶斯优化算法的纯计算模块。
 
@@ -69,7 +69,7 @@ end note
 @enduml
 ```
 
-#### **模块 2.1: Optimizer Interface (`optimizer/interface.py`)**
+## **模块 2.1: Optimizer Interface (`optimizer/interface.py`)**
 
 *   **职责**: 定义优化器的标准接口（契约），以便未来可以轻松替换底层实现（例如，从 `scikit-optimize` 换到 `BoTorch`）。
 *   **技术**: 使用 Python 的 `abc` (Abstract Base Classes)。
@@ -83,13 +83,13 @@ end note
         def record(self, point: Dict[str, Any], score: float): ...
     ```
 
-### **详细设计文档：Optimizer Interface 模块 (v1.0)**
 
-#### **1. 概述 (Overview)**
+
+### **概述 (Overview)**
 
 **Optimizer Interface** 模块是 **Optimizer Core** 的**统一抽象契约**。它的核心职责是定义一套标准的、与具体优化算法库（如 `scikit-optimize`, `BoTorch`）无关的接口。所有上层模块（特别是 `Optimization Worker`）都将通过这个接口与优化器进行交互。本模块的设计目标是**解耦、可替换性和清晰的职责边界**。
 
-#### **2. 类图 (Component Diagram)**
+### **类图 (Component Diagram)**
 
 此图展示了 Optimizer 接口及其与具体实现（Wrapper）和数据对象的关系。
 
@@ -160,7 +160,7 @@ end note
 *   **Concrete Implementations (e.g., `ScikitOptimizerWrapper`)**:
     *   **职责**: 具体的优化器实现类。它们实现了 `IOptimizer` 接口，并在内部封装了特定第三方库的调用逻辑。这种设计模式被称为**适配器模式 (Adapter Pattern)**。
 
-#### **3. 状态转换图 (State Transition Diagram)**
+### **状态转换图 (State Transition Diagram)**
 
 **`IOptimizer` 接口本身是无状态的**，它只定义行为。然而，其**具体实现（如 `ScikitOptimizerWrapper`）是有状态的**，其内部状态会随着方法的调用而演进。此图描述了优化器实例的内部状态变迁。
 
@@ -217,7 +217,7 @@ end note
 2.  **COLD_START**: 优化器正处于初始的随机探索阶段。在此状态下，`propose()` 方法不使用任何模型，而是返回一个随机生成的点。
 3.  **WARM**: 优化器已经收集了足够的初始数据，并成功训练了其第一个代理模型。从此状态开始，`propose()` 方法将基于贝叶斯优化理论进行智能决策。
 
-#### **4. 异常处理矩阵 (Error Handling Matrix)**
+### **异常处理矩阵 (Error Handling Matrix)**
 
 `IOptimizer` 接口及其实现应该定义清晰的、领域特定的异常，以向上层（`Optimization Worker`）传递错误信息。
 
@@ -244,7 +244,7 @@ end note
 *   **明确的错误信号**: 接口实现不应该“吞掉”错误或返回 `None` 来表示失败。它应该抛出明确的、可被捕获的异常，让调用方（`Worker`）能够清晰地知道优化流程已无法继续，并采取相应的失败处理措施。
 *   **无副作用**: 接口方法应该是幂等的或具有明确的副作用。`propose` 应该可以被重复调用（虽然结果可能不同），`record` 的作用就是将一个观测点加入历史，副作用明确。
 
-#### **模块 2.2: Scikit-Optimizer Wrapper (`optimizer/skopt_wrapper.py`)**
+## **模块 2.2: Scikit-Optimizer Wrapper (`optimizer/skopt_wrapper.py`)**
 
 *   **职责**: **具体实现** `Optimizer Interface`，内部封装 `scikit-optimize` 库。
 *   **技术**: `scikit-optimize`。
@@ -253,13 +253,11 @@ end note
     *   `propose()`: 调用 `self.optimizer.ask()` 并将结果从列表转换为字典。
     *   `record(...)`: 将评分取负，并将点从字典转为列表后，调用 `self.optimizer.tell()`。
 
-### **详细设计文档：Scikit-Optimizer Wrapper 模块 (v1.0)**
-
-#### **1. 概述 (Overview)**
+### **概述 (Overview)**
 
 **Scikit-Optimizer Wrapper** 是 `IOptimizer` 接口的一个具体实现。它的核心职责是将通用的 `propose`, `record` 等调用，**翻译**成对 `scikit-optimize` (`skopt`) 库中 `Optimizer` 对象的具体方法调用（如 `ask`, `tell`）。它负责处理数据格式的转换、封装库的特定行为，并向上层屏蔽 `skopt` 的实现细节。本模块的设计目标是**正确适配、高效封装、错误传递清晰**。
 
-#### **2. 类图 (Component Diagram)**
+### **类图 (Component Diagram)**
 
 此图展示了 Wrapper 类如何实现接口并封装 `skopt.Optimizer`。
 
@@ -328,7 +326,7 @@ end note
     *   `skopt_optimizer`: 一个 `skopt.Optimizer` 的实例，是实际执行贝叶斯优化计算的对象。
     *   `space_dimensions`: 一个 `skopt.space.Dimension` 对象的列表，由 `SpaceConverter` 生成。Wrapper 保存这个列表的引用，因为它包含了维度的名称和顺序，这对于在字典和列表之间转换至关重要。
 
-#### **3. 状态转换图 (State Transition Diagram)**
+### **状态转换图 (State Transition Diagram)**
 
 这个状态转换图与 `IOptimizer` 接口的状态图完全一致，因为它描述的是同一个逻辑状态的演进。这里我们再次呈现它，并附加上与 `skopt` 方法调用相关的注释。
 
@@ -372,7 +370,7 @@ end note
 @enduml
 ```
 
-#### **4. 异常处理矩阵 (Error Handling Matrix)**
+### **异常处理矩阵 (Error Handling Matrix)**
 
 Wrapper 层的职责是将底层 `skopt` 库可能抛出的异常，**捕获**并**翻译**成我们定义的、统一的领域异常（如 `ProposalError`, `RecordingError`）。
 
@@ -390,7 +388,7 @@ Wrapper 层的职责是将底层 `skopt` 库可能抛出的异常，**捕获**�
 *   **数据格式转换的健壮性**: 在 `dict` to `list` 和 `list` to `dict` 的转换中，必须严格依赖 `self.space_dimensions` 中定义的维度名称和顺序。这是最容易出错的地方，需要有详尽的单元测试来保证其正确性。
 *   **负分转换**: 必须牢记 `skopt` 的目标是**最小化**，而我们的目标是**最大化**严重性评分。因此，在调用 `tell()` 时，传入的分数必须是 `-score`。在 `get_best_result()` 中，取出的最小 `yi` 值也需要取反才能得到正确的最高分。这个逻辑必须正确实现。
 
-#### **模块 2.3: Space Converter (`optimizer/space_converter.py`)**
+## **模块 2.3: Space Converter (`optimizer/space_converter.py`)**
 
 *   **职责**: 将用户友好的 JSON/YAML 搜索空间配置文件，**转换**为 `scikit-optimize` 能理解的 `Dimension` 对象列表。
 *   **技术**: 纯 Python 逻辑。
@@ -400,15 +398,11 @@ Wrapper 层的职责是将底层 `skopt` 库可能抛出的异常，**捕获**�
 
 好的，我们来为 **模块 2.3: Space Converter (`optimizer/space_converter.py`)** 编写一份详细的设计文档。这是一个小而关键的辅助模块。
 
----
-
-### **详细设计文档：Space Converter 模块 (v1.0)**
-
-#### **1. 概述 (Overview)**
+### **概述 (Overview)**
 
 **Space Converter** 是一个**无状态的、工具性的**模块。它的核心职责是**解析**一个人类可读的、结构化的搜索空间配置文件（通常是 JSON 或 YAML 格式），并将其**转换**为 `scikit-optimize` (`skopt`) 库能够理解的、由 `Dimension` 对象组成的列表。本模块的设计目标是**配置灵活、转换精确、错误提示清晰**。
 
-#### **2. 类图 (Component Diagram)**
+### **类图 (Component Diagram)**
 
 此图展示了 Space Converter 作为一个转换函数的角色。
 
@@ -489,7 +483,7 @@ end note
     *   **职责**: 实现 `convert_space_config` 函数。这个函数是本模块的唯一入口。
 *   **`skopt.space.Dimension`**: `scikit-optimize` 库中所有维度类的基类，包括 `Categorical`, `Real`, `Integer`。Converter 的目标就是创建这些对象的列表。
 
-#### **3. 状态转换图 (State Transition Diagram)**
+### **状态转换图 (State Transition Diagram)**
 
 **Space Converter 是一个纯函数式、无状态的模块**。它没有自身的生命周期或内部状态。每次调用 `convert_space_config` 都是一次独立的、从输入到输出的确定性转换。
 
@@ -540,7 +534,7 @@ stop
 7.  将创建的对象追加到结果列表中。
 8.  循环结束后，返回完整的 `Dimension` 对象列表。
 
-#### **4. 异常处理矩阵 (Error Handling Matrix)**
+### **异常处理矩阵 (Error Handling Matrix)**
 
 Converter 的核心职责之一就是**验证配置文件的正确性**。它的异常处理必须能提供清晰、可定位的错误信息，帮助用户快速修复配置问题。
 

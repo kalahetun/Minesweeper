@@ -1,8 +1,8 @@
 **BO设计文档**
 
-### **5W2H 需求拆解：BOIFI - 贝叶斯优化器开发与适配**
+# **5W2H 需求拆解：BOIFI - 贝叶斯优化器开发与适配**
 
-#### **1. WHAT (做什么？) - 要开发的核心功能是什么？**
+## **WHAT (做什么？) - 要开发的核心功能是什么？**
 
 *   **核心产品**: 一个独立的 **Python 贝叶斯优化服务/库 (`Optimizer`)**。
 *   **核心输入**: 接收一次故障注入实验的结果 `(x, y)`，其中 `x` 是故障组合，`y` 是严重性评分。
@@ -11,14 +11,14 @@
     *   创建一个**协调器/主循环 (Coordinator/Main Loop)**，负责调用 `Optimizer` 获取 `x_next`，然后调用已有的**执行器 (Executor)** 的 API 来执行它，最后将结果 `y` 再反馈给 `Optimizer`。
     *   开发一个**响应分析器 (Response Analyzer)** 模块，负责将执行器返回的原始观测数据（延迟、状态码、Trace）计算成目标函数定义的严重性评分 `y`。
 
-#### **2. WHY (为什么做？) - 开发这个模块的目标是什么？**
+## **WHY (为什么做？) - 开发这个模块的目标是什么？**
 
 *   **实现智能决策**: 从“手动/随机指定故障”升级到“算法驱动的智能决策”，这是整个 BOIFI 框架的核心价值所在。
 *   **提升测试效率**: 大幅减少发现关键 bug 所需的实验次数，解决故障空间爆炸的问题，降低测试的时间和资源成本。
 *   **闭环自动化**: 将“决策”与“执行”连接起来，形成一个完整的、无需人工干预的自动化韧性测试闭环。
 *   **技术验证**: 验证技术规格文档中定义的贝叶斯优化方法论在真实系统中的有效性和可行性。
 
-#### **3. WHO (为谁做？) - 模块的直接用户是谁？**
+## **WHO (为谁做？) - 模块的直接用户是谁？**
 
 *   **主要用户 (调用方)**:
     *   **CI/CD 流水线**: 在自动化测试阶段调用 BOIFI 的主程序，进行回归韧性测试。
@@ -26,7 +26,7 @@
 *   **间接用户 (受益者)**:
     *   **开发团队**: 从最终的优化结果（找到的最致命故障组合）中获益，用于修复系统韧性缺陷。
 
-#### **4. WHEN (何时做？) - 开发的时间规划和阶段是什么？**
+## **WHEN (何时做？) - 开发的时间规划和阶段是什么？**
 
 这个需求可以清晰地分解为**《实施里程碑》**中定义的 **Phase 1: 核心算法验证**，并将其进一步细化：
 
@@ -44,7 +44,7 @@
     *   编写**协调器**主循环，将 `Optimizer`、`Executor Client` 和 `Analyzer` 串联起来。
     *   在一个简单的、可控的模拟环境中（例如，一个带有人为埋入 bug 的 mock 微服务）进行端到端的流程验证。
 
-#### **5. WHERE (在哪里做？) - 模块的运行和开发环境是什么？**
+## **WHERE (在哪里做？) - 模块的运行和开发环境是什么？**
 
 *   **开发环境**: **Python >= 3.8**，使用 `scikit-optimize`, `pandas`, `numpy`, `requests` (用于调用 Executor API) 等库。
 *   **运行环境**:
@@ -54,7 +54,7 @@
 
 ---
 
-#### **6. HOW (如何做？) - 具体的实现方案和步骤是什么？**
+## **HOW (如何做？) - 具体的实现方案和步骤是什么？**
 
 1.  **定义数据结构**: 在 Python 中精确定义 `FaultInjectionPlan (x)` 和 `ObservationResult` 的数据结构，确保与执行器的 `FaultInjectionPolicy` 和返回的监控数据能对应。
 2.  **实现 `Optimizer` 类**:
@@ -90,7 +90,7 @@
     print(f"Optimization finished. Best fault found: {best_plan} with score {best_score}")
     ```
 
-#### **7. HOW MUCH (成本多少？) - 如何衡量完成和成功？**
+## **HOW MUCH (成本多少？) - 如何衡量完成和成功？**
 
 *   **完成标准 (Definition of Done)**:
     *   所有在 **Phase 1** 里程碑中定义的任务都已完成并通过代码审查。
@@ -102,11 +102,9 @@
     *   整个流程能够稳定运行，没有内存泄漏或意外崩溃。
 好的，遵照您的要求，我们来为**贝叶斯优化器 (BO)** 及其适配层生成一份独立的、详细的设计方案。这份方案将聚焦于 BOIFI 系统的“大脑”部分，并明确其如何与已经完成的“执行器”进行交互。
 
----
+# **设计方案：BOIFI - 贝叶斯优化器 (The Brain)**
 
-### **设计方案：BOIFI - 贝叶斯优化器 (The Brain)**
-
-#### **1. 系统上下文图 (System Context Diagram)**
+## **系统上下文图 (System Context Diagram)**
 
 此图展示了 BO 作为一个独立的系统（或服务），与外部世界的交互关系。
 
@@ -158,7 +156,7 @@ end note
 @enduml
 ```
 
-#### **2. 服务划分原则 (按业务能力划分)**
+## **服务划分原则 (按业务能力划分)**
 
 为了实现高内聚和模块化，我们将 BO 系统划分为三个核心服务（或模块），每个模块负责一项独立的业务能力。
 
@@ -182,7 +180,7 @@ end note
         *   封装将原始、多模态的系统观测数据（延迟、HTTP 状态码、Trace 结构）转化为单一、标准化的**严重性评分 `y`** 的所有业务逻辑。
         *   这个模块是注入领域专家知识的地方。
 
-#### **3. 关键接口定义 (REST API格式)**
+## **关键接口定义 (REST API格式)**
 
 这是 **Coordinator Service** 向外暴露的 API，用于管理整个优化过程。
 
@@ -250,7 +248,7 @@ end note
 
 ---
 
-#### **4. 数据流示意图**
+## **数据流示意图**
 
 此图展示了在一个优化循环中，数据如何在各个模块之间流动。
 
@@ -302,7 +300,7 @@ Opt -> History: **7. Append to `D` & Retrain Model**
 @enduml
 ```
 
-#### **5. 技术栈选型对比表**
+## **技术栈选型对比表**
 
 此选型主要针对 BO 系统本身。
 
@@ -318,9 +316,7 @@ Opt -> History: **7. Append to `D` & Retrain Model**
 
 我们将系统划分为三个顶层模块（对应之前的服务划分），每个模块再细分为多个更小的、职责单一的子模块。
 
----
-
-### **BOIFI - 贝叶斯优化器详细模块分解**
+# **BOIFI - 贝叶斯优化器详细模块分解**
 
 ```plantuml
 @startuml
@@ -369,9 +365,7 @@ SkoptWrapper ..> Converter: Uses converter for space definition
 @enduml
 ```
 
----
-
-### **1. Coordinator Service (协调服务)**
+## **Coordinator Service (协调服务)**
 
 这是系统的“总控室”，负责管理和编排整个优化流程。
 
@@ -427,7 +421,7 @@ end note
 @enduml
 ```
 
-#### **模块 1.1: API Server (`api_server.py`)**
+### **模块 1.1: API Server (`api_server.py`)**
 
 *   **职责**: 提供符合 OpenAPI 规范的 RESTful API。
 *   **技术**: 使用 `FastAPI` 框架。
@@ -437,7 +431,7 @@ end note
     *   **`models/api_models.py`**: 定义 Pydantic 模型，用于请求体验证和响应体序列化（如 `CreateSessionRequest`, `SessionStatusResponse`）。
 *   **交互**: 接收到请求后，它会调用 `Session Manager` 的相应方法。
 
-#### **模块 1.2: Session Manager (`session_manager.py`)**
+## **模块 1.2: Session Manager (`session_manager.py`)**
 
 *   **职责**: 管理所有优化会话的生命周期和状态。
 *   **技术**: 内存中的字典（`dict`）来存储会话，使用线程锁保证并发安全。
@@ -451,7 +445,7 @@ end note
     *   **`get_session(...)`**: 根据 `session_id` 返回对应的 worker 实例，以便查询状态。
     *   **`stop_session(...)`**: 调用对应 worker 实例的 `stop()` 方法。
 
-#### **模块 1.3: Optimization Worker (`worker.py`)**
+### **模块 1.3: Optimization Worker (`worker.py`)**
 
 *   **职责**: **执行单个优化会话的主循环**。每个会话都有一个独立的 Worker 实例。
 *   **技术**: 这是一个长生命周期的类，其 `run()` 方法包含主循环。
@@ -466,9 +460,7 @@ end note
         *   更新会话状态（如 `completed_trials`, `best_result`）。
         *   检查是否有停止信号。
 
----
-
-### **2. Optimizer Core (优化器核心)**
+## **Optimizer Core (优化器核心)**
 
 这是封装了贝叶斯优化算法的纯计算模块。
 
@@ -539,7 +531,7 @@ end note
 @enduml
 ```
 
-#### **模块 2.1: Optimizer Interface (`optimizer/interface.py`)**
+### **模块 2.1: Optimizer Interface (`optimizer/interface.py`)**
 
 *   **职责**: 定义优化器的标准接口（契约），以便未来可以轻松替换底层实现（例如，从 `scikit-optimize` 换到 `BoTorch`）。
 *   **技术**: 使用 Python 的 `abc` (Abstract Base Classes)。
@@ -553,7 +545,7 @@ end note
         def record(self, point: Dict[str, Any], score: float): ...
     ```
 
-#### **模块 2.2: Scikit-Optimizer Wrapper (`optimizer/skopt_wrapper.py`)**
+### **模块 2.2: Scikit-Optimizer Wrapper (`optimizer/skopt_wrapper.py`)**
 
 *   **职责**: **具体实现** `Optimizer Interface`，内部封装 `scikit-optimize` 库。
 *   **技术**: `scikit-optimize`。
@@ -562,7 +554,7 @@ end note
     *   `propose()`: 调用 `self.optimizer.ask()` 并将结果从列表转换为字典。
     *   `record(...)`: 将评分取负，并将点从字典转为列表后，调用 `self.optimizer.tell()`。
 
-#### **模块 2.3: Space Converter (`optimizer/space_converter.py`)**
+### **模块 2.3: Space Converter (`optimizer/space_converter.py`)**
 
 *   **职责**: 将用户友好的 JSON/YAML 搜索空间配置文件，**转换**为 `scikit-optimize` 能理解的 `Dimension` 对象列表。
 *   **技术**: 纯 Python 逻辑。
@@ -570,13 +562,11 @@ end note
     *   一个函数 `def convert_space_config(config: dict) -> List[skopt.space.Dimension]:`
     *   它会解析配置，根据 `type` 字段（如 `categorical`, `real`, `integer`）创建相应的 `skopt.space.Categorical`, `skopt.space.Real` 等对象。
 
----
-
-### **3. Response Analyzer (响应分析器)**
+## **Response Analyzer (响应分析器)**
 
 这是一个独立的、可复用的领域知识模块。
 
-#### **模块 3.1: Analyzer Service (`analyzer/service.py`)**
+### **模块 3.1: Analyzer Service (`analyzer/service.py`)**
 
 *   **职责**: 实现技术规格中定义的**加权严重性评分函数 `f(x)`**。
 *   **技术**: 纯 Python 逻辑。
@@ -586,13 +576,11 @@ end note
     *   例如，`_calculate_structure_score(trace_data)` 可能需要一个 Trace 比对的逻辑。
     *   最终根据权重配置，加权求和并返回总分。
 
----
-
-### **4. External Clients (外部客户端)**
+## **External Clients (外部客户端)**
 
 这是 BO 系统与其他系统交互的出口。
 
-#### **模块 4.1: Executor Client (`clients/executor_client.py`)**
+### **模块 4.1: Executor Client (`clients/executor_client.py`)**
 
 *   **职责**: 封装所有对**故障注入执行器控制平面**的 HTTP API 调用。
 *   **技术**: 使用 `requests` 或 `httpx` 库。
@@ -606,4 +594,3 @@ end note
         4.  返回包含所有原始观测数据的字典。
 
 通过这样的模块分解，您的开发任务变得非常清晰：您可以让不同的开发者并行地去实现 `Session Manager`, `Scikit-Optimizer Wrapper`, `Analyzer Service` 等不同的模块，因为它们的接口和职责已经被明确定义了。
-

@@ -27,13 +27,16 @@ services:
   # This service runs the Go application that serves policies to the Wasm plugin.
   control-plane:
     build:
-      context: .
-      dockerfile: Dockerfile.controlplane
+      context: ..
+      dockerfile: docker/Dockerfile.controlplane
     ports:
       - "8080:8080"
     environment:
       - STORAGE_BACKEND=etcd
       - ETCD_ENDPOINTS=http://etcd:2379
+    volumes:
+      # Mount the control plane configuration file (optional)
+      - ./control-plane.yaml:/etc/hfi/control-plane.yaml
     networks:
       - hfi-net
     depends_on:
@@ -52,8 +55,8 @@ services:
   # The compiled artifact is then copied to a volume for use by Envoy.
   wasm-builder:
     build:
-      context: .
-      dockerfile: Dockerfile.wasm
+      context: ..
+      dockerfile: docker/Dockerfile.wasm
     # The output of this service is the compiled .wasm file in its container filesystem.
     # We define a volume to share this artifact with the Envoy service.
     volumes:

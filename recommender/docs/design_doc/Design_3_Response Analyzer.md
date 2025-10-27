@@ -1,8 +1,8 @@
-### **3. Response Analyzer (响应分析器)**
+# **3. Response Analyzer (响应分析器)**
 
 这是一个独立的、可复用的领域知识模块。
 
-#### **模块 3.1: Analyzer Service (`analyzer/service.py`)**
+## **模块 3.1: Analyzer Service (`analyzer/service.py`)**
 
 *   **职责**: 实现技术规格中定义的**加权严重性评分函数 `f(x)`**。
 *   **技术**: 纯 Python 逻辑。
@@ -14,15 +14,11 @@
 
 好的，我们来为 **模块 3.1: Analyzer Service (`analyzer/service.py`)** 编写一份详细的设计文档。这是将原始、混乱的观测数据转化为贝叶斯优化器可以理解的、有价值的“知识”的关键模块。
 
----
-
-### **详细设计文档：Response Analyzer Service 模块 (v1.0)**
-
-#### **1. 概述 (Overview)**
+### **概述 (Overview)**
 
 **Response Analyzer Service** 是一个**领域知识密集型**的组件，负责实现技术规格中定义的**加权严重性评分函数 `f(x)`**。它的核心职责是将从 `Executor Client` 获取的、多模态的原始观测数据（如 HTTP 状态码、延迟、分布式追踪信息）**分析、量化**，并最终计算出一个**单一的、连续的严重性评分 (Severity Score)**。本模块的设计目标是**逻辑清晰、可配置、可扩展**，以便于领域专家不断迭代和优化评分策略。
 
-#### **2. 类图 (Component Diagram)**
+### **类图 (Component Diagram)**
 
 此图展示了 Analyzer Service 的结构及其主要的逻辑组件。
 
@@ -119,7 +115,7 @@ end note
 *   **RawObservation**: 一个数据类，用于封装从 `Executor Client` 返回的所有原始观测数据。
 *   **AnalyzerConfig**: 一个数据类，用于封装所有可配置的参数，方便管理和调整。
 
-#### **3. 状态转换图 (State Transition Diagram)**
+### **状态转换图 (State Transition Diagram)**
 
 **Analyzer Service 是一个纯函数式、无状态的模块**。它的 `calculate_severity` 方法对于相同的输入 `RawObservation` 和 `AnalyzerConfig`，总是返回相同的输出。
 
@@ -164,7 +160,7 @@ stop
 4.  根据配置中的权重，进行加权求和，得到最终的严重性评分。
 5.  返回总分。
 
-#### **4. 异常处理矩阵 (Error Handling Matrix)**
+### **异常处理矩阵 (Error Handling Matrix)**
 
 Analyzer Service 必须对不完整或格式错误的输入数据具有鲁棒性。
 
