@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"sync"
 )
@@ -121,6 +122,34 @@ func (s *memoryStore) Watch() <-chan WatchEvent {
 	s.watchers[watcherID] = watcherChan
 
 	// Return a read-only channel to the caller
+	return watcherChan
+}
+
+// WatchWithContext returns a channel that receives notifications until ctx is canceled.
+// The caller can stop watching by canceling the context.
+func (s *memoryStore) WatchWithContext(ctx context.Context) <-chan WatchEvent {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Create a new watcher channel
+	watcherChan := make(chan WatchEvent, 100)
+	watcherID := s.nextWatcher
+	s.nextWatcher++
+
+	s.watchers[watcherID] = watcherChan
+
+	// Launch a goroutine that closes the channel when context is canceled
+	go func() {
+		<-ctx.Done()
+		// Remove and close the watcher when context is canceled
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if ch, exists := s.watchers[watcherID]; exists {
+			close(ch)
+			delete(s.watchers, watcherID)
+		}
+	}()
+
 	return watcherChan
 }
 

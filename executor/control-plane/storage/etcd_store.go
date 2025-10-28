@@ -202,33 +202,38 @@ func (e *EtcdStore) Get(name string) (*FaultInjectionPolicy, error) {
 }
 
 // Delete removes a policy by its name.
+// Uses a transaction to ensure atomicity.
 func (e *EtcdStore) Delete(name string) error {
 	if name == "" {
-		return fmt.Errorf("policy name cannot be empty")
+		return ErrInvalidInput
 	}
 
 	key := e.policyKey(name)
 
-	// First check if the key exists
-	resp, err := e.client.Get(e.ctx, key)
-	if err != nil {
-		return fmt.Errorf("failed to check policy existence: %w", err)
-	}
+	// Use etcd transaction to check if key exists before deleting
+	txn := e.client.Txn(e.ctx)
+	resp, err := txn.If(
+		// Condition: key exists (CreateRevision > 0)
+		clientv3.Compare(clientv3.CreateRevision(key), ">", 0),
+	).Then(
+		// If condition is true: delete the key
+		clientv3.OpDelete(key),
+	).Else(
+		// If condition is false: key doesn't exist
+		clientv3.OpGet(key),
+	).Commit()
 
-	if len(resp.Kvs) == 0 {
-		return ErrNotFound
-	}
-
-	// Delete the key
-	_, err = e.client.Delete(e.ctx, key)
 	if err != nil {
 		return fmt.Errorf("failed to delete policy from etcd: %w", err)
 	}
 
-	return nil
-}
+	// If the transaction condition was false, the key doesn't exist
+	if !resp.Succeeded {
+		return ErrNotFound
+	}
 
-// List retrieves all policies.
+	return nil
+} // List retrieves all policies.
 func (e *EtcdStore) List() []*FaultInjectionPolicy {
 	resp, err := e.client.Get(e.ctx, policyPrefix, clientv3.WithPrefix())
 	if err != nil {
@@ -255,6 +260,37 @@ func (e *EtcdStore) Watch() <-chan WatchEvent {
 	e.watcherMu.Lock()
 	e.watchers = append(e.watchers, ch)
 	e.watcherMu.Unlock()
+
+	return ch
+}
+
+// WatchWithContext returns a channel that receives notifications until ctx is canceled.
+// The caller can stop watching by canceling the context.
+func (e *EtcdStore) WatchWithContext(ctx context.Context) <-chan WatchEvent {
+	ch := make(chan WatchEvent, 100)
+
+	e.watcherMu.Lock()
+	e.watchers = append(e.watchers, ch)
+	e.watcherMu.Unlock()
+
+	// Launch a goroutine that removes and closes the channel when context is canceled
+	go func() {
+		<-ctx.Done()
+		// Remove and close the watcher when context is canceled
+		e.watcherMu.Lock()
+		defer e.watcherMu.Unlock()
+
+		// Find and remove this watcher from the list
+		for i, watcher := range e.watchers {
+			if watcher == ch {
+				// Remove by swapping with last element and truncating
+				e.watchers[i] = e.watchers[len(e.watchers)-1]
+				e.watchers = e.watchers[:len(e.watchers)-1]
+				close(ch)
+				break
+			}
+		}
+	}()
 
 	return ch
 }

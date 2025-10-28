@@ -1,5 +1,7 @@
 package storage
 
+import "context"
+
 // EventType defines the type of a watch event.
 type EventType string
 
@@ -32,4 +34,6 @@ type IPolicyStore interface {
 	List() []*FaultInjectionPolicy
 	// Watch returns a channel that receives notifications of policy changes.
 	Watch() <-chan WatchEvent
+	// WatchWithContext returns a channel that receives notifications until ctx is canceled.
+	WatchWithContext(ctx context.Context) <-chan WatchEvent
 }

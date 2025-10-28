@@ -99,10 +99,10 @@ func (s *PolicyService) validatePolicyForUpdate(policy *storage.FaultInjectionPo
 	existingPolicy, err := s.store.Get(policy.Metadata.Name)
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
-			return NewDetailedError("validation_error", "cannot update non-existent policy", 
+			return NewDetailedError("validation_error", "cannot update non-existent policy",
 				map[string]interface{}{
 					"policy_name": policy.Metadata.Name,
-					"operation": "update",
+					"operation":   "update",
 				})
 		}
 		return err
@@ -119,19 +119,19 @@ func (s *PolicyService) validatePolicyForUpdate(policy *storage.FaultInjectionPo
 // validatePolicyName validates the policy name format and constraints.
 func (s *PolicyService) validatePolicyName(name string) error {
 	if len(name) < 3 {
-		return NewDetailedError("validation_error", "policy name too short", 
+		return NewDetailedError("validation_error", "policy name too short",
 			map[string]interface{}{
-				"field": "metadata.name",
-				"min_length": 3,
+				"field":         "metadata.name",
+				"min_length":    3,
 				"actual_length": len(name),
 			})
 	}
 
 	if len(name) > 63 {
-		return NewDetailedError("validation_error", "policy name too long", 
+		return NewDetailedError("validation_error", "policy name too long",
 			map[string]interface{}{
-				"field": "metadata.name",
-				"max_length": 63,
+				"field":         "metadata.name",
+				"max_length":    63,
 				"actual_length": len(name),
 			})
 	}
@@ -139,11 +139,11 @@ func (s *PolicyService) validatePolicyName(name string) error {
 	// Check for valid characters (alphanumeric, hyphens, underscores)
 	for i, r := range name {
 		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_') {
-			return NewDetailedError("validation_error", "policy name contains invalid characters", 
+			return NewDetailedError("validation_error", "policy name contains invalid characters",
 				map[string]interface{}{
-					"field": "metadata.name",
-					"invalid_char": string(r),
-					"position": i,
+					"field":         "metadata.name",
+					"invalid_char":  string(r),
+					"position":      i,
 					"allowed_chars": "a-z, A-Z, 0-9, -, _",
 				})
 		}
@@ -151,7 +151,7 @@ func (s *PolicyService) validatePolicyName(name string) error {
 
 	// Name cannot start or end with hyphen
 	if strings.HasPrefix(name, "-") || strings.HasSuffix(name, "-") {
-		return NewDetailedError("validation_error", "policy name cannot start or end with hyphen", 
+		return NewDetailedError("validation_error", "policy name cannot start or end with hyphen",
 			map[string]interface{}{
 				"field": "metadata.name",
 				"value": name,
@@ -164,7 +164,7 @@ func (s *PolicyService) validatePolicyName(name string) error {
 // validatePolicyVersion validates the policy version format.
 func (s *PolicyService) validatePolicyVersion(version string) error {
 	if version == "" {
-		return NewDetailedError("validation_error", "policy version is required", 
+		return NewDetailedError("validation_error", "policy version is required",
 			map[string]interface{}{
 				"field": "metadata.version",
 			})
@@ -173,20 +173,20 @@ func (s *PolicyService) validatePolicyVersion(version string) error {
 	// Simple semantic version validation (e.g., "1.0.0")
 	parts := strings.Split(version, ".")
 	if len(parts) != 3 {
-		return NewDetailedError("validation_error", "policy version must follow semantic versioning (x.y.z)", 
+		return NewDetailedError("validation_error", "policy version must follow semantic versioning (x.y.z)",
 			map[string]interface{}{
-				"field": "metadata.version",
-				"value": version,
+				"field":           "metadata.version",
+				"value":           version,
 				"expected_format": "x.y.z",
 			})
 	}
 
 	for i, part := range parts {
 		if part == "" {
-			return NewDetailedError("validation_error", "policy version parts cannot be empty", 
+			return NewDetailedError("validation_error", "policy version parts cannot be empty",
 				map[string]interface{}{
-					"field": "metadata.version",
-					"value": version,
+					"field":            "metadata.version",
+					"value":            version,
 					"empty_part_index": i,
 				})
 		}
@@ -194,12 +194,12 @@ func (s *PolicyService) validatePolicyVersion(version string) error {
 		// Check if part is numeric
 		for _, r := range part {
 			if r < '0' || r > '9' {
-				return NewDetailedError("validation_error", "policy version parts must be numeric", 
+				return NewDetailedError("validation_error", "policy version parts must be numeric",
 					map[string]interface{}{
-						"field": "metadata.version",
-						"value": version,
+						"field":        "metadata.version",
+						"value":        version,
 						"invalid_part": part,
-						"part_index": i,
+						"part_index":   i,
 					})
 			}
 		}
@@ -209,18 +209,71 @@ func (s *PolicyService) validatePolicyVersion(version string) error {
 }
 
 // validateVersionUpdate validates version changes during updates.
+// Ensures new version is greater than old version using semantic versioning.
 func (s *PolicyService) validateVersionUpdate(oldVersion, newVersion string) error {
 	if oldVersion == newVersion {
-		return NewDetailedError("validation_error", "version must be incremented for updates", 
+		return NewDetailedError("validation_error", "version must be incremented for updates",
 			map[string]interface{}{
-				"field": "metadata.version",
+				"field":       "metadata.version",
 				"old_version": oldVersion,
 				"new_version": newVersion,
 			})
 	}
 
-	// In a real implementation, you might want to validate that the new version
-	// is actually greater than the old version using semantic version comparison
-	
-	return nil
+	// Parse both versions to ensure they're valid semantic versions
+	oldParts := strings.Split(oldVersion, ".")
+	newParts := strings.Split(newVersion, ".")
+
+	if len(oldParts) != 3 || len(newParts) != 3 {
+		return NewDetailedError("validation_error",
+			"both old and new versions must be semantic versions (x.y.z)",
+			map[string]interface{}{
+				"field":       "metadata.version",
+				"old_version": oldVersion,
+				"new_version": newVersion,
+			})
+	}
+
+	// Parse version numbers for comparison
+	oldMajor, _ := parseInt(oldParts[0])
+	oldMinor, _ := parseInt(oldParts[1])
+	oldPatch, _ := parseInt(oldParts[2])
+
+	newMajor, _ := parseInt(newParts[0])
+	newMinor, _ := parseInt(newParts[1])
+	newPatch, _ := parseInt(newParts[2])
+
+	// Compare versions: major.minor.patch
+	// New version must be strictly greater than old version
+	if newMajor > oldMajor {
+		return nil // Major version increased, valid
+	}
+	if newMajor == oldMajor && newMinor > oldMinor {
+		return nil // Major same, minor increased, valid
+	}
+	if newMajor == oldMajor && newMinor == oldMinor && newPatch > oldPatch {
+		return nil // Major and minor same, patch increased, valid
+	}
+
+	// Version not increased or decreased
+	return NewDetailedError("validation_error",
+		"new version must be greater than old version",
+		map[string]interface{}{
+			"field":       "metadata.version",
+			"old_version": oldVersion,
+			"new_version": newVersion,
+			"comparison":  "new must be > old",
+		})
+}
+
+// parseInt parses a version part to integer, returns 0 if invalid
+func parseInt(s string) (int, error) {
+	result := 0
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return 0, errors.New("non-numeric")
+		}
+		result = result*10 + int(r-'0')
+	}
+	return result, nil
 }

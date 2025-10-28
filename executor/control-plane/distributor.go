@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"hfi/control-plane/logger"
 	"hfi/control-plane/storage"
@@ -15,17 +16,25 @@ type ConfigDistributor struct {
 	store         storage.IPolicyStore
 	currentConfig atomic.Value // 存储最新的配置字符串
 
-	mu      sync.RWMutex
-	clients map[chan string]struct{}
+	mu       sync.RWMutex
+	clients  map[chan string]struct{}
+	ctx      context.Context
+	cancel   context.CancelFunc
+	doneChan chan struct{}
 }
 
 // NewConfigDistributor 创建一个新的分发器并启动其监视循环。
 func NewConfigDistributor(store storage.IPolicyStore) *ConfigDistributor {
 	log := logger.WithComponent("distributor")
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	distributor := &ConfigDistributor{
-		store:   store,
-		clients: make(map[chan string]struct{}),
+		store:    store,
+		clients:  make(map[chan string]struct{}),
+		ctx:      ctx,
+		cancel:   cancel,
+		doneChan: make(chan struct{}),
 	}
 
 	// 仅初始化当前配置，不广播（此时还没有客户端连接）
@@ -36,6 +45,27 @@ func NewConfigDistributor(store storage.IPolicyStore) *ConfigDistributor {
 
 	log.Info("Config distributor initialized")
 	return distributor
+}
+
+// Stop gracefully shuts down the distributor and closes all client connections.
+func (d *ConfigDistributor) Stop() {
+	log := logger.WithComponent("distributor")
+	
+	// Signal the watch goroutine to stop
+	d.cancel()
+	
+	// Wait for watch to finish
+	<-d.doneChan
+	
+	// Close all client channels
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for clientChan := range d.clients {
+		close(clientChan)
+	}
+	d.clients = make(map[chan string]struct{})
+	
+	log.Info("Config distributor stopped")
 }
 
 // updateCurrentConfig 仅更新内存中的配置而不广播
@@ -60,6 +90,7 @@ func (d *ConfigDistributor) updateCurrentConfig() {
 
 // watchForChanges 监听来自存储的事件并触发配置更新。
 // 包含错误处理和恢复逻辑。
+// 现在使用 WatchWithContext 以支持优雅关闭。
 func (d *ConfigDistributor) watchForChanges() {
 	log := logger.WithComponent("distributor")
 
@@ -68,21 +99,31 @@ func (d *ConfigDistributor) watchForChanges() {
 			log.Error("Panic in watchForChanges, restarting", zap.Any("panic", r))
 			// 重启监视 goroutine
 			go d.watchForChanges()
+			return
 		}
+		// 监视正常停止，发送完成信号
+		close(d.doneChan)
 	}()
 
-	watchChan := d.store.Watch()
+	watchChan := d.store.WatchWithContext(d.ctx)
 
-	for event := range watchChan {
-		log.Info("Change detected, updating and broadcasting config",
-			zap.String("event_type", string(event.Type)),
-			zap.String("policy_name", event.Policy.Metadata.Name))
-		d.updateAndBroadcast()
+	for {
+		select {
+		case <-d.ctx.Done():
+			log.Info("Watch context canceled, stopping watch")
+			return
+		case event, ok := <-watchChan:
+			if !ok {
+				// Watch channel closed (normal shutdown)
+				log.Info("Watch channel closed")
+				return
+			}
+			log.Info("Change detected, updating and broadcasting config",
+				zap.String("event_type", string(event.Type)),
+				zap.String("policy_name", event.Policy.Metadata.Name))
+			d.updateAndBroadcast()
+		}
 	}
-
-	log.Warn("Watch channel closed, restarting watch")
-	// Watch channel 关闭，重新建立监视
-	go d.watchForChanges()
 }
 
 // updateAndBroadcast 获取所有策略，编译它们，并广播给客户端。

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"hfi/control-plane/api"
@@ -9,7 +10,9 @@ import (
 	"hfi/control-plane/service"
 	"hfi/control-plane/storage"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -60,6 +63,10 @@ func main() {
 		log.Fatal("Failed to initialize storage", zap.Error(err))
 	}
 
+	// 创建带取消的 context，用于优雅关闭
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// 如果是 etcd store，确保在程序退出时清理资源
 	if etcdStore, ok := store.(*storage.EtcdStore); ok {
 		defer func() {
@@ -105,7 +112,24 @@ func main() {
 		v1.GET("/config/stream", sseHandler(distributor))
 	}
 
-	// 8. 启动服务器
+	// 8. 监听操作系统信号，用于优雅关闭
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
+
+	go func() {
+		sig := <-sigChan
+		log.Info("Received signal, initiating graceful shutdown",
+			zap.String("signal", sig.String()))
+		// 停止分发器
+		distributor.Stop()
+		// 关闭存储（如果支持）
+		if etcdStore, ok := store.(*storage.EtcdStore); ok {
+			etcdStore.Close()
+		}
+		cancel()
+	}()
+
+	// 9. 启动服务器
 	log.Info("Control Plane server starting",
 		zap.String("storage_backend", *storageType),
 		zap.String("listen_addr", *listenAddr))
@@ -113,8 +137,17 @@ func main() {
 	log.Info("Server listening", zap.String("address", *listenAddr))
 
 	if err := router.Run(*listenAddr); err != nil {
-		log.Fatal("Failed to start server", zap.Error(err))
+		log.Error("Server error", zap.Error(err))
+		distributor.Stop()
+		if etcdStore, ok := store.(*storage.EtcdStore); ok {
+			etcdStore.Close()
+		}
+		cancel()
 	}
+
+	// 等待 context 被取消（由于收到信号）
+	<-ctx.Done()
+	log.Info("Control Plane shutdown complete")
 }
 
 // initializeStore 根据存储类型初始化相应的存储后端
