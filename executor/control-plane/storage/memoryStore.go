@@ -127,13 +127,23 @@ func (s *memoryStore) Watch() <-chan WatchEvent {
 // broadcast sends a watch event to all registered watchers.
 // This should be called within a lock.
 func (s *memoryStore) broadcast(event WatchEvent) {
+	// Collect dead watchers to clean up after the loop
+	var deadWatchers []int
+
 	for id, ch := range s.watchers {
 		select {
 		case ch <- event:
 			// Event sent successfully
 		default:
 			// Channel is blocked, assume the watcher is dead or slow.
-			// Close the channel and remove it.
+			// Mark for cleanup instead of closing immediately
+			deadWatchers = append(deadWatchers, id)
+		}
+	}
+
+	// Cleanup dead watchers
+	for _, id := range deadWatchers {
+		if ch, exists := s.watchers[id]; exists {
 			close(ch)
 			delete(s.watchers, id)
 		}

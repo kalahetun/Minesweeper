@@ -8,10 +8,11 @@ import (
 	"sync"
 	"time"
 
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/api/v3/mvccpb"
-	"go.uber.org/zap"
 	"hfi/control-plane/logger"
+
+	"go.etcd.io/etcd/api/v3/mvccpb"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/zap"
 )
 
 const (
@@ -31,20 +32,20 @@ type EtcdStore struct {
 // NewEtcdStore creates a new EtcdStore instance.
 func NewEtcdStore(endpoints []string) (*EtcdStore, error) {
 	log := logger.WithComponent("storage.etcd")
-	
+
 	client, err := clientv3.New(clientv3.Config{
 		Endpoints:   endpoints,
 		DialTimeout: 5 * time.Second,
 	})
 	if err != nil {
-		log.Error("Failed to create etcd client", 
+		log.Error("Failed to create etcd client",
 			zap.Strings("endpoints", endpoints),
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to create etcd client: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	store := &EtcdStore{
 		client:   client,
 		ctx:      ctx,
@@ -55,7 +56,7 @@ func NewEtcdStore(endpoints []string) (*EtcdStore, error) {
 	// Start the global watcher goroutine
 	go store.startGlobalWatcher()
 
-	log.Info("etcd store initialized successfully", 
+	log.Info("etcd store initialized successfully",
 		zap.Strings("endpoints", endpoints))
 	return store, nil
 }
@@ -89,7 +90,7 @@ func (e *EtcdStore) CreateOrUpdate(policy *FaultInjectionPolicy) error {
 	}
 
 	key := e.policyKey(policy.Metadata.Name)
-	
+
 	// Use a transaction to ensure atomicity
 	txn := e.client.Txn(e.ctx)
 	_, err = txn.Then(clientv3.OpPut(key, string(data))).Commit()
@@ -112,7 +113,7 @@ func (e *EtcdStore) Create(policy *FaultInjectionPolicy) error {
 	}
 
 	key := e.policyKey(policy.Metadata.Name)
-	
+
 	// Use etcd transaction to check if key doesn't exist before creating
 	txn := e.client.Txn(e.ctx)
 	resp, err := txn.If(
@@ -150,7 +151,7 @@ func (e *EtcdStore) Update(policy *FaultInjectionPolicy) error {
 	}
 
 	key := e.policyKey(policy.Metadata.Name)
-	
+
 	// Use etcd transaction to check if key exists before updating
 	txn := e.client.Txn(e.ctx)
 	resp, err := txn.If(
@@ -207,17 +208,17 @@ func (e *EtcdStore) Delete(name string) error {
 	}
 
 	key := e.policyKey(name)
-	
+
 	// First check if the key exists
 	resp, err := e.client.Get(e.ctx, key)
 	if err != nil {
 		return fmt.Errorf("failed to check policy existence: %w", err)
 	}
-	
+
 	if len(resp.Kvs) == 0 {
 		return ErrNotFound
 	}
-	
+
 	// Delete the key
 	_, err = e.client.Delete(e.ctx, key)
 	if err != nil {
@@ -250,7 +251,7 @@ func (e *EtcdStore) List() []*FaultInjectionPolicy {
 // Watch returns a channel that receives notifications of policy changes.
 func (e *EtcdStore) Watch() <-chan WatchEvent {
 	ch := make(chan WatchEvent, 100) // Buffer to prevent blocking
-	
+
 	e.watcherMu.Lock()
 	e.watchers = append(e.watchers, ch)
 	e.watcherMu.Unlock()
@@ -330,30 +331,64 @@ func (e *EtcdStore) processWatchEvent(event *clientv3.Event) {
 }
 
 // distributeWatchEvent sends the watch event to all registered watchers.
+// Uses a copy-on-read pattern to avoid holding the lock during sends.
 func (e *EtcdStore) distributeWatchEvent(event WatchEvent) {
+	// Make a copy of watchers to avoid holding lock during sends
 	e.watcherMu.RLock()
-	defer e.watcherMu.RUnlock()
+	watchers := make([]chan WatchEvent, len(e.watchers))
+	copy(watchers, e.watchers)
+	e.watcherMu.RUnlock()
 
-	for i, watcher := range e.watchers {
+	// Track dead watchers to clean up later
+	var deadIndices []int
+
+	// Send to all watchers without holding the lock
+	for i, watcher := range watchers {
 		select {
 		case watcher <- event:
 			// Event sent successfully
 		default:
-			// Watcher channel is full or closed, remove it
-			e.removeWatcherAt(i)
+			// Watcher channel is full or closed, mark for cleanup
+			deadIndices = append(deadIndices, i)
 		}
+	}
+
+	// Cleanup dead watchers
+	if len(deadIndices) > 0 {
+		e.cleanupDeadWatchers(deadIndices)
 	}
 }
 
-// removeWatcherAt removes a watcher at the specified index (not thread-safe).
-func (e *EtcdStore) removeWatcherAt(index int) {
-	if index < 0 || index >= len(e.watchers) {
-		return
+// cleanupDeadWatchers removes watchers that failed to receive events.
+// This is called after we've released the read lock.
+func (e *EtcdStore) cleanupDeadWatchers(deadIndices []int) {
+	e.watcherMu.Lock()
+	defer e.watcherMu.Unlock()
+
+	// Build a new slice without the dead watchers
+	// We need to be careful because indices may have changed due to concurrent adds
+	var newWatchers []chan WatchEvent
+
+	deadSet := make(map[int]bool)
+	for _, idx := range deadIndices {
+		deadSet[idx] = true
 	}
 
-	// Close the channel
-	close(e.watchers[index])
+	for i, watcher := range e.watchers {
+		if deadSet[i] {
+			// Try to close the dead watcher, ignore if already closed
+			select {
+			case <-watcher:
+				// Channel already closed or can receive
+			default:
+				// Try to close
+				close(watcher)
+			}
+		} else {
+			// Keep this watcher
+			newWatchers = append(newWatchers, watcher)
+		}
+	}
 
-	// Remove from slice
-	e.watchers = append(e.watchers[:index], e.watchers[index+1:]...)
+	e.watchers = newWatchers
 }

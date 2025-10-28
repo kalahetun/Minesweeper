@@ -10,6 +10,7 @@ import (
 	"hfi/control-plane/storage"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -27,9 +28,9 @@ func main() {
 
 	// 解析命令行参数
 	var (
-		storageType = flag.String("storage", "memory", "Storage backend type: memory or etcd")
+		storageType   = flag.String("storage", "memory", "Storage backend type: memory or etcd")
 		etcdEndpoints = flag.String("etcd-endpoints", "localhost:2379", "Comma-separated list of etcd endpoints")
-		listenAddr = flag.String("listen", "0.0.0.0:8080", "Address to listen on")
+		listenAddr    = flag.String("listen", "0.0.0.0:8080", "Address to listen on")
 	)
 	flag.Parse()
 
@@ -72,13 +73,13 @@ func main() {
 
 	// 3. 初始化服务层
 	policyService := service.NewPolicyService(store)
-	
+
 	// 4. 初始化控制器
 	policyController := api.NewPolicyController(policyService)
 
 	// 5. 初始化 Gin 引擎
 	router := gin.New()
-	
+
 	// 6. 添加中间件
 	router.Use(middleware.RequestIDMiddleware())
 	router.Use(middleware.LoggingMiddleware())
@@ -93,9 +94,9 @@ func main() {
 		})
 
 		// 策略管理端点
-		v1.POST("/policies", policyController.CreateOrUpdate)      // 创建或更新策略 (原有行为)
-		v1.POST("/policies/create", policyController.Create)       // 仅创建策略 (新增)
-		v1.PUT("/policies/:id", policyController.Update)          // 仅更新策略 (新增)
+		v1.POST("/policies", policyController.CreateOrUpdate) // 创建或更新策略 (原有行为)
+		v1.POST("/policies/create", policyController.Create)  // 仅创建策略 (新增)
+		v1.PUT("/policies/:id", policyController.Update)      // 仅更新策略 (新增)
 		v1.GET("/policies/:id", policyController.Get)
 		v1.GET("/policies", policyController.List)
 		v1.DELETE("/policies/:id", policyController.Delete)
@@ -110,7 +111,7 @@ func main() {
 		zap.String("listen_addr", *listenAddr))
 
 	log.Info("Server listening", zap.String("address", *listenAddr))
-	
+
 	if err := router.Run(*listenAddr); err != nil {
 		log.Fatal("Failed to start server", zap.Error(err))
 	}
@@ -119,13 +120,13 @@ func main() {
 // initializeStore 根据存储类型初始化相应的存储后端
 func initializeStore(storageType, etcdEndpoints string) (storage.IPolicyStore, error) {
 	log := logger.WithComponent("storage")
-	
+
 	switch strings.ToLower(storageType) {
 	case "memory":
 		log.Info("Using memory storage backend")
 		return storage.NewMemoryStore(), nil
 	case "etcd":
-		log.Info("Using etcd storage backend", 
+		log.Info("Using etcd storage backend",
 			zap.String("endpoints", etcdEndpoints))
 		endpoints := strings.Split(etcdEndpoints, ",")
 		for i, endpoint := range endpoints {
@@ -138,33 +139,67 @@ func initializeStore(storageType, etcdEndpoints string) (storage.IPolicyStore, e
 }
 
 // sseHandler 创建一个处理 SSE 连接的 Gin 处理器。
+// 改进版本包含：
+// - 更大的 channel 缓冲区，防止阻塞
+// - 带超时的写入，处理慢客户端
+// - 心跳信号保持连接活跃
+// - 优雅处理客户端断开连接
 func sseHandler(distributor *ConfigDistributor) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		log := logger.WithComponent("api.sse")
+
 		// 设置 SSE 所需的响应头
 		c.Writer.Header().Set("Content-Type", "text/event-stream")
 		c.Writer.Header().Set("Cache-Control", "no-cache")
 		c.Writer.Header().Set("Connection", "keep-alive")
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 
-		// 为此客户端创建一个 channel
-		clientChan := make(chan string, 1)
+		// 为此客户端创建一个更大缓冲的 channel，防止阻塞
+		clientChan := make(chan string, 100)
 		distributor.RegisterClient(clientChan)
 		defer distributor.UnregisterClient(clientChan)
 
 		// 立即发送当前的全量配置
 		initialConfig := distributor.GetCurrentConfig()
-		fmt.Fprintf(c.Writer, "event: full_config\ndata: %s\n\n", initialConfig)
+		if _, err := fmt.Fprintf(c.Writer, "event: full_config\ndata: %s\n\n", initialConfig); err != nil {
+			log.Warn("Failed to send initial config", zap.Error(err))
+			return
+		}
 		c.Writer.Flush()
 
 		ctx := c.Request.Context()
+
+		// 心跳定时器，每30秒发送一次心跳保持连接活跃
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
-				// 客户端断开连接
+				// 客户端断开连接或 context 被取消
+				log.Debug("Client disconnected")
 				return
-			case config := <-clientChan:
-				// 收到新的配置更新
-				fmt.Fprintf(c.Writer, "event: update\ndata: %s\n\n", config)
+
+			case config, ok := <-clientChan:
+				if !ok {
+					// channel 被关闭，客户端已被移除
+					log.Warn("Client channel closed")
+					return
+				}
+
+				// 发送新的配置更新
+				if _, err := fmt.Fprintf(c.Writer, "event: update\ndata: %s\n\n", config); err != nil {
+					log.Warn("Failed to send config update", zap.Error(err))
+					return
+				}
+				c.Writer.Flush()
+
+			case <-ticker.C:
+				// 发送心跳信号，保持连接活跃
+				if _, err := fmt.Fprintf(c.Writer, ": keepalive\n\n"); err != nil {
+					log.Warn("Failed to send keepalive", zap.Error(err))
+					return
+				}
 				c.Writer.Flush()
 			}
 		}
