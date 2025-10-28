@@ -2,7 +2,7 @@ use log::{info, warn, debug, error};
 use proxy_wasm::traits::{Context, HttpContext, RootContext};
 use proxy_wasm::types::{Action, LogLevel};
 use std::time::Duration;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex};
 
 mod config;
 mod matcher;
@@ -33,12 +33,13 @@ pub fn _start() {
     setup_panic_hook();
     
     proxy_wasm::set_log_level(LogLevel::Info);
+    
     proxy_wasm::set_root_context(|_| -> Box<dyn RootContext> {
         Box::new(PluginRootContext {
             control_plane_address: String::new(),
-            current_rules: Arc::new(RwLock::new(None)),
+            current_rules: Arc::new(Mutex::new(None)),
             delay_manager: DelayManager::new(),
-            reconnect_manager: ReconnectManager::new(),
+            reconnect_manager: Arc::new(Mutex::new(ReconnectManager::new())),
             config_call_id: None,
             aborts_total_metric: None,
             delays_total_metric: None,
@@ -52,9 +53,9 @@ pub fn _start() {
 // Root context for the entire plugin
 struct PluginRootContext {
     control_plane_address: String,
-    current_rules: Arc<RwLock<Option<CompiledRuleSet>>>,
+    current_rules: Arc<Mutex<Option<CompiledRuleSet>>>,
     delay_manager: DelayManager,
-    reconnect_manager: ReconnectManager,
+    reconnect_manager: Arc<Mutex<ReconnectManager>>,
     config_call_id: Option<u32>,
     // Metrics IDs
     aborts_total_metric: Option<u32>,
@@ -124,14 +125,19 @@ impl PluginRootContext {
     fn get_delay_duration_histogram(&self) -> Option<u32> {
         self.delay_duration_histogram
     }
-    
+
     fn dispatch_config_request(&mut self) {
         // 如果正在重连中，不要发起新的请求
-        if self.reconnect_manager.is_reconnecting() {
-            debug!("Skipping config request - reconnection in progress");
+        if let Ok(manager) = self.reconnect_manager.lock() {
+            if manager.is_reconnecting() {
+                debug!("Skipping config request - reconnection in progress");
+                return;
+            }
+        } else {
+            error!("Failed to acquire lock on reconnect manager");
             return;
         }
-
+        
         info!("Dispatching HTTP call to control plane: {}", self.control_plane_address);
         
         let result = safe_execute("dispatch_http_call", || {
@@ -165,21 +171,27 @@ impl PluginRootContext {
         }
     }
 
-    fn handle_config_failure(&mut self) {
-        if let Some(delay) = self.reconnect_manager.on_failure() {
-            info!("Scheduling reconnect attempt in {:?}", delay);
-            self.set_tick_period(delay);
-        } else {
-            error!("Max reconnection attempts reached, giving up");
-        }
-    }
-
     fn handle_config_success(&mut self) {
-        self.reconnect_manager.on_success();
+        if let Ok(mut manager) = self.reconnect_manager.lock() {
+            manager.on_success();
+        }
         self.config_call_id = None;
         
         // 设置定期配置拉取
         self.set_tick_period(Duration::from_secs(30));
+    }
+    
+    fn handle_config_failure(&mut self) {
+        if let Ok(mut manager) = self.reconnect_manager.lock() {
+            if let Some(delay) = manager.on_failure() {
+                info!("Scheduling reconnect attempt in {:?}", delay);
+                self.set_tick_period(delay);
+            } else {
+                error!("Max reconnection attempts reached, giving up");
+            }
+        } else {
+            error!("Failed to acquire lock on reconnect manager");
+        }
     }
 }
 
@@ -210,8 +222,8 @@ impl Context for PluginRootContext {
                         Ok(ruleset) => {
                             info!("Successfully parsed {} rules from control plane", ruleset.rules.len());
                             
-                            // Update rules with write lock
-                            if let Ok(mut rules) = self.current_rules.write() {
+                            // Update rules with mutex lock
+                            if let Ok(mut rules) = self.current_rules.lock() {
                                 *rules = Some(ruleset);
                                 
                                 // Log rule details for debugging
@@ -230,7 +242,7 @@ impl Context for PluginRootContext {
                                     }
                                 }
                             } else {
-                                warn!("Failed to acquire write lock for rules update");
+                                warn!("Failed to acquire lock for rules update");
                             }
                             true // 解析成功
                         }
@@ -305,7 +317,12 @@ impl RootContext for PluginRootContext {
         debug!("Tick event received");
         
         // 如果正在重连过程中，发起新的配置请求
-        if self.reconnect_manager.is_reconnecting() {
+        let is_reconnecting = self.reconnect_manager
+            .lock()
+            .map(|manager| manager.is_reconnecting())
+            .unwrap_or(false);
+            
+        if is_reconnecting {
             info!("Reconnection tick - attempting to fetch config");
             self.dispatch_config_request();
         } else {
@@ -337,7 +354,7 @@ impl RootContext for PluginRootContext {
 // HTTP context for each request
 struct PluginHttpContext {
     context_id: u32,
-    rules: Arc<RwLock<Option<CompiledRuleSet>>>,
+    rules: Arc<Mutex<Option<CompiledRuleSet>>>,
     metrics: executor::MetricsIds,
 }
 
@@ -347,11 +364,11 @@ impl HttpContext for PluginHttpContext {
     fn on_http_request_headers(&mut self, _num_headers: usize, _end_of_stream: bool) -> Action {
         debug!("Handling request headers for context {}", self.context_id);
         
-        // Get current rules with read lock
-        let rules_guard = match self.rules.read() {
+        // Get current rules with lock
+        let rules_guard = match self.rules.lock() {
             Ok(guard) => guard,
-            Err(_) => {
-                warn!("Failed to acquire read lock for rules, allowing request to continue");
+            Err(e) => {
+                warn!("Failed to acquire lock for rules: {:?}, allowing request to continue", e);
                 return Action::Continue;
             }
         };

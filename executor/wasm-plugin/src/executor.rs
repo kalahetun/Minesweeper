@@ -69,10 +69,19 @@ fn execute_abort(abort: &AbortAction, http_context: &dyn HttpContext, metrics: M
     Action::Pause
 }
 
-/// Execute delay fault (simplified for W-4)
+/// Execute delay fault (simplified - actual delay mechanism needs async support)
+/// 
+/// Note: WASM plugin framework limitations prevent true asynchronous delay.
+/// Returning Action::Pause tells Envoy to wait, but the plugin cannot resume
+/// the request after a delay without additional infrastructure (e.g., external timers).
+/// 
+/// TODO: Implement proper delay mechanism:
+/// - Use Envoy's timer callbacks (proxy_on_timer)
+/// - Or use external delay service
+/// - Or defer to Lua filter that supports async delays
 fn execute_delay(delay: &DelayAction, context_id: u32, metrics: MetricsIds) -> Action {
     if let Some(duration_ms) = delay.parsed_duration_ms {
-        info!("Applying delay of {}ms for context {}", duration_ms, context_id);
+        info!("Delay fault triggered for context {} - {}ms", context_id, duration_ms);
         
         // Increment delay counter metric
         if let Some(metric_id) = metrics.delays_total {
@@ -96,50 +105,48 @@ fn execute_delay(delay: &DelayAction, context_id: u32, metrics: MetricsIds) -> A
             debug!("Delay duration histogram metric not available");
         }
         
-        // For demonstration, use a simple blocking approach
-        // In production, this would use proper async delay mechanisms with timers
-        let start_time = proxy_wasm::hostcalls::get_current_time().unwrap_or(std::time::UNIX_EPOCH);
-        
-        // Simple busy-wait implementation for demonstration
-        // Note: This is not ideal for production but shows the delay is working
-        loop {
-            if let Ok(current_time) = proxy_wasm::hostcalls::get_current_time() {
-                let elapsed = current_time.duration_since(start_time)
-                    .unwrap_or(std::time::Duration::from_secs(0))
-                    .as_millis() as u64;
-                
-                if elapsed >= duration_ms {
-                    break;
-                }
-            }
-        }
-        
-        info!("Delay of {}ms applied successfully for context {}", duration_ms, context_id);
+        // Return Pause to indicate the request should be delayed
+        // Note: Actual delay implementation depends on Envoy/WASM host support
+        // This is currently a placeholder that tells Envoy to pause the request
+        info!("Request paused for delay ({}ms) - context {}", duration_ms, context_id);
+        Action::Pause
     } else {
         warn!("Delay duration not parsed correctly: {}", delay.fixed_delay);
+        Action::Continue
     }
-    Action::Continue
 }
 
 /// Generate random percentage (0-100)
+/// Uses thread-local storage for thread-safe PRNG
 pub fn generate_random_percentage() -> u32 {
-    // Simple PRNG implementation since proxy-wasm doesn't provide rand
-    static mut SEED: u64 = 1;
-    unsafe {
+    thread_local! {
+        static SEED: std::cell::RefCell<u64> = {
+            // Initialize seed with current time
+            let initial_seed = proxy_wasm::hostcalls::get_current_time()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_nanos() as u64)
+                .unwrap_or(1);
+            std::cell::RefCell::new(initial_seed)
+        };
+    }
+
+    SEED.with(|seed| {
+        let mut s = seed.borrow_mut();
         // Update seed using a linear congruential generator
-        SEED = SEED.wrapping_mul(1103515245).wrapping_add(12345);
+        *s = s.wrapping_mul(1103515245).wrapping_add(12345);
         
-        // Add some entropy if available
+        // Add some entropy from current time if available
         if let Ok(time) = proxy_wasm::hostcalls::get_current_time() {
-            let nanos = time.duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or(std::time::Duration::from_secs(0))
-                .as_nanos() as u64;
-            SEED = SEED.wrapping_add(nanos);
+            if let Ok(duration) = time.duration_since(std::time::UNIX_EPOCH) {
+                let nanos = duration.as_nanos() as u64;
+                *s = s.wrapping_add(nanos);
+            }
         }
         
         // Return value between 0-100
-        (SEED % 101) as u32
-    }
+        (*s % 101) as u32
+    })
 }
 
 /// Increment a counter metric
