@@ -18,6 +18,8 @@ import (
 const (
 	// policyPrefix is the etcd key prefix for all policies
 	policyPrefix = "hfi/policies/"
+	// defaultTimeout is the default timeout for etcd operations
+	defaultTimeout = 5 * time.Second
 )
 
 // EtcdStore implements IPolicyStore using etcd as the backend storage.
@@ -91,8 +93,12 @@ func (e *EtcdStore) CreateOrUpdate(policy *FaultInjectionPolicy) error {
 
 	key := e.policyKey(policy.Metadata.Name)
 
+	// Create a context with timeout for this operation
+	ctx, cancel := context.WithTimeout(e.ctx, defaultTimeout)
+	defer cancel()
+
 	// Use a transaction to ensure atomicity
-	txn := e.client.Txn(e.ctx)
+	txn := e.client.Txn(ctx)
 	_, err = txn.Then(clientv3.OpPut(key, string(data))).Commit()
 	if err != nil {
 		return fmt.Errorf("failed to put policy to etcd: %w", err)
@@ -114,8 +120,12 @@ func (e *EtcdStore) Create(policy *FaultInjectionPolicy) error {
 
 	key := e.policyKey(policy.Metadata.Name)
 
+	// Create a context with timeout for this operation
+	ctx, cancel := context.WithTimeout(e.ctx, defaultTimeout)
+	defer cancel()
+
 	// Use etcd transaction to check if key doesn't exist before creating
-	txn := e.client.Txn(e.ctx)
+	txn := e.client.Txn(ctx)
 	resp, err := txn.If(
 		// Condition: key doesn't exist (CreateRevision == 0)
 		clientv3.Compare(clientv3.CreateRevision(key), "=", 0),
@@ -152,8 +162,12 @@ func (e *EtcdStore) Update(policy *FaultInjectionPolicy) error {
 
 	key := e.policyKey(policy.Metadata.Name)
 
+	// Create a context with timeout for this operation
+	ctx, cancel := context.WithTimeout(e.ctx, defaultTimeout)
+	defer cancel()
+
 	// Use etcd transaction to check if key exists before updating
-	txn := e.client.Txn(e.ctx)
+	txn := e.client.Txn(ctx)
 	resp, err := txn.If(
 		// Condition: key exists (CreateRevision > 0)
 		clientv3.Compare(clientv3.CreateRevision(key), ">", 0),
@@ -184,7 +198,12 @@ func (e *EtcdStore) Get(name string) (*FaultInjectionPolicy, error) {
 	}
 
 	key := e.policyKey(name)
-	resp, err := e.client.Get(e.ctx, key)
+
+	// Create a context with timeout for this operation
+	ctx, cancel := context.WithTimeout(e.ctx, defaultTimeout)
+	defer cancel()
+
+	resp, err := e.client.Get(ctx, key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get policy from etcd: %w", err)
 	}
@@ -210,8 +229,12 @@ func (e *EtcdStore) Delete(name string) error {
 
 	key := e.policyKey(name)
 
+	// Create a context with timeout for this operation
+	ctx, cancel := context.WithTimeout(e.ctx, defaultTimeout)
+	defer cancel()
+
 	// Use etcd transaction to check if key exists before deleting
-	txn := e.client.Txn(e.ctx)
+	txn := e.client.Txn(ctx)
 	resp, err := txn.If(
 		// Condition: key exists (CreateRevision > 0)
 		clientv3.Compare(clientv3.CreateRevision(key), ">", 0),
@@ -235,7 +258,11 @@ func (e *EtcdStore) Delete(name string) error {
 	return nil
 } // List retrieves all policies.
 func (e *EtcdStore) List() []*FaultInjectionPolicy {
-	resp, err := e.client.Get(e.ctx, policyPrefix, clientv3.WithPrefix())
+	// Create a context with timeout for this operation
+	ctx, cancel := context.WithTimeout(e.ctx, defaultTimeout)
+	defer cancel()
+
+	resp, err := e.client.Get(ctx, policyPrefix, clientv3.WithPrefix())
 	if err != nil {
 		return []*FaultInjectionPolicy{}
 	}

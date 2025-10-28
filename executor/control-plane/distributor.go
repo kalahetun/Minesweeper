@@ -50,13 +50,13 @@ func NewConfigDistributor(store storage.IPolicyStore) *ConfigDistributor {
 // Stop gracefully shuts down the distributor and closes all client connections.
 func (d *ConfigDistributor) Stop() {
 	log := logger.WithComponent("distributor")
-	
+
 	// Signal the watch goroutine to stop
 	d.cancel()
-	
+
 	// Wait for watch to finish
 	<-d.doneChan
-	
+
 	// Close all client channels
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -64,7 +64,7 @@ func (d *ConfigDistributor) Stop() {
 		close(clientChan)
 	}
 	d.clients = make(map[chan string]struct{})
-	
+
 	log.Info("Config distributor stopped")
 }
 

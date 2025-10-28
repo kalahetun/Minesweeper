@@ -177,6 +177,7 @@ func initializeStore(storageType, etcdEndpoints string) (storage.IPolicyStore, e
 // - 带超时的写入，处理慢客户端
 // - 心跳信号保持连接活跃
 // - 优雅处理客户端断开连接
+// - 适当的错误状态码
 func sseHandler(distributor *ConfigDistributor) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		log := logger.WithComponent("api.sse")
@@ -196,6 +197,7 @@ func sseHandler(distributor *ConfigDistributor) gin.HandlerFunc {
 		initialConfig := distributor.GetCurrentConfig()
 		if _, err := fmt.Fprintf(c.Writer, "event: full_config\ndata: %s\n\n", initialConfig); err != nil {
 			log.Warn("Failed to send initial config", zap.Error(err))
+			c.AbortWithStatusJSON(500, gin.H{"error": "failed to send initial config"})
 			return
 		}
 		c.Writer.Flush()
@@ -217,6 +219,7 @@ func sseHandler(distributor *ConfigDistributor) gin.HandlerFunc {
 				if !ok {
 					// channel 被关闭，客户端已被移除
 					log.Warn("Client channel closed")
+					c.AbortWithStatusJSON(500, gin.H{"error": "config channel closed"})
 					return
 				}
 
