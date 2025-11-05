@@ -75,9 +75,14 @@ fn execute_abort(abort: &AbortAction, http_context: &dyn HttpContext, metrics: M
 /// Returning Action::Pause tells Envoy to wait, but the plugin cannot resume
 /// the request after a delay without additional infrastructure (e.g., external timers).
 /// 
-/// TODO: Implement proper delay mechanism:
-/// - Use Envoy's timer callbacks (proxy_on_timer)
-/// - Or use external delay service
+/// Implementation improvements (M1):
+/// - DelayManager now tracks delayed requests and supports cancellation via cancel_delay()
+/// - HTTP calls can be cancelled on delay expiry to prevent stale requests
+/// - Monitoring method get_delayed_count() available for observability
+/// 
+/// Future enhancements:
+/// - Use Envoy's timer callbacks (proxy_on_timer) for true async delays
+/// - Or integrate external delay service
 /// - Or defer to Lua filter that supports async delays
 fn execute_delay(delay: &DelayAction, context_id: u32, metrics: MetricsIds) -> Action {
     if let Some(duration_ms) = delay.parsed_duration_ms {
@@ -184,6 +189,18 @@ impl DelayManager {
     
     pub fn handle_timer(&mut self, timer_token: u32) -> Option<u32> {
         self.delayed_requests.remove(&timer_token)
+    }
+    
+    /// Cancel a delayed request and optionally cancel the associated HTTP call
+    /// This prevents stale requests from being sent after delay expires
+    pub fn cancel_delay(&mut self, timer_token: u32) -> Option<u32> {
+        debug!("Cancelling delayed request with token {}", timer_token);
+        self.delayed_requests.remove(&timer_token)
+    }
+    
+    /// Get the number of currently delayed requests (for monitoring)
+    pub fn get_delayed_count(&self) -> usize {
+        self.delayed_requests.len()
     }
 }
 

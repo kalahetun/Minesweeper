@@ -12,32 +12,72 @@ pub struct RequestInfo {
 
 impl RequestInfo {
     /// Extract request information from HttpContext
+    /// 
+    /// Improvements (M3):
+    /// - Better error handling with fallback values
+    /// - Extracts both standard and custom headers
+    /// - Provides sensible defaults for critical fields
     pub fn from_http_context(http_context: &dyn HttpContext) -> Self {
+        // Extract path with multiple fallbacks
         let path = http_context
             .get_http_request_header(":path")
-            .unwrap_or_else(|| "/".to_string());
+            .and_then(|p| if p.is_empty() { None } else { Some(p) })
+            .unwrap_or_else(|| {
+                log::debug!("Path header missing or empty, using default '/'");
+                "/".to_string()
+            });
         
+        // Extract method with fallback to GET
         let method = http_context
             .get_http_request_header(":method")
-            .unwrap_or_else(|| "GET".to_string());
+            .and_then(|m| if m.is_empty() { None } else { Some(m) })
+            .unwrap_or_else(|| {
+                log::debug!("Method header missing or empty, using default 'GET'");
+                "GET".to_string()
+            });
         
-        // Extract all headers for matching
+        // Extract all headers for matching with comprehensive fallback
         let mut headers = HashMap::new();
         
-        // Note: In a real implementation, we would need to iterate through all headers
-        // Since proxy-wasm doesn't provide a direct way to get all headers,
-        // we'll extract common headers that might be used for matching
-        let common_headers = [
+        // Standard HTTP headers (pseudo-headers and common headers)
+        let standard_headers = [
+            ":authority", ":scheme", ":method", ":path",  // pseudo-headers
             "host", "user-agent", "accept", "accept-language", "accept-encoding",
-            "authorization", "content-type", "content-length", "x-forwarded-for",
-            "x-real-ip", "x-user-id", "x-tenant-id", "x-service", "x-version"
+            "authorization", "content-type", "content-length", 
+            "x-forwarded-for", "x-real-ip", 
+            "x-forwarded-proto", "x-forwarded-host",
+            "connection", "upgrade", "cache-control", "pragma",
         ];
         
-        for header_name in &common_headers {
+        // Custom headers commonly used for matching (tenant, service, version info)
+        let custom_headers = [
+            "x-user-id", "x-tenant-id", "x-service", "x-version",
+            "x-request-id", "x-correlation-id", "x-trace-id",
+            "x-api-key", "x-client-id", "x-device-id",
+            "x-region", "x-environment", "x-feature-flags",
+        ];
+        
+        // Extract standard headers
+        for header_name in &standard_headers {
             if let Some(value) = http_context.get_http_request_header(header_name) {
-                headers.insert(header_name.to_string(), value);
+                if !value.is_empty() {
+                    headers.insert(header_name.to_string(), value);
+                }
             }
         }
+        
+        // Extract custom headers
+        for header_name in &custom_headers {
+            if let Some(value) = http_context.get_http_request_header(header_name) {
+                if !value.is_empty() {
+                    headers.insert(header_name.to_string(), value);
+                }
+            }
+        }
+        
+        // Log extraction summary
+        log::debug!("Extracted request headers: path={}, method={}, header_count={}", 
+                   path, method, headers.len());
         
         RequestInfo {
             path,

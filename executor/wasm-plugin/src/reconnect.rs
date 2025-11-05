@@ -1,6 +1,31 @@
 use log::{debug, warn, error};
 use std::time::Duration;
 
+/// Error classification for reconnection strategy (M2 improvement)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ErrorType {
+    /// Temporary/retryable errors: timeouts, network issues, 5xx
+    Temporary,
+    /// Permanent/non-retryable errors: 4xx client errors
+    Permanent,
+    /// Unknown error type
+    Unknown,
+}
+
+impl ErrorType {
+    /// Classify HTTP status code into error type
+    pub fn from_status_code(status: u32) -> Self {
+        match status {
+            // 5xx server errors and timeouts are retryable
+            500..=599 => ErrorType::Temporary,
+            // 4xx client errors are generally not retryable
+            400..=499 => ErrorType::Permanent,
+            // Success and redirects
+            _ => ErrorType::Unknown,
+        }
+    }
+}
+
 /// 重连状态管理器，实现指数退避重连机制
 pub struct ReconnectManager {
     /// 当前重连尝试次数
@@ -47,13 +72,33 @@ impl ReconnectManager {
     }
 
     /// 处理连接失败，计算下次重连延迟
+    /// 
+    /// 改进 (M2): 支持错误分类，对临时错误和永久错误采取不同策略
+    /// - 临时错误（5xx、超时）：使用指数退避重连
+    /// - 永久错误（4xx）：快速放弃或使用较长延迟
     pub fn on_failure(&mut self) -> Option<Duration> {
+        self.on_failure_with_error_type(ErrorType::Temporary)
+    }
+    
+    /// Handle connection failure with error classification (M2)
+    pub fn on_failure_with_error_type(&mut self, error_type: ErrorType) -> Option<Duration> {
         self.attempts += 1;
         
-        if self.attempts > self.max_attempts {
+        // For permanent errors, reduce max attempts or fail immediately
+        let max_attempts = match error_type {
+            ErrorType::Permanent => {
+                // 4xx errors are unlikely to be fixed by retry
+                warn!("Permanent error detected (4xx), reducing max attempts");
+                std::cmp::min(self.max_attempts, 2)
+            }
+            ErrorType::Temporary => self.max_attempts,
+            ErrorType::Unknown => self.max_attempts,
+        };
+        
+        if self.attempts > max_attempts {
             error!(
-                "Max reconnection attempts reached: {}/{}",
-                self.attempts, self.max_attempts
+                "Max reconnection attempts reached: {}/{} (error type: {:?})",
+                self.attempts, max_attempts, error_type
             );
             return None;
         }
@@ -67,8 +112,8 @@ impl ReconnectManager {
         self.is_reconnecting = true;
 
         warn!(
-            "Connection failed, scheduling reconnect attempt {}/{} in {:?}",
-            self.attempts, self.max_attempts, self.current_delay
+            "Connection failed ({:?}), scheduling reconnect attempt {}/{} in {:?}",
+            error_type, self.attempts, max_attempts, self.current_delay
         );
 
         Some(self.current_delay)
