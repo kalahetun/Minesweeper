@@ -21,10 +21,10 @@ pub fn execute_fault(
     // Probability check
     let random_value = generate_random_percentage();
     
-    info!("Fault execution - random: {}, threshold: {}", random_value, fault.percentage);
+    debug!("Fault execution - random: {}, threshold: {}", random_value, fault.percentage);
     
     if random_value >= fault.percentage {
-        info!("Random value {} >= threshold {}, continuing normally", random_value, fault.percentage);
+        debug!("Random value {} >= threshold {}, continuing normally", random_value, fault.percentage);
         return Action::Continue;
     }
     
@@ -51,7 +51,7 @@ fn execute_abort(abort: &AbortAction, http_context: &dyn HttpContext, metrics: M
         ("x-fault-injected", "abort"),
     ];
     
-    info!("Sending abort response: status={}, body_len={}", abort.http_status, body.len());
+    debug!("Sending abort response: status={}, body_len={}", abort.http_status, body.len());
     
     // Increment abort counter metric
     if let Some(metric_id) = metrics.aborts_total {
@@ -60,8 +60,6 @@ fn execute_abort(abort: &AbortAction, http_context: &dyn HttpContext, metrics: M
         } else {
             debug!("Incremented hfi.faults.aborts_total counter");
         }
-    } else {
-        debug!("Aborts total metric not available");
     }
     
     // send_http_response returns (), not a Result
@@ -95,8 +93,6 @@ fn execute_delay(delay: &DelayAction, context_id: u32, metrics: MetricsIds) -> A
             } else {
                 debug!("Incremented hfi.faults.delays_total counter");
             }
-        } else {
-            debug!("Delays total metric not available");
         }
         
         // Record delay duration in histogram
@@ -106,14 +102,12 @@ fn execute_delay(delay: &DelayAction, context_id: u32, metrics: MetricsIds) -> A
             } else {
                 debug!("Recorded delay duration {}ms in histogram", duration_ms);
             }
-        } else {
-            debug!("Delay duration histogram metric not available");
         }
         
         // Return Pause to indicate the request should be delayed
         // Note: Actual delay implementation depends on Envoy/WASM host support
         // This is currently a placeholder that tells Envoy to pause the request
-        info!("Request paused for delay ({}ms) - context {}", duration_ms, context_id);
+        debug!("Request paused for delay ({}ms) - context {}", duration_ms, context_id);
         Action::Pause
     } else {
         warn!("Delay duration not parsed correctly: {}", delay.fixed_delay);

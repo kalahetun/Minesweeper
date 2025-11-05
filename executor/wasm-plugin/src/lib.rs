@@ -77,7 +77,7 @@ impl PluginRootContext {
             "hfi.faults.aborts_total"
         ) {
             Ok(metric_id) => {
-                info!("Defined aborts_total metric with ID: {}", metric_id);
+                debug!("Defined aborts_total metric with ID: {}", metric_id);
                 self.aborts_total_metric = Some(metric_id);
             }
             Err(e) => {
@@ -91,7 +91,7 @@ impl PluginRootContext {
             "hfi.faults.delays_total"
         ) {
             Ok(metric_id) => {
-                info!("Defined delays_total metric with ID: {}", metric_id);
+                debug!("Defined delays_total metric with ID: {}", metric_id);
                 self.delays_total_metric = Some(metric_id);
             }
             Err(e) => {
@@ -105,7 +105,7 @@ impl PluginRootContext {
             "hfi.faults.delay_duration_milliseconds"
         ) {
             Ok(metric_id) => {
-                info!("Defined delay_duration_milliseconds metric with ID: {}", metric_id);
+                debug!("Defined delay_duration_milliseconds metric with ID: {}", metric_id);
                 self.delay_duration_histogram = Some(metric_id);
             }
             Err(e) => {
@@ -138,7 +138,7 @@ impl PluginRootContext {
             return;
         }
         
-        info!("Dispatching HTTP call to control plane: {}", self.control_plane_address);
+        debug!("Dispatching HTTP call to control plane: {}", self.control_plane_address);
         
         let result = safe_execute("dispatch_http_call", || {
             self.dispatch_http_call(
@@ -229,15 +229,15 @@ impl Context for PluginRootContext {
                                 // Log rule details for debugging
                                 if let Some(ref rs) = *rules {
                                     for (i, rule) in rs.rules.iter().enumerate() {
-                                        info!("Rule {}: {} with {} fault percentage", i, rule.name, rule.fault.percentage);
+                                        debug!("Rule {}: {} with {} fault percentage", i, rule.name, rule.fault.percentage);
                                         if let Some(ref path) = rule.match_condition.path {
-                                            info!("  - Path matcher: exact={:?}, prefix={:?}", path.exact, path.prefix);
+                                            debug!("  - Path matcher: exact={:?}, prefix={:?}", path.exact, path.prefix);
                                         }
                                         if let Some(ref abort) = rule.fault.abort {
-                                            info!("  - Abort: status={}, body={:?}", abort.http_status, abort.body);
+                                            debug!("  - Abort: status={}, body={:?}", abort.http_status, abort.body);
                                         }
                                         if let Some(ref delay) = rule.fault.delay {
-                                            info!("  - Delay: {} ({}ms)", delay.fixed_delay, delay.parsed_duration_ms.unwrap_or(0));
+                                            debug!("  - Delay: {} ({}ms)", delay.fixed_delay, delay.parsed_duration_ms.unwrap_or(0));
                                         }
                                     }
                                 }
