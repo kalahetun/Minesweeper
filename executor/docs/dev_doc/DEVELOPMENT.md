@@ -596,13 +596,3 @@ docker-compose build --no-cache
 docker-compose up -d
 ```
 
-## 📝 下一步
-
-1. **阅读架构文档**: [docs/dev_doc/ARCHITECTURE.md](docs/dev_doc/ARCHITECTURE.md)
-2. **查看详细设计**: [docs/dev_doc/design_doc/](docs/dev_doc/design_doc/)
-3. **运行快速开始**: [QUICKSTART.md](QUICKSTART.md)
-4. **探索代码示例**: [cli/examples/](cli/examples/)
-
----
-
-**维护说明**: 本文档随项目发展持续更新。如发现问题或需要改进，请提交 Issue 或 Pull Request。
