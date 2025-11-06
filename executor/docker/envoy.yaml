@@ -41,7 +41,7 @@ static_resources:
                   runtime: "envoy.wasm.runtime.v8"
                   code:
                     local:
-                      inline_string: ""
+                      filename: "/etc/envoy/plugin.wasm"
                   configuration:
                     "@type": type.googleapis.com/google.protobuf.StringValue
                     value: |
@@ -82,13 +82,13 @@ static_resources:
                 port_value: 80
 
   # 控制平面集群 (用于 WASM 插件获取配置)
-  - name: control_plane
+  - name: hfi_control_plane
     connect_timeout: 30s
     type: LOGICAL_DNS
     dns_lookup_family: V4_ONLY
     lb_policy: ROUND_ROBIN
     load_assignment:
-      cluster_name: control_plane
+      cluster_name: hfi_control_plane
       endpoints:
       - lb_endpoints:
         - endpoint:

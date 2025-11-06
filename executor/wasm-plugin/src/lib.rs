@@ -323,7 +323,8 @@ impl RootContext for PluginRootContext {
             .unwrap_or(false);
             
         if is_reconnecting {
-            info!("Reconnection tick - attempting to fetch config");
+            // 降低日志级别为 debug，避免日志噪音
+            debug!("Reconnection tick - attempting to fetch config");
             self.dispatch_config_request();
         } else {
             // 正常的定期配置拉取

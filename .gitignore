@@ -18,7 +18,7 @@ build/
 /doc
 /wasm-plugin/target
 # Compiled artifacts
-*.wasm
 plugin.wasm
 /executor/plugin.wasm
 /executor/cli/hfi-cli
+/executor/wasm-plugin/target

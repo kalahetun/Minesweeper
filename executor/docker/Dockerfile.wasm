@@ -1,0 +1,32 @@
+# Stage 1: Builder
+# Use the official Rust image to build the Wasm plugin.
+FROM rust:1.89 as builder
+
+# Set the working directory inside the container
+WORKDIR /src
+
+# Install the WebAssembly target for Rust
+RUN rustup target add wasm32-unknown-unknown
+
+# Install wasm-opt for optimizing the Wasm binary (optional but recommended)
+RUN apt-get update && apt-get install -y binaryen && rm -rf /var/lib/apt/lists/*
+
+# Copy the entire wasm-plugin source code
+COPY wasm-plugin/ ./
+
+# Fetch dependencies
+RUN cargo fetch
+
+# Compile the Rust code into a Wasm binary.
+# --target: specifies the compilation target (WebAssembly)
+# --release: optimized build for production
+RUN cargo build --target wasm32-unknown-unknown --release
+
+# Optimize the Wasm binary to reduce size (optional but recommended)
+RUN wasm-opt -Oz --enable-bulk-memory -o /plugin.wasm target/wasm32-unknown-unknown/release/hfi_wasm_plugin.wasm
+
+# Stage 2: Scraper
+# A minimal image to simply hold the build artifact.
+# This allows us to copy the .wasm file out easily in docker-compose.
+FROM alpine:latest
+COPY --from=builder /plugin.wasm /plugin.wasm
