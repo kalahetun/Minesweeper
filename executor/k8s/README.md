@@ -5,28 +5,28 @@ This directory contains Kubernetes manifests for deploying the complete HTTP Fau
 ## 📦 Components
 
 ### 1. Control Plane (`control-plane.yaml`)
-- **Deployment**: `hfi-control-plane` with 2 replicas
-- **Service**: ClusterIP service exposing port 8080
-- **Storage**: etcd deployment and service for persistent storage
-- **Features**:
+- Deployment: `hfi-control-plane` with 2 replicas
+- Service: ClusterIP service exposing port 8080
+- Storage: etcd deployment and service for persistent storage
+- Features:
   - Health checks and readiness probes
   - Resource limits and requests
   - Environment variables for configuration
 
 ### 2. Envoy Configuration (`envoy-config.yaml`)
-- **ConfigMap**: `hfi-envoy-config` containing Envoy configuration
-- **Features**:
+- ConfigMap: `hfi-envoy-config` containing Envoy configuration
+- Features:
   - HTTP connection manager with Wasm filter
   - Wasm plugin configuration pointing to Control Plane service
   - Admin interface on port 9901
 
 ### 3. Sample Application (`sample-app-with-proxy.yaml`)
-- **Deployment**: Sample application with Envoy sidecar
-- **Containers**:
+- Deployment: Sample application with Envoy sidecar
+- Containers:
   - `httpbin`: Main application container
   - `envoy-proxy`: Sidecar proxy container
-- **Init Container**: Copies Wasm plugin to shared volume
-- **Services**: ClusterIP and NodePort for external access
+- Init Container: Copies Wasm plugin to shared volume
+- Services: ClusterIP and NodePort for external access
 
 ## 🚀 Quick Start
 
@@ -93,13 +93,13 @@ kubectl logs -l app=sample-app -c envoy-proxy
 ## 🌐 Access Services
 
 ### Internal Access (within cluster)
-- **Control Plane API**: `http://hfi-control-plane.default.svc.cluster.local:8080`
-- **Sample App (via Envoy)**: `http://sample-app-service.default.svc.cluster.local:8000`
-- **Envoy Admin**: `http://sample-app-service.default.svc.cluster.local:9901`
+- Control Plane API: `http://hfi-control-plane.default.svc.cluster.local:8080`
+- Sample App (via Envoy): `http://sample-app-service.default.svc.cluster.local:8000`
+- Envoy Admin: `http://sample-app-service.default.svc.cluster.local:9901`
 
 ### External Access (NodePort)
-- **Sample App**: `http://<node-ip>:30080`
-- **Envoy Admin**: `http://<node-ip>:30901`
+- Sample App: `http://<node-ip>:30080`
+- Envoy Admin: `http://<node-ip>:30901`
 
 Get node IP:
 ```bash
@@ -183,17 +183,17 @@ resources:
 
 ### Common Issues
 
-1. **Pods not starting**
+1. Pods not starting
    - Check container images are available
    - Verify resource limits are appropriate
    - Check node capacity
 
-2. **Wasm plugin not loading**
+2. Wasm plugin not loading
    - Verify init container copied the plugin successfully
    - Check Envoy logs for plugin errors
    - Ensure volume mounts are correct
 
-3. **Control Plane connectivity issues**
+3. Control Plane connectivity issues
    - Verify service names and ports in Envoy config
    - Check network policies if any
    - Ensure DNS resolution works

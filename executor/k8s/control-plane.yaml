@@ -50,7 +50,7 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 10
       restartPolicy: Always
----
+
 apiVersion: v1
 kind: Service
 metadata:
@@ -68,7 +68,7 @@ spec:
     name: http
   selector:
     app: hfi-control-plane
----
+
 # etcd deployment for storage backend
 apiVersion: apps/v1
 kind: Deployment
@@ -123,7 +123,7 @@ spec:
       volumes:
       - name: etcd-data
         emptyDir: {}
----
+
 apiVersion: v1
 kind: Service
 metadata:

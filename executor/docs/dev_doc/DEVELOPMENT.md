@@ -7,11 +7,11 @@
 ### 核心开发工具
 
 | 工具 | 推荐版本 | 用途 | 安装说明 |
-|------|----------|------|----------|
-| **Go** | 1.24+ | Control Plane & CLI 开发 | [官方安装指南](https://golang.org/doc/install) |
-| **Rust** | 1.89+ | WASM 插件开发 | [官方安装指南](https://rustup.rs/) |
-| **Docker** | 20.10+ | 容器化构建和运行 | [官方安装指南](https://docs.docker.com/get-docker/) |
-| **Docker Compose** | 2.0+ | 本地多服务编排 | 通常随 Docker 一起安装 |
+||-||-|
+| Go | 1.24+ | Control Plane & CLI 开发 | [官方安装指南](https://golang.org/doc/install) |
+| Rust | 1.89+ | WASM 插件开发 | [官方安装指南](https://rustup.rs/) |
+| Docker | 20.10+ | 容器化构建和运行 | [官方安装指南](https://docs.docker.com/get-docker/) |
+| Docker Compose | 2.0+ | 本地多服务编排 | 通常随 Docker 一起安装 |
 
 ### Rust 特殊配置
 
@@ -28,10 +28,10 @@ cargo install wasm-opt --locked
 ### Kubernetes 工具 (可选)
 
 | 工具 | 推荐版本 | 用途 | 安装说明 |
-|------|----------|------|----------|
-| **kubectl** | 1.28+ | Kubernetes 集群管理 | [官方安装指南](https://kubernetes.io/docs/tasks/tools/) |
-| **kind** | 0.20+ | 本地 Kubernetes 集群 | [官方安装指南](https://kind.sigs.k8s.io/docs/user/quick-start/) |
-| **minikube** | 1.31+ | 本地 Kubernetes 集群 | [官方安装指南](https://minikube.sigs.k8s.io/docs/start/) |
+||-||-|
+| kubectl | 1.28+ | Kubernetes 集群管理 | [官方安装指南](https://kubernetes.io/docs/tasks/tools/) |
+| kind | 0.20+ | 本地 Kubernetes 集群 | [官方安装指南](https://kind.sigs.k8s.io/docs/user/quick-start/) |
+| minikube | 1.31+ | 本地 Kubernetes 集群 | [官方安装指南](https://minikube.sigs.k8s.io/docs/start/) |
 
 ### 验证安装
 
@@ -143,11 +143,11 @@ hfi/
 
 ### 目录职责说明
 
-- **`cli/`**: 用户交互的命令行工具，使用 Go + Cobra 框架
-- **`control-plane/`**: 系统大脑，管理策略和配置分发，使用 Go + Gin
-- **`wasm-plugin/`**: 数据平面执行组件，嵌入到 Envoy 中，使用 Rust
-- **`k8s/`**: 生产环境部署配置，包含所有 Kubernetes 清单文件
-- **`docs/`**: 完整的项目文档，包括用户指南和开发者文档
+- `cli/`: 用户交互的命令行工具，使用 Go + Cobra 框架
+- `control-plane/`: 系统大脑，管理策略和配置分发，使用 Go + Gin
+- `wasm-plugin/`: 数据平面执行组件，嵌入到 Envoy 中，使用 Rust
+- `k8s/`: 生产环境部署配置，包含所有 Kubernetes 清单文件
+- `docs/`: 完整的项目文档，包括用户指南和开发者文档
 
 ## 🔨 构建指南
 
@@ -166,7 +166,7 @@ CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o hfi-control-plane .
 ./hfi-control-plane --help
 ```
 
-**构建选项说明**：
+构建选项说明：
 - `CGO_ENABLED=0`: 禁用 CGO，生成静态链接二进制文件
 - `GOOS=linux`: 指定目标操作系统 (适用于 Docker 部署)
 - `-ldflags="-w -s"`: 去除调试信息和符号表，减小文件大小
@@ -191,7 +191,7 @@ wasm-opt -Oz --enable-bulk-memory \
 ls -la target/wasm32-unknown-unknown/release/hfi_wasm_plugin.wasm
 ```
 
-**构建优化说明**：
+构建优化说明：
 - `--release`: 启用所有编译器优化
 - `wasm-opt -Oz`: 进一步优化 WASM 文件大小 (可选)
 - `--enable-bulk-memory`: 启用批量内存操作，提升性能
@@ -306,12 +306,12 @@ docker-compose logs -f control-plane
 docker-compose logs -f envoy
 ```
 
-**服务说明**：
-- **控制平面**: `http://localhost:8080` - API 服务器
-- **Envoy 代理**: `http://localhost:18000` - 代理入口
-- **Envoy 管理**: `http://localhost:19000` - 管理接口
-- **etcd**: `http://localhost:2379` - 存储后端
-- **测试后端**: `http://localhost:8081` - 简单的测试目标
+服务说明：
+- 控制平面: `http://localhost:8080` - API 服务器
+- Envoy 代理: `http://localhost:18000` - 代理入口
+- Envoy 管理: `http://localhost:19000` - 管理接口
+- etcd: `http://localhost:2379` - 存储后端
+- 测试后端: `http://localhost:8081` - 简单的测试目标
 
 ### 手动启动服务
 
@@ -550,13 +550,13 @@ cargo test --release -- --nocapture
 
 ### 构建问题
 
-**问题**: `cargo build` 失败，提示找不到 `wasm32-unknown-unknown` target
+问题: `cargo build` 失败，提示找不到 `wasm32-unknown-unknown` target
 ```bash
 # 解决方案
 rustup target add wasm32-unknown-unknown
 ```
 
-**问题**: Go 构建时出现模块依赖错误
+问题: Go 构建时出现模块依赖错误
 ```bash
 # 解决方案
 go mod tidy
@@ -565,7 +565,7 @@ go mod vendor  # 可选，用于离线构建
 
 ### 运行时问题
 
-**问题**: 控制平面无法连接到 etcd
+问题: 控制平面无法连接到 etcd
 ```bash
 # 检查 etcd 是否运行
 docker ps | grep etcd
@@ -574,7 +574,7 @@ docker ps | grep etcd
 telnet localhost 2379
 ```
 
-**问题**: Envoy 无法加载 WASM 插件
+问题: Envoy 无法加载 WASM 插件
 ```bash
 # 检查 WASM 文件是否存在
 ls -la plugin.wasm

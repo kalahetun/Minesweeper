@@ -48,7 +48,7 @@ pub fn _start() {
     });
 }
 
-// --- Root Context ---
+//  Root Context 
 
 // Root context for the entire plugin
 struct PluginRootContext {
@@ -350,7 +350,7 @@ impl RootContext for PluginRootContext {
     }
 }
 
-// --- HTTP Context ---
+//  HTTP Context 
 
 // HTTP context for each request
 struct PluginHttpContext {

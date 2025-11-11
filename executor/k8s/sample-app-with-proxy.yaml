@@ -111,7 +111,7 @@ spec:
         emptyDir: {}
       
       restartPolicy: Always
----
+
 apiVersion: v1
 kind: Service
 metadata:
@@ -133,7 +133,7 @@ spec:
     name: admin
   selector:
     app: sample-app
----
+
 # Optional: Expose the service externally for testing
 apiVersion: v1
 kind: Service

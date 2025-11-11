@@ -1,0 +1,266 @@
+# 故障注入搜索空间配置文件
+# 定义了 BOIFI 系统中故障注入搜索空间的所有维度和约束
+
+# 基本信息
+name: "HTTP Fault Injection Search Space"
+description: "用于发现最致命的 HTTP 故障注入组合"
+version: "1.0"
+
+# 维度定义（搜索空间中的所有可变参数）
+dimensions:
+  # ========================================================================
+  # 必需维度（总是包含在搜索空间中）
+  # ========================================================================
+  
+  # 维度 1: 故障类型
+  # 定义了我们要注入什么类型的故障
+  - name: "fault_type"
+    type: "categorical"
+    values: 
+      - "delay"              # 延迟注入（请求变慢）
+      - "abort"              # 中止请求（返回错误状态码）
+      - "error_injection"    # 错误注入（模拟服务异常）
+    default: "delay"
+    required: true
+    description: "故障注入的类型"
+  
+  # 维度 2: 目标服务
+  # 选择要对哪个微服务注入故障
+  - name: "service"
+    type: "categorical"
+    values:
+      - "PaymentService"      # 支付服务
+      - "OrderService"        # 订单服务
+      - "InventoryService"    # 库存服务
+      - "NotificationService" # 通知服务
+    default: "PaymentService"
+    required: true
+    description: "目标微服务"
+  
+  # 维度 3: 目标 API 路径
+  # 选择要对哪个 API 端点注入故障
+  - name: "api"
+    type: "categorical"
+    values:
+      - "/api/v1/payment"
+      - "/api/v1/order"
+      - "/api/v1/inventory"
+      - "/api/v1/notify"
+    default: "/api/v1/payment"
+    required: true
+    description: "目标 API 路径"
+  
+  # 维度 4: 注入百分比
+  # 定义有多少百分比的请求会受到故障注入
+  - name: "percentage"
+    type: "integer"
+    min: 1
+    max: 100
+    default: 50
+    required: true
+    description: "受影响的请求百分比 [1, 100]"
+  
+  # ========================================================================
+  # 条件维度（仅在特定条件下有效）
+  # ========================================================================
+  
+  # 维度 5: 延迟时间
+  # 仅当 fault_type == "delay" 时有效
+  - name: "delay_seconds"
+    type: "real"
+    min: 0.1
+    max: 30.0
+    default: 2.0
+    required: false
+    description: "注入的延迟时间（秒）"
+    condition:
+      field: "fault_type"
+      operator: "equals"
+      value: "delay"
+  
+  # 维度 6: 中止时的 HTTP 状态码
+  # 仅当 fault_type == "abort" 时有效
+  - name: "abort_http_status"
+    type: "integer"
+    min: 400
+    max: 599
+    default: 503
+    required: false
+    description: "返回的 HTTP 状态码 [400, 599]"
+    condition:
+      field: "fault_type"
+      operator: "equals"
+      value: "abort"
+  
+  # 维度 7: 错误消息
+  # 仅当 fault_type == "error_injection" 时有效
+  - name: "error_type"
+    type: "categorical"
+    values:
+      - "timeout"           # 连接超时
+      - "connection_reset"  # 连接重置
+      - "malformed_response" # 畸形响应
+    default: "timeout"
+    required: false
+    description: "错误类型"
+    condition:
+      field: "fault_type"
+      operator: "equals"
+      value: "error_injection"
+  
+  # ========================================================================
+  # 全局维度（所有情况都有效）
+  # ========================================================================
+  
+  # 维度 8: 请求超时时间
+  # 这个维度适用于所有故障类型
+  - name: "request_timeout_seconds"
+    type: "real"
+    min: 1.0
+    max: 60.0
+    default: 30.0
+    required: false
+    description: "请求超时时间（秒），应用于所有故障类型"
+  
+  # 维度 9: 是否启用重试
+  - name: "enable_retry"
+    type: "categorical"
+    values: ["true", "false"]
+    default: "true"
+    required: false
+    description: "客户端是否重试失败的请求"
+  
+  # 维度 10: 冷却时间
+  # 故障注入多久后停止
+  - name: "duration_seconds"
+    type: "integer"
+    min: 10
+    max: 300
+    default: 60
+    required: false
+    description: "故障注入持续时间（秒）"
+
+# ========================================================================
+# 条件维度处理策略
+# ========================================================================
+# 
+# 当前支持的策略：
+# 1. "expand" - 展开所有维度（包括条件维度），执行器忽略不相关参数
+# 2. "filter" - 动态过滤（仅包含相关维度）【未来支持】
+# 3. "encode" - 编码到参数中【未来支持】
+#
+conditional_strategy: "expand"
+
+# ========================================================================
+# 约束条件（可选）
+# ========================================================================
+# 
+# 用于定义维度之间的逻辑约束
+# 约束可以减少搜索空间的有效范围，提高搜索效率
+#
+constraints:
+  # 约束 1: 百分比较高时，延迟应该较低
+  # 原因：高百分比的高延迟会导致系统完全无响应
+  - name: "high_percentage_low_delay"
+    type: "conditional"
+    condition:
+      if: "percentage > 70"
+      then: "delay_seconds <= 5.0"
+    description: "高百分比注入时，延迟应该较低"
+    enabled: true
+  
+  # 约束 2: 同一时刻只对一个服务注入
+  # 原因：同时对多个服务注入会产生难以隔离的故障
+  - name: "one_service_at_a_time"
+    type: "note"
+    description: "建议同一时刻只对一个服务注入故障（由 Coordinator 保证）"
+    enabled: false
+
+# ========================================================================
+# 搜索空间特性说明
+# ========================================================================
+# 
+# 维度总数：10 (如果使用 expand 策略)
+# 有效维度（如果使用 filter 策略）：
+#   - fault_type="delay": 5 维（fault_type, service, api, percentage, delay_seconds）
+#   - fault_type="abort": 5 维（fault_type, service, api, percentage, abort_http_status）
+#   - fault_type="error_injection": 5 维（fault_type, service, api, percentage, error_type）
+# 
+# 粗略的搜索空间大小（expand 策略）：
+#   ≈ 3 * 4 * 4 * 100 * 300 * 200 * 3 * 2 * 60 * 291
+#   ≈ 10^15 （离散化后）
+# 
+# 贝叶斯优化在如此大的搜索空间中，通常需要 50-200 次迭代才能找到较好的解。
+# 
+
+# ========================================================================
+# 冷启动配置（可选）
+# ========================================================================
+#
+# 定义优化器初始化阶段的行为
+cold_start:
+  # 冷启动阶段生成的随机点数量
+  n_initial_points: 10
+  
+  # 采样策略
+  # - "random": 均匀随机采样
+  # - "lhs": 拉丁超立方体采样（更均匀分布）
+  strategy: "random"
+  
+  # 预热点（可选）
+  # 从已知的好点开始优化，可以加快收敛
+  # 这些点会在冷启动阶段优先评估
+  warm_start_points: []
+  # 示例：
+  # - fault_type: "delay"
+  #   service: "PaymentService"
+  #   api: "/api/v1/payment"
+  #   percentage: 50
+  #   delay_seconds: 2.0
+  # - fault_type: "abort"
+  #   service: "OrderService"
+  #   api: "/api/v1/order"
+  #   percentage: 30
+  #   abort_http_status: 503
+
+# ========================================================================
+# 优化目标
+# ========================================================================
+#
+# 说明优化器的目标
+optimization_target:
+  objective: "maximize"  # "maximize" 严重性评分
+  metric: "severity_score"
+  description: "最大化系统在故障注入下的严重性评分，找到最致命的故障组合"
+
+# ========================================================================
+# 使用示例
+# ========================================================================
+#
+# Python 代码中使用此配置：
+#
+# ```python
+# from src.optimizer.space_converter import SpaceConverter
+#
+# # 加载配置
+# converter = SpaceConverter("config/fault_space_config.yaml", conditional_strategy="expand")
+#
+# # 获取搜索空间信息
+# print(converter.get_space_info())
+#
+# # 将字典转换为列表（用于 skopt）
+# plan_dict = {
+#     "fault_type": "delay",
+#     "service": "PaymentService",
+#     "api": "/api/v1/payment",
+#     "percentage": 50,
+#     "delay_seconds": 2.0,
+#     "request_timeout_seconds": 30.0,
+#     "enable_retry": "true",
+#     "duration_seconds": 60,
+# }
+# plan_list = converter.dict_to_list(plan_dict)
+#
+# # 转换回字典
+# plan_dict_back = converter.list_to_dict(plan_list)
+# ```

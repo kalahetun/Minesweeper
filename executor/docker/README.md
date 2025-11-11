@@ -4,11 +4,11 @@ This directory contains all Docker-related files for the HFI executor.
 
 ## Files
 
-- **Dockerfile.backend** - Builds the test backend service (nginx)
-- **Dockerfile.controlplane** - Builds the HFI control plane service (Go)
-- **Dockerfile.wasm** - Builds the WASM plugin (Rust)
-- **docker-compose.yaml** - Orchestrates all services for local development
-- **envoy.yaml** - Envoy proxy configuration (loaded by docker-compose)
+- Dockerfile.backend - Builds the test backend service (nginx)
+- Dockerfile.controlplane - Builds the HFI control plane service (Go)
+- Dockerfile.wasm - Builds the WASM plugin (Rust)
+- docker-compose.yaml - Orchestrates all services for local development
+- envoy.yaml - Envoy proxy configuration (loaded by docker-compose)
 
 ## Usage
 
@@ -21,11 +21,11 @@ docker-compose -f docker/docker-compose.yaml up
 ```
 
 This will start:
-- **etcd** - Configuration store
-- **control-plane** - HFI control plane (Go)
-- **wasm-builder** - Builds the WASM plugin
-- **backend** - Test backend service
-- **envoy** - Envoy proxy with WASM plugin
+- etcd - Configuration store
+- control-plane - HFI control plane (Go)
+- wasm-builder - Builds the WASM plugin
+- backend - Test backend service
+- envoy - Envoy proxy with WASM plugin
 
 ### Build Individual Services
 
@@ -55,20 +55,20 @@ The configuration is automatically loaded by docker-compose and mounted into the
 ## Service Details
 
 ### Control Plane
-- **Port**: 8080
-- **Healthcheck**: GET /v1/health
-- **Dependencies**: etcd
+- Port: 8080
+- Healthcheck: GET /v1/health
+- Dependencies: etcd
 
 ### WASM Plugin Builder
-- **Build**: Multi-stage build with Rust
-- **Output**: plugin.wasm
-- **Optimization**: Uses wasm-opt for binary size reduction
+- Build: Multi-stage build with Rust
+- Output: plugin.wasm
+- Optimization: Uses wasm-opt for binary size reduction
 
 ### Test Backend
-- **Port**: 80 (internal)
-- **Purpose**: Test target for fault injection
+- Port: 80 (internal)
+- Purpose: Test target for fault injection
 
 ### Envoy Proxy
-- **Port**: 18000 (external traffic)
-- **Port**: 19000 (admin interface)
-- **Dependencies**: wasm-builder, control-plane
+- Port: 18000 (external traffic)
+- Port: 19000 (admin interface)
+- Dependencies: wasm-builder, control-plane
