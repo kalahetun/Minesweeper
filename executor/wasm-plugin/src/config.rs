@@ -81,6 +81,12 @@ pub struct Fault {
     pub abort: Option<AbortAction>,
     pub delay: Option<DelayAction>,
     pub percentage: u32,
+    #[serde(rename = "start_delay_ms")]
+    #[serde(default)]
+    pub start_delay_ms: u32,
+    #[serde(rename = "duration_seconds")]
+    #[serde(default)]
+    pub duration_seconds: u32,
 }
 
 #[derive(Debug, Clone, Deserialize)]

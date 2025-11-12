@@ -1,4 +1,5 @@
 use crate::config::{Fault, AbortAction, DelayAction};
+use crate::time_control::{TimeControlDecision, should_inject_fault, RuleTiming, RequestTiming};
 use proxy_wasm::traits::HttpContext;
 use proxy_wasm::types::Action;
 use log::{info, warn, debug};
@@ -40,6 +41,63 @@ pub fn execute_fault(
     } else {
         warn!("No fault action specified, continuing");
         Action::Continue
+    }
+}
+
+/// Execute fault injection with time control
+/// 
+/// This function wraps the standard execute_fault with time control checks,
+/// ensuring that faults are only injected when time constraints are satisfied.
+/// 
+/// # Arguments
+/// 
+/// * `fault` - The fault configuration
+/// * `http_context` - The HTTP context for sending responses
+/// * `context_id` - The context ID for tracking
+/// * `metrics` - Metrics IDs for counters
+/// * `rule_creation_time_ms` - When the rule was created (milliseconds)
+/// * `request_arrival_time_ms` - When the request arrived (milliseconds)
+/// 
+/// # Returns
+/// 
+/// - `Action::Continue` if time constraints prevent injection or rule is expired
+/// - Result of `execute_fault` if time constraints allow injection
+pub fn execute_fault_with_time_control(
+    fault: &Fault,
+    http_context: &dyn HttpContext,
+    context_id: u32,
+    metrics: MetricsIds,
+    rule_creation_time_ms: u64,
+    request_arrival_time_ms: u64,
+) -> Action {
+    use crate::time_control::get_elapsed_time_ms;
+    
+    // Create time control structures
+    let rule_timing = RuleTiming {
+        start_delay_ms: fault.start_delay_ms,
+        duration_seconds: fault.duration_seconds,
+        creation_time_ms: rule_creation_time_ms,
+    };
+    
+    let request_timing = RequestTiming {
+        arrival_time_ms: request_arrival_time_ms,
+        elapsed_since_arrival_ms: get_elapsed_time_ms(request_arrival_time_ms),
+    };
+    
+    // Check time constraints
+    match should_inject_fault(&rule_timing, &request_timing) {
+        TimeControlDecision::Inject => {
+            debug!("Time control decision: Inject - executing fault for context {}", context_id);
+            execute_fault(fault, http_context, context_id, metrics)
+        }
+        TimeControlDecision::WaitForDelay => {
+            debug!("Time control decision: WaitForDelay - request still in delay period for context {}", context_id);
+            Action::Continue
+        }
+        TimeControlDecision::Expired => {
+            info!("Time control decision: Expired - rule has expired for context {}", context_id);
+            Action::Continue
+        }
     }
 }
 
@@ -259,6 +317,8 @@ mod tests {
             percentage: 100,
             abort: Some(abort),
             delay: None,
+            start_delay_ms: 0,
+            duration_seconds: 0,
         };
         
         let mock_context = MockHttpContext::new();
@@ -289,6 +349,8 @@ mod tests {
             percentage: 100,
             abort: None,
             delay: Some(delay),
+            start_delay_ms: 0,
+            duration_seconds: 0,
         };
         
         let mock_context = MockHttpContext::new();
@@ -314,6 +376,8 @@ mod tests {
             percentage: 0, // 0% chance should never trigger
             abort: Some(abort),
             delay: None,
+            start_delay_ms: 0,
+            duration_seconds: 0,
         };
         
         let mock_context = MockHttpContext::new();
@@ -346,6 +410,8 @@ mod tests {
             percentage: 100,
             abort: None,
             delay: None,
+            start_delay_ms: 0,
+            duration_seconds: 0,
         };
         
         let mock_context = MockHttpContext::new();
@@ -357,5 +423,189 @@ mod tests {
         let result = execute_fault(&fault, &mock_context, 1, metrics);
         
         assert_eq!(result, Action::Continue);
+    }
+
+    #[test]
+    fn test_execute_fault_with_time_control_immediate() {
+        // Test immediate injection (no delay, no expiry)
+        let fault = Fault {
+            percentage: 100,
+            abort: Some(AbortAction {
+                http_status: 500,
+                body: Some("Internal Server Error".to_string()),
+            }),
+            delay: None,
+            start_delay_ms: 0,
+            duration_seconds: 0,
+        };
+        
+        let mock_context = MockHttpContext::new();
+        let metrics = MetricsIds {
+            aborts_total: None,
+            delays_total: None,
+            delay_duration_histogram: None,
+        };
+        
+        let current_time = crate::time_control::get_current_time_ms();
+        let result = execute_fault_with_time_control(
+            &fault,
+            &mock_context,
+            1,
+            metrics,
+            current_time,
+            current_time,
+        );
+        
+        // Should execute abort fault
+        assert_eq!(result, Action::Pause);
+    }
+
+    #[test]
+    fn test_execute_fault_with_time_control_delay_period() {
+        // Test when request is in delay period
+        let fault = Fault {
+            percentage: 100,
+            abort: Some(AbortAction {
+                http_status: 500,
+                body: Some("Internal Server Error".to_string()),
+            }),
+            delay: None,
+            start_delay_ms: 500,  // 500ms delay required
+            duration_seconds: 0,
+        };
+        
+        let mock_context = MockHttpContext::new();
+        let metrics = MetricsIds {
+            aborts_total: None,
+            delays_total: None,
+            delay_duration_histogram: None,
+        };
+        
+        let current_time = crate::time_control::get_current_time_ms();
+        let request_arrival = current_time.saturating_sub(200);  // Request arrived 200ms ago
+        
+        let result = execute_fault_with_time_control(
+            &fault,
+            &mock_context,
+            1,
+            metrics,
+            current_time,
+            request_arrival,
+        );
+        
+        // Should continue (still in delay period)
+        assert_eq!(result, Action::Continue);
+    }
+
+    #[test]
+    fn test_execute_fault_with_time_control_after_delay() {
+        // Test when delay period has passed
+        let fault = Fault {
+            percentage: 100,
+            abort: Some(AbortAction {
+                http_status: 503,
+                body: Some("Service Unavailable".to_string()),
+            }),
+            delay: None,
+            start_delay_ms: 100,  // 100ms delay required
+            duration_seconds: 0,
+        };
+        
+        let mock_context = MockHttpContext::new();
+        let metrics = MetricsIds {
+            aborts_total: None,
+            delays_total: None,
+            delay_duration_histogram: None,
+        };
+        
+        let current_time = crate::time_control::get_current_time_ms();
+        let request_arrival = current_time.saturating_sub(300);  // Request arrived 300ms ago
+        
+        let result = execute_fault_with_time_control(
+            &fault,
+            &mock_context,
+            1,
+            metrics,
+            current_time,
+            request_arrival,
+        );
+        
+        // Should execute abort fault (delay period passed)
+        assert_eq!(result, Action::Pause);
+    }
+
+    #[test]
+    fn test_execute_fault_with_time_control_expired_rule() {
+        // Test when rule has expired
+        let fault = Fault {
+            percentage: 100,
+            abort: Some(AbortAction {
+                http_status: 500,
+                body: Some("Internal Server Error".to_string()),
+            }),
+            delay: None,
+            start_delay_ms: 0,
+            duration_seconds: 1,  // Expires after 1 second
+        };
+        
+        let mock_context = MockHttpContext::new();
+        let metrics = MetricsIds {
+            aborts_total: None,
+            delays_total: None,
+            delay_duration_histogram: None,
+        };
+        
+        let current_time = crate::time_control::get_current_time_ms();
+        let rule_creation = current_time.saturating_sub(2000);  // Rule created 2 seconds ago (expired)
+        
+        let result = execute_fault_with_time_control(
+            &fault,
+            &mock_context,
+            1,
+            metrics,
+            rule_creation,
+            current_time,
+        );
+        
+        // Should continue (rule expired)
+        assert_eq!(result, Action::Continue);
+    }
+
+    #[test]
+    fn test_execute_fault_with_time_control_combined() {
+        // Test combined delay and expiry constraints
+        let fault = Fault {
+            percentage: 100,
+            abort: Some(AbortAction {
+                http_status: 502,
+                body: Some("Bad Gateway".to_string()),
+            }),
+            delay: None,
+            start_delay_ms: 200,
+            duration_seconds: 10,  // 10 second validity period
+        };
+        
+        let mock_context = MockHttpContext::new();
+        let metrics = MetricsIds {
+            aborts_total: None,
+            delays_total: None,
+            delay_duration_histogram: None,
+        };
+        
+        let current_time = crate::time_control::get_current_time_ms();
+        let rule_creation = current_time.saturating_sub(5000);  // Rule created 5 seconds ago (still valid)
+        let request_arrival = current_time.saturating_sub(300);  // Request arrived 300ms ago
+        
+        let result = execute_fault_with_time_control(
+            &fault,
+            &mock_context,
+            1,
+            metrics,
+            rule_creation,
+            request_arrival,
+        );
+        
+        // Should execute (rule valid, delay period passed)
+        assert_eq!(result, Action::Pause);
     }
 }

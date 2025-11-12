@@ -9,6 +9,7 @@ mod matcher;
 mod executor;
 mod reconnect;
 mod panic_safety;
+mod time_control;
 #[cfg(test)]
 mod test_basic;
 #[cfg(test)]
@@ -17,6 +18,10 @@ mod test_w5_integration;
 mod test_w5_unit;
 #[cfg(test)]
 mod test_w5_pure;
+#[cfg(test)]
+mod time_control_deserialization_test;
+#[cfg(test)]
+mod time_control_test;
 
 use config::{CompiledRuleSet, Fault};
 use matcher::{RequestInfo, find_first_match};

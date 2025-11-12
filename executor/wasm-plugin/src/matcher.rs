@@ -234,6 +234,8 @@ mod tests {
                 }),
                 delay: None,
                 percentage: 100,
+                start_delay_ms: 0,
+                duration_seconds: 0,
             },
         }
     }
