@@ -10,6 +10,7 @@ mod executor;
 mod reconnect;
 mod panic_safety;
 mod time_control;
+mod metrics;
 #[cfg(test)]
 mod test_basic;
 #[cfg(test)]

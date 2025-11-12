@@ -1,5 +1,6 @@
 use crate::config::{Fault, AbortAction, DelayAction};
 use crate::time_control::{TimeControlDecision, should_inject_fault, RuleTiming, RequestTiming};
+use crate::metrics::FaultInjectionMetrics;
 use proxy_wasm::traits::HttpContext;
 use proxy_wasm::types::Action;
 use log::{info, warn, debug};
@@ -96,6 +97,82 @@ pub fn execute_fault_with_time_control(
         }
         TimeControlDecision::Expired => {
             info!("Time control decision: Expired - rule has expired for context {}", context_id);
+            Action::Continue
+        }
+    }
+}
+
+/// Execute fault injection with time control and metrics collection
+/// 
+/// This function wraps execute_fault_with_time_control with comprehensive metrics collection.
+/// 
+/// # Arguments
+/// 
+/// * `fault` - The fault configuration
+/// * `http_context` - The HTTP context for sending responses
+/// * `context_id` - The context ID for tracking
+/// * `metrics_ids` - Envoy metrics IDs for counters
+/// * `rule_creation_time_ms` - When the rule was created (milliseconds)
+/// * `request_arrival_time_ms` - When the request arrived (milliseconds)
+/// * `metrics_collector` - The metrics collector for recording statistics
+/// 
+/// # Returns
+/// 
+/// The action to take for this request
+pub fn execute_fault_with_metrics(
+    fault: &Fault,
+    http_context: &dyn HttpContext,
+    context_id: u32,
+    metrics_ids: MetricsIds,
+    rule_creation_time_ms: u64,
+    request_arrival_time_ms: u64,
+    metrics_collector: &FaultInjectionMetrics,
+) -> Action {
+    use crate::time_control::get_elapsed_time_ms;
+    
+    // Record the request
+    metrics_collector.record_request();
+    
+    // Record rule match
+    metrics_collector.record_rule_matched();
+    
+    // Create time control structures
+    let rule_timing = RuleTiming {
+        start_delay_ms: fault.start_delay_ms,
+        duration_seconds: fault.duration_seconds,
+        creation_time_ms: rule_creation_time_ms,
+    };
+    
+    let request_timing = RequestTiming {
+        arrival_time_ms: request_arrival_time_ms,
+        elapsed_since_arrival_ms: get_elapsed_time_ms(request_arrival_time_ms),
+    };
+    
+    // Check time constraints
+    match should_inject_fault(&rule_timing, &request_timing) {
+        TimeControlDecision::Inject => {
+            debug!("Time control decision: Inject - executing fault for context {}", context_id);
+            metrics_collector.record_fault_injected();
+            
+            // Execute fault and record metrics
+            if let Some(ref abort) = fault.abort {
+                metrics_collector.record_abort_fault();
+            } else if let Some(ref delay) = fault.delay {
+                if let Some(duration_ms) = delay.parsed_duration_ms {
+                    metrics_collector.record_delay_fault(duration_ms as u64);
+                }
+            }
+            
+            execute_fault(fault, http_context, context_id, metrics_ids)
+        }
+        TimeControlDecision::WaitForDelay => {
+            debug!("Time control decision: WaitForDelay - request still in delay period for context {}", context_id);
+            metrics_collector.record_time_control_wait();
+            Action::Continue
+        }
+        TimeControlDecision::Expired => {
+            info!("Time control decision: Expired - rule has expired for context {}", context_id);
+            metrics_collector.record_rule_expired();
             Action::Continue
         }
     }
@@ -607,5 +684,215 @@ mod tests {
         
         // Should execute (rule valid, delay period passed)
         assert_eq!(result, Action::Pause);
+    }
+
+    #[test]
+    fn test_execute_fault_with_metrics_recording() {
+        // Test metrics collection during fault injection
+        let fault = Fault {
+            percentage: 100,
+            abort: Some(AbortAction {
+                http_status: 500,
+                body: Some("Internal Server Error".to_string()),
+            }),
+            delay: None,
+            start_delay_ms: 0,
+            duration_seconds: 0,
+        };
+        
+        let mock_context = MockHttpContext::new();
+        let metrics_ids = MetricsIds {
+            aborts_total: None,
+            delays_total: None,
+            delay_duration_histogram: None,
+        };
+        
+        let metrics_collector = crate::metrics::FaultInjectionMetrics::new();
+        let current_time = crate::time_control::get_current_time_ms();
+        
+        let result = execute_fault_with_metrics(
+            &fault,
+            &mock_context,
+            1,
+            metrics_ids,
+            current_time,
+            current_time,
+            &metrics_collector,
+        );
+        
+        // Verify metrics were recorded
+        assert_eq!(metrics_collector.get_requests_total(), 1);
+        assert_eq!(metrics_collector.get_rules_matched(), 1);
+        assert_eq!(metrics_collector.get_faults_injected(), 1);
+        assert_eq!(metrics_collector.get_aborts(), 1);
+        assert_eq!(result, Action::Pause);
+    }
+
+    #[test]
+    fn test_execute_fault_with_metrics_delay() {
+        // Test metrics collection for delay faults
+        let fault = Fault {
+            percentage: 100,
+            abort: None,
+            delay: Some(DelayAction {
+                fixed_delay: "500ms".to_string(),
+                parsed_duration_ms: Some(500),
+            }),
+            start_delay_ms: 0,
+            duration_seconds: 0,
+        };
+        
+        let mock_context = MockHttpContext::new();
+        let metrics_ids = MetricsIds {
+            aborts_total: None,
+            delays_total: None,
+            delay_duration_histogram: None,
+        };
+        
+        let metrics_collector = crate::metrics::FaultInjectionMetrics::new();
+        let current_time = crate::time_control::get_current_time_ms();
+        
+        let result = execute_fault_with_metrics(
+            &fault,
+            &mock_context,
+            1,
+            metrics_ids,
+            current_time,
+            current_time,
+            &metrics_collector,
+        );
+        
+        // Verify metrics were recorded
+        assert_eq!(metrics_collector.get_requests_total(), 1);
+        assert_eq!(metrics_collector.get_faults_injected(), 1);
+        assert_eq!(metrics_collector.get_delays(), 1);
+        assert_eq!(result, Action::Pause);
+    }
+
+    #[test]
+    fn test_execute_fault_with_metrics_time_control_wait() {
+        // Test metrics collection when time control prevents injection
+        let fault = Fault {
+            percentage: 100,
+            abort: Some(AbortAction {
+                http_status: 500,
+                body: None,
+            }),
+            delay: None,
+            start_delay_ms: 500,  // 500ms delay required
+            duration_seconds: 0,
+        };
+        
+        let mock_context = MockHttpContext::new();
+        let metrics_ids = MetricsIds {
+            aborts_total: None,
+            delays_total: None,
+            delay_duration_histogram: None,
+        };
+        
+        let metrics_collector = crate::metrics::FaultInjectionMetrics::new();
+        let current_time = crate::time_control::get_current_time_ms();
+        let request_arrival = current_time.saturating_sub(100);  // Request arrived 100ms ago
+        
+        let result = execute_fault_with_metrics(
+            &fault,
+            &mock_context,
+            1,
+            metrics_ids,
+            current_time,
+            request_arrival,
+            &metrics_collector,
+        );
+        
+        // Verify metrics were recorded
+        assert_eq!(metrics_collector.get_requests_total(), 1);
+        assert_eq!(metrics_collector.get_rules_matched(), 1);
+        assert_eq!(metrics_collector.get_time_control_wait_count(), 1);
+        assert_eq!(metrics_collector.get_faults_injected(), 0);  // Not injected
+        assert_eq!(result, Action::Continue);
+    }
+
+    #[test]
+    fn test_execute_fault_with_metrics_rule_expired() {
+        // Test metrics collection when rule has expired
+        let fault = Fault {
+            percentage: 100,
+            abort: Some(AbortAction {
+                http_status: 500,
+                body: None,
+            }),
+            delay: None,
+            start_delay_ms: 0,
+            duration_seconds: 1,  // 1 second validity
+        };
+        
+        let mock_context = MockHttpContext::new();
+        let metrics_ids = MetricsIds {
+            aborts_total: None,
+            delays_total: None,
+            delay_duration_histogram: None,
+        };
+        
+        let metrics_collector = crate::metrics::FaultInjectionMetrics::new();
+        let current_time = crate::time_control::get_current_time_ms();
+        let rule_creation = current_time.saturating_sub(2000);  // Created 2 seconds ago (expired)
+        
+        let result = execute_fault_with_metrics(
+            &fault,
+            &mock_context,
+            1,
+            metrics_ids,
+            rule_creation,
+            current_time,
+            &metrics_collector,
+        );
+        
+        // Verify metrics were recorded
+        assert_eq!(metrics_collector.get_requests_total(), 1);
+        assert_eq!(metrics_collector.get_rules_matched(), 1);
+        assert_eq!(metrics_collector.get_rule_expired_count(), 1);
+        assert_eq!(metrics_collector.get_faults_injected(), 0);  // Not injected
+        assert_eq!(result, Action::Continue);
+    }
+
+    #[test]
+    fn test_metrics_injection_rate() {
+        // Test injection rate calculation
+        let metrics_collector = crate::metrics::FaultInjectionMetrics::new();
+        
+        // Simulate 10 requests
+        for _ in 0..10 {
+            metrics_collector.record_request();
+        }
+        
+        // 7 of them had faults injected
+        for _ in 0..7 {
+            metrics_collector.record_fault_injected();
+        }
+        
+        let rate = metrics_collector.get_injection_rate();
+        assert!((rate - 70.0).abs() < 0.01);  // 70%
+    }
+
+    #[test]
+    fn test_metrics_snapshot() {
+        // Test metrics snapshot generation
+        let metrics_collector = crate::metrics::FaultInjectionMetrics::new();
+        
+        for _ in 0..5 {
+            metrics_collector.record_request();
+        }
+        metrics_collector.record_fault_injected();
+        metrics_collector.record_fault_injected();
+        metrics_collector.record_abort_fault();
+        metrics_collector.record_delay_fault(100);
+        metrics_collector.record_delay_fault(200);
+        
+        let snapshot = metrics_collector.snapshot();
+        
+        assert_eq!(snapshot.requests_total, 5);
+        assert_eq!(snapshot.faults_injected, 2);
+        assert_eq!(snapshot.aborts, 1);
+        assert_eq!(snapshot.delays, 2);
     }
 }
