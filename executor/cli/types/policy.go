@@ -24,9 +24,9 @@ type Rule struct {
 
 // MatchCondition defines when a fault should be applied
 type MatchCondition struct {
-	Method  *StringMatcher   `json:"method,omitempty" yaml:"method,omitempty"`
-	Path    *PathMatcher     `json:"path,omitempty" yaml:"path,omitempty"`
-	Headers []HeaderMatcher  `json:"headers,omitempty" yaml:"headers,omitempty"`
+	Method  *StringMatcher  `json:"method,omitempty" yaml:"method,omitempty"`
+	Path    *PathMatcher    `json:"path,omitempty" yaml:"path,omitempty"`
+	Headers []HeaderMatcher `json:"headers,omitempty" yaml:"headers,omitempty"`
 }
 
 // StringMatcher matches strings
@@ -53,9 +53,11 @@ type HeaderMatcher struct {
 
 // FaultAction defines what fault to inject
 type FaultAction struct {
-	Percentage int          `json:"percentage" yaml:"percentage"`
-	Delay      *DelayAction `json:"delay,omitempty" yaml:"delay,omitempty"`
-	Abort      *AbortAction `json:"abort,omitempty" yaml:"abort,omitempty"`
+	Percentage      int          `json:"percentage" yaml:"percentage"`
+	StartDelayMs    int          `json:"start_delay_ms,omitempty" yaml:"start_delay_ms,omitempty"`     // [新增] 请求到达后延迟多少毫秒再开始执行故障，默认为 0（立即执行）
+	DurationSeconds int          `json:"duration_seconds,omitempty" yaml:"duration_seconds,omitempty"` // [新增] 故障持续执行时间（秒），0 表示无限期
+	Delay           *DelayAction `json:"delay,omitempty" yaml:"delay,omitempty"`
+	Abort           *AbortAction `json:"abort,omitempty" yaml:"abort,omitempty"`
 }
 
 // DelayAction injects delay

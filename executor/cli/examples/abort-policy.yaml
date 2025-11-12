@@ -9,5 +9,8 @@ spec:
           exact: "/"
       fault:
         percentage: 100
+        start_delay_ms: 0        # [新增] 立即执行故障（可选）
+        duration_seconds: 0      # [新增] 无限期有效（可选）
         abort:
           httpStatus: 503
+

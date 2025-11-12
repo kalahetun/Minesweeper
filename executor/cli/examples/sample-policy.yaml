@@ -8,13 +8,18 @@ spec:
         headers:
           user-type: "premium"
       fault:
+        percentage: 20
+        startDelayMs: 0         # [新增] 请求到达后立即执行故障（可选，默认 0）
+        durationSeconds: 0      # [新增] 无限期有效（可选，默认 0 表示无限期）
         abort:
-          percentage: 20
           httpStatus: 500
     - match:
         httpMethod: "POST"
         path: "/api/orders"
       fault:
+        percentage: 30
+        startDelayMs: 200       # [新增] 请求传输 200ms 后才执行故障
+        durationSeconds: 300    # [新增] 只在接下来 5 分钟内有效
         delay:
-          percentage: 30
           fixedDelayMs: 1000
+
