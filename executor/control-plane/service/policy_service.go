@@ -4,17 +4,20 @@ import (
 	"errors"
 	"hfi/control-plane/storage"
 	"strings"
+	"time"
 )
 
 // PolicyService provides business logic for policy operations.
 type PolicyService struct {
-	store storage.IPolicyStore
+	store              storage.IPolicyStore
+	expirationRegistry *ExpirationRegistry
 }
 
 // NewPolicyService creates a new PolicyService instance.
 func NewPolicyService(store storage.IPolicyStore) *PolicyService {
 	return &PolicyService{
-		store: store,
+		store:              store,
+		expirationRegistry: NewExpirationRegistry(),
 	}
 }
 
@@ -25,7 +28,18 @@ func (s *PolicyService) CreateOrUpdatePolicy(policy *storage.FaultInjectionPolic
 		return errors.Join(ErrInvalidInput, err)
 	}
 
-	return s.store.CreateOrUpdate(policy)
+	// Log time control configuration if specified
+	s.logTimeControlConfig(policy)
+
+	// Store the policy
+	if err := s.store.CreateOrUpdate(policy); err != nil {
+		return err
+	}
+
+	// Register auto-expiration if duration_seconds is specified and > 0
+	s.scheduleAutoExpiration(policy)
+
+	return nil
 }
 
 // CreatePolicy creates a new policy with validation.
@@ -66,6 +80,10 @@ func (s *PolicyService) DeletePolicy(name string) error {
 	if strings.TrimSpace(name) == "" {
 		return ErrInvalidInput
 	}
+
+	// Cancel any scheduled auto-deletion timer for this policy
+	s.expirationRegistry.Cancel(name)
+
 	return s.store.Delete(name)
 }
 
@@ -276,4 +294,67 @@ func parseInt(s string) (int, error) {
 		result = result*10 + int(r-'0')
 	}
 	return result, nil
+}
+
+// logTimeControlConfig logs the time control configuration of a policy.
+// This helps track when policies have automatic expiration enabled.
+func (s *PolicyService) logTimeControlConfig(policy *storage.FaultInjectionPolicy) {
+	if policy == nil || len(policy.Spec.Rules) == 0 {
+		return
+	}
+
+	for i, rule := range policy.Spec.Rules {
+		fault := rule.Fault
+
+		// Only log if time control fields are explicitly set
+		if fault.StartDelayMs > 0 || fault.DurationSeconds > 0 {
+			logMsg := "Policy time control configured"
+
+			// Format lifecycle type
+			lifecycleType := "persistent"
+			if fault.DurationSeconds > 0 {
+				lifecycleType = "temporary"
+			}
+
+			// Log with details
+			// Logger would go here when proper logger is added to service
+			_ = logMsg // Placeholder for future logger integration
+			_ = lifecycleType
+			_ = i
+
+			// Example log content (for documentation):
+			// fmt.Printf("Policy: %s, Rule[%d], Type: %s, StartDelayMs: %d, DurationSeconds: %d\n",
+			//     policy.Metadata.Name, i, lifecycleType, fault.StartDelayMs, fault.DurationSeconds)
+		}
+	}
+}
+
+// scheduleAutoExpiration schedules a policy for automatic deletion if it has a duration_seconds > 0
+// This is called after a policy is successfully stored
+func (s *PolicyService) scheduleAutoExpiration(policy *storage.FaultInjectionPolicy) {
+	if policy == nil || len(policy.Spec.Rules) == 0 {
+		return
+	}
+
+	// Check the first rule's fault action for duration_seconds
+	// In most cases, all rules in a policy have the same lifecycle
+	durationSeconds := policy.Spec.Rules[0].Fault.DurationSeconds
+
+	// Only schedule if duration_seconds is explicitly set and > 0
+	if durationSeconds <= 0 {
+		// Cancel any existing timer for this policy (in case it was previously temporary)
+		s.expirationRegistry.Cancel(policy.Metadata.Name)
+		return
+	}
+
+	// Register the auto-deletion
+	duration := time.Duration(durationSeconds) * time.Second
+	s.expirationRegistry.Register(
+		policy.Metadata.Name,
+		duration,
+		func() error {
+			// Delete the policy when the timer expires
+			return s.DeletePolicy(policy.Metadata.Name)
+		},
+	)
 }

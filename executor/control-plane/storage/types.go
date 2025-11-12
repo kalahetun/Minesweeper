@@ -54,9 +54,11 @@ type HeaderMatcher struct {
 
 // FaultAction defines the fault injection actions to apply.
 type FaultAction struct {
-	Percentage int          `json:"percentage"`
-	Delay      *DelayAction `json:"delay,omitempty"`
-	Abort      *AbortAction `json:"abort,omitempty"`
+	Percentage      int          `json:"percentage"`
+	StartDelayMs    int          `json:"start_delay_ms,omitempty"`   // 请求到达后延迟多少毫秒再开始执行故障，默认为 0（立即执行）
+	DurationSeconds int          `json:"duration_seconds,omitempty"` // 故障持续执行时间（秒），0 表示无限期（持久化）
+	Delay           *DelayAction `json:"delay,omitempty"`
+	Abort           *AbortAction `json:"abort,omitempty"`
 }
 
 // DelayAction defines a delay fault injection action.

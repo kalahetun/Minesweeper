@@ -65,5 +65,14 @@ func (s *PolicyService) validateRule(rule storage.Rule, fieldPath string) error 
 		return &ValidationError{Field: fieldPath + ".fault.percentage", Message: "percentage must be between 0 and 100"}
 	}
 
+	// Validate time control fields
+	if rule.Fault.StartDelayMs < 0 {
+		return &ValidationError{Field: fieldPath + ".fault.start_delay_ms", Message: "start_delay_ms must be non-negative (>= 0)"}
+	}
+
+	if rule.Fault.DurationSeconds < 0 {
+		return &ValidationError{Field: fieldPath + ".fault.duration_seconds", Message: "duration_seconds must be non-negative (>= 0)"}
+	}
+
 	return nil
 }

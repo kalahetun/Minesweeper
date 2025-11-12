@@ -1,0 +1,19 @@
+# 延迟阶段故障策略 - 故障在请求处理后期执行
+# 场景：模拟数据处理阶段的故障
+# 用于：测试应用程序在不同请求生命周期阶段的故障恢复能力
+
+metadata:
+  name: "late-stage-fault-policy"
+spec:
+  rules:
+    - match:
+        method:
+          exact: "POST"
+        path:
+          exact: "/api/orders"
+      fault:
+        percentage: 20
+        start_delay_ms: 500      # 请求到达 500ms 后才执行故障
+        duration_seconds: 0      # 无限期有效（持久化）
+        delay:
+          fixed_delay: "2000ms"  # 延迟 2 秒

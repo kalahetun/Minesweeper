@@ -1,0 +1,19 @@
+# 延迟-时间限制组合故障策略 - 故障在延迟后执行，仅在指定时间内有效
+# 场景：推荐系统测试在请求处理后期发生的临时故障
+# 用于：在特定时间窗口内模拟请求处理中期的故障
+
+metadata:
+  name: "delayed-timed-fault-policy"
+spec:
+  rules:
+    - match:
+        method:
+          exact: "POST"
+        path:
+          exact: "/api/predict"
+      fault:
+        percentage: 30
+        start_delay_ms: 200      # 请求到达 200ms 后执行故障
+        duration_seconds: 60     # 仅在 1 分钟内有效（用于快速实验）
+        abort:
+          httpStatus: 503
