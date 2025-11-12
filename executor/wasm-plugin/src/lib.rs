@@ -23,6 +23,8 @@ mod test_w5_pure;
 mod time_control_deserialization_test;
 #[cfg(test)]
 mod time_control_test;
+#[cfg(test)]
+mod int_1_comprehensive_unit_tests;
 
 use config::{CompiledRuleSet, Fault};
 use matcher::{RequestInfo, find_first_match};
