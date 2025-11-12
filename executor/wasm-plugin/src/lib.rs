@@ -25,6 +25,8 @@ mod time_control_deserialization_test;
 mod time_control_test;
 #[cfg(test)]
 mod int_1_comprehensive_unit_tests;
+#[cfg(test)]
+mod int_2_multi_rules_tests;
 
 use config::{CompiledRuleSet, Fault};
 use matcher::{RequestInfo, find_first_match};
