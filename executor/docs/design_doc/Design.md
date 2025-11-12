@@ -180,6 +180,242 @@ end note
   * Event: `update`
   * Data: `{"version":"<hash_or_timestamp>","rules":[...]}`
 
+### **Control Plane: 临时故障注入 API (新增 - 与 Recommender 集成)**
+
+**背景**: 为支持与 Recommender 系统的深度集成，需要提供一套**临时性的故障注入接口**（相区别于持久化的 Policy 管理），允许 Recommender 在需要时动态注入和撤销故障，同时精确控制故障的执行时间和采集观测数据。
+
+#### **1. 申请临时故障注入**
+
+* Endpoint: `POST /v1/faults/apply`
+* 协议: HTTP/1.1 (RESTful)
+* 数据格式: JSON
+
+**请求体** (`FaultApplyRequest`):
+
+```json
+{
+  "service": "PaymentService",                  // [必填] 服务名（用于追踪和日志）
+  "api": "/api/v1/payment/process",            // [必填] 目标 API 路径
+  "fault_type": "delay",                        // [必填] 故障类型："delay" | "abort" | "error"
+  "percentage": 50,                             // [必填] 故障比例，[0, 100]
+  "duration_seconds": 30,                       // [必填] 故障持续执行时间（秒）
+  "start_delay_ms": 200,                        // [可选] 请求到达后延迟多少毫秒再开始阻断
+                                                // 如不指定，默认为 0（立即阻断）
+                                                // 示例：设为 200 表示请求已建立连接且传输 200ms 后才被阻断
+  "fault_config": {                             // [必填] 故障特定配置
+    "delay_milliseconds": 2500,                 // 延迟（仅 delay 类型需要）
+    "http_status_code": 500                     // HTTP 状态码（仅 abort 类型需要）
+  }
+}
+```
+
+**参数详解**:
+
+- `start_delay_ms`: 这是相对延迟，不是绝对时间
+  - **含义**: 请求被 Wasm 插件匹配后，经过多少毫秒才开始阻断
+  - **典型场景**:
+    - `0` (默认): 请求立即被阻断
+    - `200`: 请求已建立连接、传输 200ms 后才被阻断（模拟部分数据已传输才出现故障）
+    - `5000`: 请求已传输 5 秒后才被阻断（模拟后期才出现的故障）
+  - **作用**: 让故障注入更加灵活，可以模拟应用层通信过程中才出现的故障
+
+**成功响应** (`200 OK`):
+
+```json
+{
+  "apply_id": "fault-20251111-abc123de",        // 故障执行 ID（全局唯一）
+  "status": "accepted",                         // 状态："accepted" | "rejected"
+  "message": "Fault injection scheduled",
+  "start_delay_ms": 200,                        // 确认接收到的请求延迟（毫秒）
+  "duration_seconds": 30                        // 确认接收到的执行时长（秒）
+}
+```
+
+**错误响应** (`400/409/500`):
+
+```json
+{
+  "error_code": "INVALID_INPUT",                // 错误代码
+  "message": "Invalid percentage value",        // 错误描述
+  "details": {...}                              // 可选的额外信息
+}
+```
+
+---
+
+#### **2. 查询故障执行状态**
+
+* Endpoint: `GET /v1/faults/:apply_id/status`
+* 协议: HTTP/1.1 (RESTful)
+* 数据格式: JSON
+
+**成功响应** (`200 OK`):
+
+```json
+{
+  "apply_id": "fault-20251111-abc123de",
+  "status": "running",                          // 状态："pending" | "running" | "completed" | "failed"
+  "service": "PaymentService",
+  "api": "/api/v1/payment/process",
+  "fault_type": "delay",
+  "start_delay_ms": 200,
+  "duration_seconds": 30,
+  "matched_request_count": 42,                  // 匹配到的请求总数
+  "current_blocking_count": 18,                 // 当前正在阻断中的请求数
+  "blocked_count": 15,                          // 已阻断完成的请求数
+  "progress_percent": 45,                       // 执行进度 [0, 100]
+  "error_message": null                         // 失败原因（如有）
+}
+```
+
+**状态说明**:
+- `pending`: 已接受但未开始（若指定了 `start_delay_ms` 在未来时间点）
+- `running`: 正在执行中（有请求正被阻断）
+- `completed`: 已完成（duration_seconds 时间已过，所有请求处理完毕）
+- `failed`: 执行失败
+
+---
+
+#### **3. 获取故障执行的观测数据**
+
+* Endpoint: `GET /v1/faults/:apply_id/metrics`
+* 协议: HTTP/1.1 (RESTful)
+* 数据格式: JSON
+
+**成功响应** (`200 OK`):
+
+```json
+{
+  "apply_id": "fault-20251111-abc123de",
+  "status": "completed",
+  "metrics": {
+    "total_request_count": 523,                 // 阻断窗口内的请求总数
+    "blocked_request_count": 261,               // 被阻断的请求数
+    "success_rate": 0.48,                       // 成功请求占比 [0, 1]
+    "error_rate": 0.02,                         // 错误请求占比 [0, 1]
+    "avg_latency_ms": 3250.45,                  // 平均延迟（毫秒）
+    "p95_latency_ms": 5100.00,                  // 第 95 百分位延迟
+    "p99_latency_ms": 6500.00,                  // 第 99 百分位延迟
+    "max_latency_ms": 8000.00                   // 最大延迟
+  },
+  "trace_data": {...},                          // [可选] OpenTelemetry Trace 数据（JSON）
+  "logs": [                                     // [可选] 应用日志片段
+    "[2.345s] Request blocked at 200ms delay",
+    "[5.678s] Retry after fault injection",
+    "[8.901s] Request completed successfully"
+  ],
+  "execution_timeline": {                       // 执行时间线（相对于开始时刻）
+    "accepted_at_ms": 0,                        // 接受请求时（绝对时刻，通常为 0）
+    "started_at_ms": 0,                         // 开始阻断时（通常也是 0，除非有 start_delay_ms）
+    "completed_at_ms": 30456,                   // 完成时（相对毫秒）
+    "actual_duration_ms": 30456                 // 实际执行时长
+  }
+}
+```
+
+---
+
+#### **4. 取消/撤销故障注入（可选）**
+
+* Endpoint: `DELETE /v1/faults/:apply_id`
+* 协议: HTTP/1.1 (RESTful)
+
+**成功响应** (`200 OK`):
+
+```json
+{
+  "apply_id": "fault-20251111-abc123de",
+  "message": "Fault injection cancelled",
+  "cancelled_at": "2025-11-11T10:00:15.000Z"
+}
+```
+
+**说明**: 仅当故障状态为 `pending` 或 `running` 时才能取消。
+
+---
+
+### **关键设计特性**
+
+1. **灵活的注入时机控制**:
+   - `start_delay_ms`: 允许在请求到达后的任意时刻开始阻断
+   - 可模拟不同阶段的故障（连接建立时、数据传输中、通信后期等）
+   - 例如：`start_delay_ms: 200` 表示请求已建立连接且传输 200ms 后才被阻断
+
+2. **精确的执行时长**:
+   - `duration_seconds`: 精确控制阻断窗口的时长，避免启发式等待的不确定性
+   - Wasm 插件在整个窗口内对匹配的请求执行阻断
+
+3. **完整的生命周期管理**:
+   - 通过 `status` API 可以实时查询故障的执行进度
+   - 支持在 `pending` 或 `running` 阶段取消故障
+
+4. **详尽的观测数据收集**:
+   - 自动采集请求统计（总数、被阻断数、成功率）
+   - 自动采集延迟分布（平均、P95、P99、最大）
+   - [可选] 集成 OpenTelemetry 采集 Trace 数据
+   - [可选] 采集应用日志片段（相对时间戳便于调试）
+
+5. **与 Recommender 的无缝集成**:
+   - `apply_id` 作为故障注入的唯一标识，便于追踪和关联
+   - 返回的 `start_delay_ms` 和 `duration_seconds` 让 Recommender 精确知道观测窗口
+   - `metrics` 直接对应 Design_5 中的 `RawObservation` 模型
+
+---
+
+### **实现指南**
+
+#### **在 Control Plane 中实现**
+
+1. **新增 HTTP 处理器**:
+   ```go
+   // POST /v1/faults/apply
+   func (pc *FaultController) ApplyFault(c *gin.Context) { ... }
+   
+   // GET /v1/faults/:apply_id/status
+   func (pc *FaultController) GetFaultStatus(c *gin.Context) { ... }
+   
+   // GET /v1/faults/:apply_id/metrics
+   func (pc *FaultController) GetFaultMetrics(c *gin.Context) { ... }
+   
+   // DELETE /v1/faults/:apply_id
+   func (pc *FaultController) CancelFault(c *gin.Context) { ... }
+   ```
+
+2. **核心服务层逻辑**:
+   - `FaultService`: 处理临时故障注入的业务逻辑
+   - `FaultStore`: 存储并管理进行中的故障记录
+   - `FaultScheduler`: 根据 `start_time` 调度故障的开始和结束
+   - `MetricsCollector`: 在故障执行期间收集观测数据
+
+3. **与 Wasm 插件的协调**:
+   - 临时故障注入可以通过修改现有的 Policy 管理机制实现
+   - 或者新增一个"临时规则"通道，由 `ConfigDistributor` 一并下发
+   - 故障结束时，自动从 Wasm 插件的内存规则中移除
+
+#### **在 Wasm 插件中支持**
+
+1. **接收临时规则**: 从控制平面接收临时故障规则（带有执行时间戳）
+2. **时间驱动的执行**: 根据当前时间判断故障是否在执行窗口内
+3. **指标收集**: 在故障执行期间记录请求和响应数据（status, latency, error）
+4. **Trace 采集**: [可选] 集成 OpenTelemetry SDK 采集分布式 Trace
+
+---
+
+### **与现有 Policy API 的关系**
+
+| 特性 | Policy API (`/v1/policies`) | 临时故障 API (`/v1/faults`) |
+|:---|:---:|:---:|
+| **生命周期** | 持久化，手动删除 | 临时性，自动清理 |
+| **应用场景** | 长期运行的规则 | 短期实验和推荐系统 |
+| **时间控制** | 全局开启/关闭 | 相对延迟 + 精确时长（ms 级精度） |
+| **故障注入时机** | 请求到达立即阻断 | 可灵活选择（0ms、200ms 等） |
+| **观测数据** | 需要外部采集 | 内置完整采集 |
+| **与 Recommender 的集成** | 间接，通过 CLI | 直接，通过 API |
+
+**推荐使用场景**:
+- 使用 Policy API 定义长期有效的故障注入规则（如"某个关键服务始终注入 5% 的延迟"）
+- 使用临时故障 API 支持 Recommender 的短期实验（如"在接下来 30 秒内注入 50% 的延迟以测试应用响应"）
+
 ## 数据流示意图 (Data Flow Diagram)
 
 此图展示了从策略创建到故障注入的完整数据流动过程。

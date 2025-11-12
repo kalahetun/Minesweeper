@@ -635,3 +635,563 @@ class AnalyzerService:
         
         return final_score, breakdown
 ```
+
+---
+
+## **Trace 分析方法详解**
+
+本部分详细说明如何获取、存储和比对分布式追踪数据，实现结构变化的检测。
+
+### **概述**
+
+分布式追踪 (Distributed Tracing) 记录了请求在微服务系统中的执行轨迹，包含：
+- **Span**: 表示一个服务或操作的执行
+- **Trace**: 一次完整请求的 Span 集合
+- **Attributes**: Span 的属性（服务名、延迟、错误状态等）
+
+通过比对基线 Trace 和当前 Trace，我们可以检测：
+- ✅ 重试（Span 数量增加）
+- ✅ 降级（某些调用被跳过）
+- ✅ 错误传播（ERROR Span 的出现）
+- ✅ 性能瓶颈（单个 Span 延迟激增）
+
+### **推荐的 Trace 数据格式 (OpenTelemetry)**
+
+使用 **OpenTelemetry (OTel) 标准格式**，便于与业界主流系统（Jaeger、Zipkin、DataDog）互操作。
+
+#### **OTel Trace 的 JSON 结构**
+
+```json
+{
+  "traceId": "d51f4bf90b45417688221ae4d7b12f98",
+  "spans": [
+    {
+      "traceId": "d51f4bf90b45417688221ae4d7b12f98",
+      "spanId": "0af7651916cd43dd",
+      "parentSpanId": "b7ad6b7169203331",
+      "name": "payment-service-process",
+      "kind": "SPAN_KIND_INTERNAL",
+      "startTimeUnixNano": "1680213865123456789",
+      "endTimeUnixNano": "1680213865500000000",
+      "durationMs": 376.543,
+      "status": {
+        "code": "STATUS_CODE_OK",
+        "description": ""
+      },
+      "attributes": {
+        "service.name": "payment-service",
+        "http.method": "POST",
+        "http.url": "/api/v1/payment/process",
+        "http.status_code": 200,
+        "db.system": "postgresql",
+        "db.statement": "INSERT INTO transactions VALUES (...)",
+        "error": false,
+        "error.type": null
+      },
+      "events": [
+        {
+          "name": "exception",
+          "timeUnixNano": "1680213865300000000",
+          "attributes": {
+            "exception.type": "timeout",
+            "exception.message": "Database connection timeout"
+          }
+        }
+      ]
+    },
+    {
+      "traceId": "d51f4bf90b45417688221ae4d7b12f98",
+      "spanId": "b7ad6b7169203331",
+      "parentSpanId": null,
+      "name": "http-request",
+      "kind": "SPAN_KIND_SERVER",
+      "startTimeUnixNano": "1680213865100000000",
+      "endTimeUnixNano": "1680213865600000000",
+      "durationMs": 500.0,
+      "status": {
+        "code": "STATUS_CODE_OK"
+      },
+      "attributes": {
+        "service.name": "api-gateway",
+        "http.method": "POST",
+        "http.target": "/api/v1/payment",
+        "http.status_code": 200
+      },
+      "events": []
+    }
+  ]
+}
+```
+
+#### **关键字段说明**
+
+| 字段 | 类型 | 说明 |
+|:---|:---:|:---|
+| **traceId** | string | 全局唯一的追踪 ID，同一请求的所有 Span 共享 |
+| **spanId** | string | Span 的唯一 ID（在 trace 内唯一） |
+| **parentSpanId** | string | 父 Span 的 ID（null 表示根 Span） |
+| **name** | string | Span 的名称（如操作名） |
+| **kind** | enum | Span 类型：SPAN_KIND_SERVER, SPAN_KIND_CLIENT, SPAN_KIND_INTERNAL 等 |
+| **startTimeUnixNano** | int64 | 纳秒精度的开始时间戳 |
+| **endTimeUnixNano** | int64 | 纳秒精度的结束时间戳 |
+| **durationMs** | float | 执行时间（毫秒），便于比对 |
+| **status.code** | enum | 状态：OK, ERROR, UNSET |
+| **attributes** | object | 自定义属性键值对 |
+| **events** | array | Span 中的事件（如异常）|
+
+### **基线 Trace 的获取方式**
+
+基线 Trace 用于与当前 Trace 比对，以检测异常模式。
+
+#### **方式 1: 离线采集（推荐 Phase 1）**
+
+在系统正常运行时，手动记录一次标准的 Trace 并保存。
+
+**步骤**:
+1. 启动支持 Trace 导出的应用（如通过 OTel SDK）
+2. 发送一个标准请求（无故障注入）
+3. 从 Jaeger/Zipkin 后端导出该 Trace 的 JSON
+4. 保存为 `baseline_trace.json`
+
+**示例**:
+```python
+# 启动时加载基线 Trace
+class AnalyzerConfig:
+    def __init__(self, baseline_trace_file: str):
+        with open(baseline_trace_file, 'r') as f:
+            self.baseline_trace = json.load(f)
+            self.baseline_spans = {
+                span['spanId']: span 
+                for span in self.baseline_trace['spans']
+            }
+
+config = AnalyzerConfig('config/baseline_trace.json')
+```
+
+**优点**:
+- ✅ 简单可控
+- ✅ 无需额外的采集逻辑
+- ✅ 适合 Phase 1
+
+**缺点**:
+- ❌ 无法自动适应系统演进
+- ❌ 需要手动更新基线
+
+#### **方式 2: 在线自适应（推荐 Phase 2）**
+
+系统运行时，基于最近的**健康请求**动态更新基线 Trace。
+
+**步骤**:
+1. 记录每个请求的 Trace
+2. 计算其严重性评分
+3. 如果评分 < 1.0（无异常），将其作为新的基线候选
+4. 定期更新基线（如每 1000 个请求）
+
+**实现**:
+```python
+class AdaptiveBaseline:
+    def __init__(self, window_size=1000):
+        self.window_size = window_size
+        self.recent_traces = []
+        self.baseline = None
+    
+    def add_trace(self, trace, severity_score):
+        """添加新的 Trace 观测"""
+        self.recent_traces.append({
+            'trace': trace,
+            'score': severity_score
+        })
+        
+        if len(self.recent_traces) > self.window_size:
+            self.recent_traces.pop(0)
+        
+        # 定期更新基线
+        if len(self.recent_traces) % (self.window_size // 10) == 0:
+            self._update_baseline()
+    
+    def _update_baseline(self):
+        """从健康请求中选择基线"""
+        # 过滤严重性低的请求
+        healthy = [
+            t for t in self.recent_traces 
+            if t['score'] < 1.0
+        ]
+        
+        if healthy:
+            # 选择最近的健康请求
+            self.baseline = healthy[-1]['trace']
+```
+
+**优点**:
+- ✅ 自动适应系统变化
+- ✅ 无需手动维护
+
+**缺点**:
+- ❌ 需要更复杂的逻辑
+- ❌ 可能偏离真实基线
+
+### **Trace 比对算法的 Python 实现**
+
+#### **完整的 StructureScorer 实现**
+
+```python
+from typing import List, Dict, Any, Tuple
+from dataclasses import dataclass
+import json
+from difflib import SequenceMatcher
+
+@dataclass
+class Span:
+    """OTel Span 的 Python 表示"""
+    span_id: str
+    parent_span_id: str
+    name: str
+    duration_ms: float
+    status_code: str
+    attributes: Dict[str, Any]
+    events: List[Dict[str, Any]]
+    
+    @classmethod
+    def from_otel_json(cls, otel_span: dict) -> 'Span':
+        """从 OTel JSON 解析"""
+        return cls(
+            span_id=otel_span['spanId'],
+            parent_span_id=otel_span.get('parentSpanId'),
+            name=otel_span['name'],
+            duration_ms=otel_span.get('durationMs', 0.0),
+            status_code=otel_span['status']['code'],
+            attributes=otel_span.get('attributes', {}),
+            events=otel_span.get('events', [])
+        )
+
+class StructureScorer(IScorer):
+    """
+    基于 OTel Trace 的结构变化评分器
+    """
+    
+    def __init__(self):
+        self.baseline_spans: Dict[str, Span] = {}
+    
+    def set_baseline(self, baseline_trace: dict):
+        """设置基线 Trace"""
+        self.baseline_spans = {
+            span['spanId']: Span.from_otel_json(span)
+            for span in baseline_trace.get('spans', [])
+        }
+    
+    def score(self, observation: RawObservation, config: AnalyzerConfig) -> float:
+        """
+        计算结构变化评分
+        
+        Args:
+            observation: 包含 trace_data (OTel JSON)
+            config: 配置，包含基线 Trace
+        
+        Returns:
+            评分 ∈ [0, 10]
+        """
+        try:
+            # 1. 解析当前 Trace
+            current_trace = observation.trace_data
+            if not current_trace:
+                return 0.0
+            
+            current_spans = {
+                span['spanId']: Span.from_otel_json(span)
+                for span in current_trace.get('spans', [])
+            }
+            
+            # 2. 设置基线（如果尚未设置）
+            if not self.baseline_spans:
+                self.set_baseline(current_trace)
+                return 0.0  # 第一次观测，无比对基线
+            
+            score = 0.0
+            
+            # 检查 1: Span 数量变化
+            baseline_count = len(self.baseline_spans)
+            current_count = len(current_spans)
+            
+            if baseline_count > 0:
+                span_increase_ratio = (current_count - baseline_count) / baseline_count
+                if span_increase_ratio > 0.5:
+                    logger.info(
+                        f"Span count increased by {span_increase_ratio*100:.1f}% "
+                        f"({current_count} vs {baseline_count})"
+                    )
+                    score = max(score, 3.0)
+            
+            # 检查 2: 操作序列的编辑距离
+            current_ops = self._get_operation_sequence(current_spans)
+            baseline_ops = self._get_operation_sequence(self.baseline_spans)
+            
+            edit_dist = self._levenshtein_distance(baseline_ops, current_ops)
+            if edit_dist > 2:
+                logger.info(
+                    f"Operation sequence changed (edit distance: {edit_dist}). "
+                    f"Baseline: {baseline_ops}, Current: {current_ops}"
+                )
+                score = max(score, 5.0)
+            
+            # 检查 3: 错误 Span 的检测
+            error_spans = [
+                s for s in current_spans.values()
+                if s.status_code == 'STATUS_CODE_ERROR' or 
+                   any('exception' in e.get('name', '').lower() for e in s.events)
+            ]
+            
+            if error_spans:
+                logger.info(f"Found {len(error_spans)} error spans")
+                score = max(score, 2.0)
+            
+            # 检查 4: 单个 Span 的延迟激增
+            for span_id, baseline_span in self.baseline_spans.items():
+                current_span = current_spans.get(span_id)
+                
+                if current_span and baseline_span.duration_ms > 0:
+                    latency_ratio = current_span.duration_ms / baseline_span.duration_ms
+                    
+                    if latency_ratio > 5.0:
+                        logger.warning(
+                            f"Span '{baseline_span.name}' latency increased {latency_ratio:.1f}x "
+                            f"({current_span.duration_ms:.1f}ms vs {baseline_span.duration_ms:.1f}ms)"
+                        )
+                        score = max(score, 2.0)
+                        break
+            
+            return min(10.0, score)
+        
+        except Exception as e:
+            logger.error(f"StructureScorer failed: {e}", exc_info=True)
+            return 0.0  # Fail-Safe
+    
+    def _get_operation_sequence(self, spans: Dict[str, Span]) -> List[str]:
+        """
+        从 Span 集合提取操作序列（按调用顺序）
+        
+        Args:
+            spans: Dict[span_id -> Span]
+        
+        Returns:
+            操作名列表，按调用时间顺序
+        """
+        if not spans:
+            return []
+        
+        # 按 startTime 排序（这里假设已从 OTel JSON 中提取）
+        # 对于生产环境，应该从 OTel JSON 中直接读取 startTimeUnixNano
+        ordered_spans = sorted(
+            spans.values(),
+            key=lambda s: s.attributes.get('start_time', 0)
+        )
+        
+        return [span.name for span in ordered_spans]
+    
+    def _levenshtein_distance(self, s1: List[str], s2: List[str]) -> int:
+        """
+        计算编辑距离 (Levenshtein Distance)
+        
+        表示将 s1 转换为 s2 所需的最少单字符编辑（插入、删除、替换）次数。
+        
+        例：
+        s1 = ['A', 'B', 'C']
+        s2 = ['A', 'B', 'C', 'D']  (插入 'D')
+        distance = 1
+        
+        s1 = ['A', 'B', 'C']
+        s2 = ['A', 'C']  (删除 'B')
+        distance = 1
+        
+        s1 = ['A', 'B', 'C']
+        s2 = ['A', 'X', 'C']  (替换 'B' 为 'X')
+        distance = 1
+        """
+        m, n = len(s1), len(s2)
+        
+        # 初始化 DP 表
+        dp = [[0] * (n + 1) for _ in range(m + 1)]
+        
+        # 第一行：从空字符串插入 s2 的字符
+        for j in range(n + 1):
+            dp[0][j] = j
+        
+        # 第一列：从 s1 删除所有字符
+        for i in range(m + 1):
+            dp[i][0] = i
+        
+        # 填充 DP 表
+        for i in range(1, m + 1):
+            for j in range(1, n + 1):
+                if s1[i-1] == s2[j-1]:
+                    # 字符相同，不需要编辑
+                    dp[i][j] = dp[i-1][j-1]
+                else:
+                    # 字符不同，取三种操作的最小值
+                    dp[i][j] = 1 + min(
+                        dp[i-1][j],      # 删除 s1[i-1]
+                        dp[i][j-1],      # 插入 s2[j-1]
+                        dp[i-1][j-1]     # 替换 s1[i-1] 为 s2[j-1]
+                    )
+        
+        return dp[m][n]
+    
+    def _find_matching_baseline_span(self, current_span: Span) -> Span:
+        """
+        在基线中查找匹配的 Span
+        
+        匹配策略：按 Span 名称匹配（大多数情况下足够）
+        """
+        for baseline_span in self.baseline_spans.values():
+            if baseline_span.name == current_span.name:
+                return baseline_span
+        return None
+```
+
+#### **使用示例**
+
+```python
+# 初始化
+config = AnalyzerConfig()
+config.baseline_trace = json.load(open('baseline_trace.json'))
+
+analyzer = AnalyzerService(config)
+
+# 观测数据（包含 OTel Trace）
+current_trace = json.load(open('current_trace.json'))
+observation = RawObservation(
+    status_code=500,
+    latency_ms=3500,
+    error_rate=0.3,
+    trace_data=current_trace,
+    logs=[]
+)
+
+# 计算评分
+severity_score, breakdown = analyzer.calculate_severity(observation)
+
+print(f"Severity Score: {severity_score:.2f}")
+print(f"  Bug: {breakdown.bug_score:.1f}")
+print(f"  Performance: {breakdown.perf_score:.1f}")
+print(f"  Structure: {breakdown.struct_score:.1f}")
+```
+
+### **Trace 数据的采集和存储**
+
+#### **采集方式**
+
+使用 **OpenTelemetry Python SDK** 自动采集 Trace：
+
+```python
+from opentelemetry import trace, metrics
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+
+# 配置 Jaeger 导出器
+jaeger_exporter = JaegerExporter(
+    agent_host_name='localhost',
+    agent_port=6831,
+)
+
+# 设置 Trace Provider
+trace.set_tracer_provider(
+    TracerProvider(
+        resource=Resource.create({SERVICE_NAME: "payment-service"})
+    )
+)
+trace.get_tracer_provider().add_span_processor(
+    SimpleSpanProcessor(jaeger_exporter)
+)
+
+# 使用
+tracer = trace.get_tracer(__name__)
+
+def process_payment(order_id):
+    with tracer.start_as_current_span("process_payment") as span:
+        span.set_attribute("order_id", order_id)
+        
+        with tracer.start_as_current_span("validate_order") as child_span:
+            # 验证逻辑
+            pass
+        
+        with tracer.start_as_current_span("charge_card") as child_span:
+            # 扣款逻辑
+            pass
+```
+
+#### **Trace 导出和存储**
+
+从 Jaeger 或 Zipkin 导出为 JSON：
+
+```python
+import requests
+import json
+
+# 从 Jaeger API 获取 Trace
+def export_trace_from_jaeger(trace_id: str) -> dict:
+    """
+    从 Jaeger 后端导出指定 Trace
+    """
+    response = requests.get(
+        f'http://localhost:16686/api/traces/{trace_id}'
+    )
+    trace_data = response.json()['data'][0]
+    
+    # 保存为 JSON
+    with open(f'traces/{trace_id}.json', 'w') as f:
+        json.dump(trace_data, f, indent=2)
+    
+    return trace_data
+
+# 导出并保存基线 Trace
+baseline_trace = export_trace_from_jaeger('d51f4bf90b45417688221ae4d7b12f98')
+```
+
+### **推荐的 Trace 比对配置**
+
+在 `AnalyzerConfig` 中添加 Trace 相关设置：
+
+```python
+@dataclass
+class AnalyzerConfig:
+    weights: Dict[str, float]
+    baseline_latency_ms: float
+    threshold_latency_ms: float
+    baseline_trace_file: str  # 基线 Trace 文件路径
+    
+    # Trace 比对参数
+    span_count_increase_threshold: float = 0.5  # 50% 增加为异常
+    operation_distance_threshold: int = 2       # 编辑距离 > 2 为异常
+    latency_spike_multiplier: float = 5.0       # 延迟增加 > 5x 为异常
+    
+    baseline_trace: Dict[str, Any] = None  # 缓存的基线 Trace
+    
+    def __post_init__(self):
+        """初始化时加载基线 Trace"""
+        if self.baseline_trace_file:
+            with open(self.baseline_trace_file, 'r') as f:
+                self.baseline_trace = json.load(f)
+
+# 使用
+config = AnalyzerConfig(
+    weights={'bug': 10, 'perf': 2, 'struct': 5},
+    baseline_latency_ms=200,
+    threshold_latency_ms=1000,
+    baseline_trace_file='config/baseline_trace.json',
+    span_count_increase_threshold=0.5,
+    operation_distance_threshold=2,
+    latency_spike_multiplier=5.0
+)
+```
+
+### **总结**
+
+| 方面 | 推荐 |
+|:---|:---|
+| **Trace 格式** | OpenTelemetry JSON (OTel 标准) |
+| **基线获取** | Phase 1: 离线采集 + 手动更新<br>Phase 2: 在线自适应 |
+| **比对算法** | Span 数量、编辑距离、错误检测、延迟激增 |
+| **实现** | 完整的 `StructureScorer` 实现（见上） |
+| **存储** | JSON 文件或 Trace 后端数据库 |
+
