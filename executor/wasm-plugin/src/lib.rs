@@ -27,6 +27,8 @@ mod time_control_test;
 mod int_1_comprehensive_unit_tests;
 #[cfg(test)]
 mod int_2_multi_rules_tests;
+#[cfg(test)]
+mod int_3_end_to_end_tests;
 
 use config::{CompiledRuleSet, Fault};
 use matcher::{RequestInfo, find_first_match};
