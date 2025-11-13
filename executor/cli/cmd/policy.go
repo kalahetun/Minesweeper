@@ -21,7 +21,7 @@ Examples:
   hfi-cli policy get
   hfi-cli policy get my-policy
   hfi-cli policy delete my-policy`,
-	
+
 	// This command doesn't have its own logic - it's just a container
 	// Users must specify a subcommand
 	Run: func(cmd *cobra.Command, args []string) {
@@ -33,5 +33,7 @@ func init() {
 	// Add subcommands
 	policyCmd.AddCommand(applyCmd)
 	policyCmd.AddCommand(getCmd)
+	policyCmd.AddCommand(listCmd)
 	policyCmd.AddCommand(deleteCmd)
+	policyCmd.AddCommand(describeCmd)
 }
