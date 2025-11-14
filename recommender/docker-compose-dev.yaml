@@ -1,0 +1,41 @@
+version: "3.8"
+
+services:
+  recommender:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: boifi-recommender-dev
+    ports:
+      - "8000:8000"
+    environment:
+      SERVER_HOST: "0.0.0.0"
+      SERVER_PORT: "8000"
+      EXECUTOR_HOST: "executor-mock"
+      EXECUTOR_PORT: "8001"
+      LOG_LEVEL: "DEBUG"
+      DEBUG: "true"
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./.sessions:/app/.sessions
+    networks:
+      - boifi-dev-network
+    depends_on:
+      - executor-mock
+
+  executor-mock:
+    image: mockserver/mockserver:latest
+    container_name: boifi-executor-mock-dev
+    ports:
+      - "8001:1080"
+    environment:
+      MOCKSERVER_INITIALIZATION_JSON_PATH: "/config/mock-executor.json"
+    volumes:
+      - ./docker/mock-executor-config.json:/config/mock-executor.json
+    networks:
+      - boifi-dev-network
+
+networks:
+  boifi-dev-network:
+    driver: bridge
