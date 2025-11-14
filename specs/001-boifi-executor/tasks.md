@@ -46,18 +46,18 @@ Phase 3: US1 - SRE Manual Chaos Testing (P1) ← MVP 核心
 
 **可并行任务**: T001-T012（大部分独立）
 
-- [ ] T001 在 `/executor/cli/` 下创建 `tests/` 目录结构 (unit/, integration/, fixtures/)
-- [ ] T002 [P] 在 `/executor/control-plane/` 下创建 `tests/` 目录结构 (unit/, integration/, e2e/, benchmarks/, fixtures/)
-- [ ] T003 [P] 在 `/executor/wasm-plugin/` 下创建 `tests/` 目录结构 (unit/, integration/, e2e/, benchmarks/, fixtures/)
-- [ ] T004 为 Control Plane 创建 Makefile 目标: `make test`, `make test-coverage`, `make test-integ`, `make bench`, `make test-all` 到 `/executor/control-plane/Makefile`
-- [ ] T005 [P] 为 CLI 创建 Makefile 目标: `make test`, `make test-coverage` 到 `/executor/cli/Makefile`
-- [ ] T006 [P] 为 Wasm Plugin 创建 Makefile 目标: `make test`, `make test-coverage`, `make bench` 到 `/executor/wasm-plugin/Makefile`
-- [ ] T007 创建 Control Plane 测试夹具模块 `/executor/control-plane/tests/fixtures/policies.go` 包含预定义 Policy 对象
-- [ ] T008 [P] 创建 Wasm Plugin 测试夹具模块 `/executor/wasm-plugin/tests/fixtures/policies.rs` 包含预定义 Policy 对象
-- [ ] T009 [P] 创建 CLI 测试夹具目录 `/executor/cli/tests/fixtures/sample_policies/` 包含 YAML 测试文件
-- [ ] T010 生成测试架构文档 `/specs/001-boifi-executor/test-architecture.md` 说明目录结构、命名约定和运行规范
-- [ ] T011 [P] 生成快速启动指南 `/specs/001-boifi-executor/quickstart.md` 包含测试运行示例
-- [ ] T012 生成测试覆盖率基线报告 `/specs/001-boifi-executor/research.md` 分析当前覆盖率缺口
+- [x] T001 在 `/executor/cli/` 下创建 `tests/` 目录结构 (unit/, integration/, fixtures/)
+- [x] T002 [P] 在 `/executor/control-plane/` 下创建 `tests/` 目录结构 (unit/, integration/, e2e/, benchmarks/, fixtures/)
+- [x] T003 [P] 在 `/executor/wasm-plugin/` 下创建 `tests/` 目录结构 (unit/, integration/, e2e/, benchmarks/, fixtures/)
+- [x] T004 为 Control Plane 创建 Makefile 目标: `make test`, `make test-coverage`, `make test-integ`, `make bench`, `make test-all` 到 `/executor/control-plane/Makefile`
+- [x] T005 [P] 为 CLI 创建 Makefile 目标: `make test`, `make test-coverage` 到 `/executor/cli/Makefile`
+- [x] T006 [P] 为 Wasm Plugin 创建 Makefile 目标: `make test`, `make test-coverage`, `make bench` 到 `/executor/wasm-plugin/Makefile`
+- [x] T007 创建 Control Plane 测试夹具模块 `/executor/control-plane/tests/fixtures/policies.go` 包含预定义 Policy 对象
+- [x] T008 [P] 创建 Wasm Plugin 测试夹具模块 `/executor/wasm-plugin/tests/fixtures/policies.rs` 包含预定义 Policy 对象
+- [x] T009 [P] 创建 CLI 测试夹具目录 `/executor/cli/tests/fixtures/sample_policies/` 包含 YAML 测试文件
+- [x] T010 生成测试架构文档 `/specs/001-boifi-executor/test-architecture.md` 说明目录结构、命名约定和运行规范
+- [x] T011 [P] 生成快速启动指南 `/specs/001-boifi-executor/quickstart.md` 包含测试运行示例
+- [x] T012 生成测试覆盖率基线报告 `/specs/001-boifi-executor/research.md` 分析当前覆盖率缺口
 
 **验收标准**:
 - ✓ 三个组件都有标准化的 tests/ 目录结构
