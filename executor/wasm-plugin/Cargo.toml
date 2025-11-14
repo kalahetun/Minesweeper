@@ -12,3 +12,11 @@ log = "0.4.20"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 regex = "1.10"
+
+[dev-dependencies]
+
+# Create a test library for testing components without proxy-wasm dependency
+[[test]]
+name = "comprehensive"
+path = "tests/comprehensive_tests.rs"
+
