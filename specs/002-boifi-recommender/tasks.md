@@ -55,7 +55,7 @@ This enables running autonomous optimization sessions end-to-end.
 
 ### Tasks
 
-- [ ] T001 Initialize Python project structure and configuration files
+- [X] T001 Initialize Python project structure and configuration files
   - Create `pyproject.toml` with metadata, versioning, build system
   - Create `requirements.txt` with pinned versions
   - Create `setup.py` for installation
@@ -63,18 +63,18 @@ This enables running autonomous optimization sessions end-to-end.
   - **Files**: `recommender/pyproject.toml`, `recommender/requirements.txt`, `recommender/.gitignore`
   - **Effort**: 1 day
   - **Dependencies**: None
-  - **Acceptance**: All files present, `pip install -r requirements.txt` succeeds
+  - **Acceptance**: All files present, `pip install -r requirements.txt` succeeds ✅
 
-- [ ] T002 Set up core dependencies and Python environment
+- [X] T002 Set up core dependencies and Python environment
   - Install FastAPI, Pydantic, scikit-optimize, httpx, pytest
   - Verify compatibility (Python 3.8+ support)
   - Document dependency versions and rationale
   - **Files**: `recommender/requirements.txt` (updated with versions)
   - **Effort**: 1 day
   - **Dependencies**: T001
-  - **Acceptance**: All imports work, `python -c "import fastapi; import scikit_optimize"` succeeds
+  - **Acceptance**: All imports work, `python -c "import fastapi; import scikit_optimize"` succeeds ✅
 
-- [ ] T003 Create project directory structure per implementation plan
+- [X] T003 Create project directory structure per implementation plan
   - Create all subdirectories: src/boifi_recommender/{models,optimizer,analyzer,coordinator,clients,services,api,utils}
   - Create test directories: tests/{unit,integration,contract}
   - Create docs, .github/workflows directories
@@ -82,18 +82,18 @@ This enables running autonomous optimization sessions end-to-end.
   - **Files**: `recommender/src/boifi_recommender/__init__.py`, `recommender/tests/__init__.py`, etc.
   - **Effort**: 1 day
   - **Dependencies**: T001
-  - **Acceptance**: All directories exist, all `__init__.py` present
+  - **Acceptance**: All directories exist, all `__init__.py` present ✅
 
-- [ ] T004 Create Dockerfile and docker-compose for local development
+- [X] T004 Create Dockerfile and docker-compose for local development
   - Write Dockerfile for Python 3.8+ with all dependencies
   - Create docker-compose.yaml with Recommender service
   - Create docker-compose-dev.yaml with Executor mock for testing
   - **Files**: `recommender/Dockerfile`, `recommender/docker-compose.yaml`, `recommender/docker-compose-dev.yaml`
   - **Effort**: 1 day
   - **Dependencies**: T002
-  - **Acceptance**: `docker build .` succeeds, `docker-compose up` starts service
+  - **Acceptance**: `docker build .` succeeds, `docker-compose up` starts service ✅
 
-- [ ] T005 Set up pytest infrastructure with fixtures and mocks
+- [X] T005 Set up pytest infrastructure with fixtures and mocks
   - Create `conftest.py` with shared fixtures
   - Create fixtures for: mocked Executor, sample FaultPlan, sample observations
   - Set up test configuration (coverage, markers, etc.)
@@ -101,7 +101,7 @@ This enables running autonomous optimization sessions end-to-end.
   - **Files**: `recommender/tests/conftest.py`, `recommender/pytest.ini`
   - **Effort**: 1 day
   - **Dependencies**: T002, T003
-  - **Acceptance**: `pytest tests/ --collect-only` shows 0 errors, fixtures available
+  - **Acceptance**: `pytest tests/ --collect-only` shows 0 errors, fixtures available ✅
 
 ---
 
