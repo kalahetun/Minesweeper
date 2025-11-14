@@ -14,7 +14,7 @@ import (
 var (
 	// globalFlags holds the global CLI configuration
 	globalFlags client.GlobalFlags
-	
+
 	// apiClient is the global API client instance
 	apiClient client.IAPIClient
 )
@@ -31,7 +31,7 @@ Examples:
   hfi-cli policy apply -f my-policy.yaml
   hfi-cli policy get
   hfi-cli policy delete my-policy`,
-	
+
 	// PersistentPreRunE is called before any subcommand runs
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Initialize the API client with global flags
@@ -39,19 +39,19 @@ Examples:
 		if err != nil {
 			return fmt.Errorf("failed to initialize API client: %w", err)
 		}
-		
+
 		// Store the client globally for subcommands to use
 		apiClient = client
-		
+
 		// Optional: Perform a health check to validate the connection
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		
+
 		if err := apiClient.HealthCheck(ctx); err != nil {
 			// Don't fail initialization on health check failure, just warn
 			fmt.Fprintf(os.Stderr, "Warning: Control plane health check failed: %v\n", err)
 		}
-		
+
 		return nil
 	},
 }
@@ -73,16 +73,21 @@ func init() {
 		"http://localhost:8080",
 		"Address of the control plane API server",
 	)
-	
+
 	rootCmd.PersistentFlags().DurationVar(
 		&globalFlags.Timeout,
 		"timeout",
 		30*time.Second,
 		"Timeout for API requests to the control plane",
 	)
-	
+
 	// Add subcommands
 	rootCmd.AddCommand(policyCmd)
+}
+
+// GetRootCommand returns the root command for testing purposes
+func GetRootCommand() *cobra.Command {
+	return rootCmd
 }
 
 // GetAPIClient returns the global API client instance
