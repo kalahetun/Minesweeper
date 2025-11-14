@@ -1,0 +1,548 @@
+openapi: 3.0.0
+info:
+  title: BOIFI Recommender System API
+  version: 1.0.0
+  description: |
+    REST API for the Bayesian Optimizer Recommender System.
+    Manages optimization sessions for autonomous chaos testing.
+  contact:
+    name: BOIFI Team
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: https://recommender.example.com
+    description: Production
+
+paths:
+  /v1/optimization/sessions:
+    post:
+      summary: Create a new optimization session
+      description: |
+        Initiates a new Bayesian optimization campaign targeting a specific service.
+        The system will autonomously suggest fault combinations and record observations.
+      operationId: createSession
+      tags:
+        - Sessions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionRequest'
+            example:
+              service_name: "payment-service"
+              search_space:
+                name: "Payment Fault Space"
+                dimensions:
+                  - name: "delay_ms"
+                    type: "integer"
+                    bounds: [100, 5000]
+                  - name: "error_code"
+                    type: "categorical"
+                    values: [500, 502, 503]
+              max_trials: 50
+              time_budget_sec: 3600
+      responses:
+        '202':
+          description: Session accepted and queued for processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateSessionResponse'
+        '400':
+          description: Invalid request (validation failure)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/optimization/sessions/{session_id}:
+    get:
+      summary: Get optimization session status
+      description: |
+        Retrieve the current state, progress, and best result of an optimization session.
+        Can be called multiple times to monitor progress in real-time.
+      operationId: getSessionStatus
+      tags:
+        - Sessions
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique session identifier
+      responses:
+        '200':
+          description: Session status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionStatusResponse'
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/optimization/sessions/{session_id}/stop:
+    post:
+      summary: Stop an optimization session
+      description: |
+        Request graceful termination of an active optimization session.
+        The system will complete the current trial, then stop accepting new trials.
+        All results collected so far remain available.
+      operationId: stopSession
+      tags:
+        - Sessions
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '202':
+          description: Stop request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StopSessionResponse'
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Session already completed or stopped
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/health:
+    get:
+      summary: Health check endpoint
+      description: Returns 200 if the recommender service is operational
+      operationId: healthCheck
+      tags:
+        - System
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  timestamp:
+                    type: string
+                    format: date-time
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "unavailable"
+                  reason:
+                    type: string
+
+components:
+  schemas:
+    CreateSessionRequest:
+      type: object
+      required:
+        - service_name
+        - search_space
+        - max_trials
+      properties:
+        service_name:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: '^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$'
+          description: Target service name for fault injection
+          example: "payment-service"
+        search_space:
+          $ref: '#/components/schemas/SearchSpaceConfig'
+        max_trials:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          description: Maximum number of optimization trials
+          example: 50
+        time_budget_sec:
+          type: integer
+          minimum: 60
+          maximum: 86400
+          description: Time budget in seconds (1 min - 24 hrs)
+          default: 3600
+          example: 3600
+
+    SearchSpaceConfig:
+      type: object
+      required:
+        - dimensions
+      properties:
+        name:
+          type: string
+          maxLength: 128
+          description: Human-readable name for the search space
+          example: "Payment Service Fault Space"
+        description:
+          type: string
+          maxLength: 512
+          description: Detailed description
+          example: "Explore delay and error injection combinations"
+        dimensions:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/Dimension'
+        constraints:
+          type: array
+          items:
+            type: string
+          description: Conditional rules on dimensions
+
+    Dimension:
+      type: object
+      required:
+        - name
+        - type
+      discriminator:
+        propertyName: type
+        mapping:
+          categorical: '#/components/schemas/CategoricalDimension'
+          real: '#/components/schemas/RealDimension'
+          integer: '#/components/schemas/IntegerDimension'
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: '^[a-zA-Z_][a-zA-Z0-9_]*$'
+          description: Unique parameter name
+          example: "delay_ms"
+        type:
+          type: string
+          enum: [categorical, real, integer]
+
+    CategoricalDimension:
+      allOf:
+        - $ref: '#/components/schemas/Dimension'
+        - type: object
+          required:
+            - values
+          properties:
+            values:
+              type: array
+              minItems: 1
+              description: Allowed categorical values
+              example: [500, 502, 503]
+            default:
+              description: Default value from the list
+
+    RealDimension:
+      allOf:
+        - $ref: '#/components/schemas/Dimension'
+        - type: object
+          required:
+            - bounds
+          properties:
+            bounds:
+              type: array
+              minItems: 2
+              maxItems: 2
+              items:
+                type: number
+              description: "[min, max] inclusive bounds"
+              example: [0.0, 1.0]
+            default:
+              type: number
+
+    IntegerDimension:
+      allOf:
+        - $ref: '#/components/schemas/Dimension'
+        - type: object
+          required:
+            - bounds
+          properties:
+            bounds:
+              type: array
+              minItems: 2
+              maxItems: 2
+              items:
+                type: integer
+              description: "[min, max] inclusive bounds"
+              example: [100, 5000]
+            default:
+              type: integer
+
+    CreateSessionResponse:
+      type: object
+      properties:
+        session_id:
+          type: string
+          format: uuid
+          description: Unique session identifier
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        status:
+          type: string
+          enum: [PENDING, RUNNING, STOPPING, COMPLETED, FAILED]
+          description: Initial session status
+          example: "PENDING"
+        created_at:
+          type: string
+          format: date-time
+          description: Session creation timestamp
+        message:
+          type: string
+          description: Informational message
+          example: "Session created successfully. Use session_id to query progress."
+
+    SessionStatusResponse:
+      type: object
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [PENDING, RUNNING, STOPPING, COMPLETED, FAILED]
+        service_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        progress:
+          type: object
+          properties:
+            trials_completed:
+              type: integer
+              description: Number of completed trials
+              example: 15
+            max_trials:
+              type: integer
+              description: Total planned trials
+              example: 50
+            progress_percent:
+              type: number
+              format: double
+              minimum: 0
+              maximum: 100
+              description: Progress as percentage
+              example: 30
+        statistics:
+          type: object
+          properties:
+            best_score:
+              type: number
+              format: double
+              minimum: 0
+              maximum: 10
+              description: Highest severity score found
+              example: 8.7
+            worst_score:
+              type: number
+              format: double
+              description: Lowest severity score
+              example: 0.5
+            average_score:
+              type: number
+              format: double
+              description: Mean of all scores
+              example: 4.2
+        best_result:
+          type: object
+          nullable: true
+          properties:
+            fault_plan:
+              $ref: '#/components/schemas/FaultPlan'
+            severity_score:
+              type: number
+              format: double
+            trial_id:
+              type: integer
+        estimated_remaining_sec:
+          type: integer
+          description: Estimated seconds until completion
+          nullable: true
+          example: 1200
+
+    FaultPlan:
+      type: object
+      required:
+        - service
+        - fault_type
+        - duration_ms
+      properties:
+        service:
+          type: string
+          description: Target service
+          example: "payment-service"
+        fault_type:
+          type: string
+          enum: [delay, abort, error_injection]
+          description: Type of fault to inject
+          example: "delay"
+        duration_ms:
+          type: integer
+          minimum: 1
+          maximum: 60000
+          description: Fault duration in milliseconds
+          example: 30000
+        delay_ms:
+          type: integer
+          minimum: 0
+          description: Network latency to add (for delay type)
+          example: 2500
+          nullable: true
+        error_code:
+          type: integer
+          minimum: 400
+          maximum: 599
+          description: HTTP error code (for error_injection type)
+          example: 502
+          nullable: true
+        abort_probability:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: Probability to abort (for abort type)
+          example: 0.5
+          nullable: true
+        match_conditions:
+          type: object
+          description: Headers/paths to match
+          nullable: true
+        start_delay_ms:
+          type: integer
+          minimum: 0
+          description: Delay before injecting fault
+          example: 200
+
+    StopSessionResponse:
+      type: object
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [STOPPING]
+          example: "STOPPING"
+        message:
+          type: string
+          example: "Session stop requested. Current trial will complete."
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              enum:
+                - INVALID_REQUEST
+                - SESSION_NOT_FOUND
+                - SESSION_ALREADY_COMPLETED
+                - EXECUTOR_UNAVAILABLE
+                - INTERNAL_ERROR
+              description: Machine-readable error code
+              example: "INVALID_REQUEST"
+            message:
+              type: string
+              description: Human-readable error message
+              example: "Search space must contain at least one dimension"
+            details:
+              type: object
+              nullable: true
+              description: Additional error context
+              properties:
+                field:
+                  type: string
+                  example: "search_space.dimensions"
+                constraint:
+                  type: string
+                  example: "non-empty array"
+            timestamp:
+              type: string
+              format: date-time
+              description: When error occurred
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    ServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+tags:
+  - name: Sessions
+    description: Optimize session management
+  - name: System
+    description: System health and metadata
