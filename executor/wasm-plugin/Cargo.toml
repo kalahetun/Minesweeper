@@ -24,3 +24,14 @@ path = "tests/comprehensive_tests.rs"
 name = "matcher"
 path = "tests/unit/matcher_test.rs"
 
+[[test]]
+name = "executor_test"
+path = "tests/unit/executor_test.rs"
+
+[[test]]
+name = "stateful_test"
+path = "tests/integration/stateful_test.rs"
+
+[[test]]
+name = "temporal_test"
+path = "tests/integration/temporal_test.rs"

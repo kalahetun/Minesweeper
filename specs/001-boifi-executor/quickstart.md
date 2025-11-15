@@ -450,10 +450,234 @@ ls executor/control-plane/tests/fixtures/
    ```
 
 5. **⚡ 性能优化**
+   ```
+
+5. **⚡ 性能优化**
    ```bash
    make bench
    # 将输出与基准对比
    ```
+
+---
+
+## 📋 US2: Policy 生命周期管理 (CRUD)
+
+**什么是 Policy CRUD？** 创建、读取、更新、删除故障注入策略
+
+### 快速示例
+
+#### 1. 创建 Policy (Create)
+
+```bash
+# 方法 A: 通过 CLI 使用 YAML 文件
+cat > my-policy.yaml << 'EOF'
+metadata:
+  name: api-delay-policy
+spec:
+  rules:
+    - match:
+        path:
+          exact: /api/users
+      fault:
+        percentage: 50
+        delay:
+          fixed_delay: "100ms"
+EOF
+
+# 应用策略
+./hfi-cli policy apply -f my-policy.yaml
+# 输出: Policy created: api-delay-policy
+```
+
+#### 2. 获取 Policy 详情 (Read)
+
+```bash
+# 获取单个策略
+./hfi-cli policy get api-delay-policy
+
+# 预期输出:
+# Name: api-delay-policy
+# Rules: 1
+#   - Match Path: /api/users
+#   - Fault: 50% delay 100ms
+```
+
+#### 3. 列出所有 Policies (List)
+
+```bash
+# 列出所有策略
+./hfi-cli policy list
+
+# 预期输出 (表格格式):
+# NAME                  RULES  STATUS
+# api-delay-policy      1      Active
+# admin-abort-policy    2      Active
+```
+
+#### 4. 更新 Policy (Update)
+
+```bash
+# 编辑 YAML 文件
+sed -i 's/percentage: 50/percentage: 100/' my-policy.yaml
+
+# 重新应用 (更新现有策略)
+./hfi-cli policy apply -f my-policy.yaml
+# 输出: Policy updated: api-delay-policy
+```
+
+#### 5. 删除 Policy (Delete)
+
+```bash
+# 删除策略
+./hfi-cli policy delete api-delay-policy
+# 输出: Policy deleted: api-delay-policy
+
+# 验证已删除
+./hfi-cli policy list
+# 不应该看到 api-delay-policy
+```
+
+### 完整工作流示例
+
+```bash
+#!/bin/bash
+
+# 1. 创建三个不同的策略
+for policy in delay abort abort-timed; do
+  cat > ${policy}-policy.yaml << EOF
+metadata:
+  name: $policy-policy
+spec:
+  rules:
+    - match:
+        method:
+          exact: POST
+        path:
+          prefix: /api
+      fault:
+        percentage: $([ "$policy" = "delay" ] && echo 50 || echo 25)
+        $([  "$policy" = "delay" ] && echo "delay:" || echo "abort:") 
+        $([ "$policy" = "delay" ] && echo "  fixed_delay: \"200ms\"" || echo "  httpStatus: 503")
+        $([ "$policy" = "abort-timed" ] && echo "duration_seconds: 300")
+EOF
+  ./hfi-cli policy apply -f ${policy}-policy.yaml
+done
+
+# 2. 列出所有策略
+echo "=== 所有策略 ==="
+./hfi-cli policy list
+
+# 3. 获取特定策略详情
+echo "=== 延迟策略详情 ==="
+./hfi-cli policy get delay-policy
+
+# 4. 更新策略 (增加中止概率)
+sed -i 's/percentage: 25/percentage: 75/' abort-policy.yaml
+./hfi-cli policy apply -f abort-policy.yaml
+
+# 5. 清理 - 删除所有策略
+for policy in delay abort abort-timed; do
+  ./hfi-cli policy delete ${policy}-policy
+done
+
+echo "=== 清理完成 ==="
+```
+
+### 时间限制的 Policy
+
+Policy 可以自动过期：
+
+```yaml
+metadata:
+  name: timed-chaos
+spec:
+  rules:
+    - match:
+        path:
+          prefix: /test
+      fault:
+        percentage: 100
+        abort:
+          httpStatus: 500
+        duration_seconds: 300  # 5 分钟后自动删除
+```
+
+应用并监控过期：
+
+```bash
+# 应用策略
+./hfi-cli policy apply -f timed-chaos.yaml
+echo "策略已创建，5 分钟后自动过期..."
+
+# 检查状态
+watch './hfi-cli policy get timed-chaos'
+# 5 分钟后，策略将自动移除
+```
+
+### 高级用法
+
+#### 多规则策略
+
+```yaml
+metadata:
+  name: multi-rule-chaos
+spec:
+  rules:
+    # 规则 1: 对 /api/slow 延迟
+    - match:
+        path:
+          exact: /api/slow
+      fault:
+        percentage: 50
+        delay:
+          fixed_delay: "500ms"
+
+    # 规则 2: 对 /api/errors 中止
+    - match:
+        path:
+          exact: /api/errors
+      fault:
+        percentage: 100
+        abort:
+          httpStatus: 503
+
+    # 规则 3: 仅在授权头存在时应用
+    - match:
+        path:
+          prefix: /api/protected
+        headers:
+          - name: Authorization
+            exact: "Bearer token"
+      fault:
+        percentage: 25
+        delay:
+          fixed_delay: "100ms"
+```
+
+---
+
+## ✅ 验证清单
+
+在继续之前，确认以下项：
+
+- [ ] `go version` 显示 1.21 或更高版本
+- [ ] `rustc --version` 显示 1.75 或更高版本
+- [ ] `cd executor/control-plane && make test` 通过
+- [ ] `cd executor/cli && make test` 通过
+- [ ] `cd executor/wasm-plugin && make test` 通过
+- [ ] 至少一个覆盖率报告已生成
+- [ ] 成功运行了一个性能基准测试
+- [ ] 能够使用 CLI 创建和删除 Policy
+- [ ] 能够列出和查询已创建的 Policy
+
+**完成？** 现在你已准备好开始开发！📚
+
+---
+
+**最后更新**: 2025-11-15  
+**下一个文档**: `test-architecture.md`（深入理解）或 `tasks.md`（了解项目任务）
+
+````
 
 ---
 
