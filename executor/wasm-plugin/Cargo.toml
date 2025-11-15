@@ -14,6 +14,7 @@ serde_json = "1.0"
 regex = "1.10"
 
 [dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
 
 # Create a test library for testing components without proxy-wasm dependency
 [[test]]
@@ -35,3 +36,23 @@ path = "tests/integration/stateful_test.rs"
 [[test]]
 name = "temporal_test"
 path = "tests/integration/temporal_test.rs"
+
+# Benchmark configurations
+[[bench]]
+name = "matcher_bench"
+path = "benches/matcher_bench.rs"
+harness = false
+
+[[bench]]
+name = "executor_bench"
+path = "benches/executor_bench.rs"
+harness = false
+
+[[bench]]
+name = "compilation_bench"
+path = "benches/compilation_bench.rs"
+harness = false
+
+[profile.bench]
+opt-level = 3
+lto = true
