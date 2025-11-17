@@ -216,4 +216,194 @@ mod tests {
         let delay3 = manager.on_failure().unwrap(); // should be capped at 300ms
         assert_eq!(delay3, Duration::from_millis(300));
     }
+
+    #[test]
+    fn test_reconnect_state_transitions() {
+        let mut manager = ReconnectManager::new();
+        
+        // 初始状态不在重连
+        assert!(!manager.is_reconnecting());
+        
+        // 失败后进入重连状态
+        let _ = manager.on_failure();
+        assert!(manager.is_reconnecting());
+        
+        // 成功后退出重连状态
+        manager.on_success();
+        assert!(!manager.is_reconnecting());
+    }
+
+    #[test]
+    fn test_error_type_classification() {
+        // 5xx 错误是临时的
+        assert_eq!(ErrorType::from_status_code(500), ErrorType::Temporary);
+        assert_eq!(ErrorType::from_status_code(503), ErrorType::Temporary);
+        assert_eq!(ErrorType::from_status_code(504), ErrorType::Temporary);
+        
+        // 4xx 错误是永久的
+        assert_eq!(ErrorType::from_status_code(400), ErrorType::Permanent);
+        assert_eq!(ErrorType::from_status_code(401), ErrorType::Permanent);
+        assert_eq!(ErrorType::from_status_code(404), ErrorType::Permanent);
+        assert_eq!(ErrorType::from_status_code(429), ErrorType::Permanent);
+        
+        // 其他状态代码是未知的
+        assert_eq!(ErrorType::from_status_code(200), ErrorType::Unknown);
+        assert_eq!(ErrorType::from_status_code(301), ErrorType::Unknown);
+    }
+
+    #[test]
+    fn test_multiple_failure_recovery_cycles() {
+        let mut manager = ReconnectManager::with_config(
+            Duration::from_millis(50),
+            Duration::from_secs(5),
+            3,
+        );
+
+        // 第一个失败→恢复周期
+        assert!(manager.on_failure().is_some());
+        assert!(manager.is_reconnecting());
+        manager.on_success();
+        assert!(!manager.is_reconnecting());
+        assert_eq!(manager.get_attempts(), 0);
+
+        // 第二个失败→恢复周期
+        assert!(manager.on_failure().is_some());
+        assert!(manager.is_reconnecting());
+        manager.on_success();
+        assert!(!manager.is_reconnecting());
+    }
+
+    #[test]
+    fn test_delay_values_increase_exponentially() {
+        let mut manager = ReconnectManager::with_config(
+            Duration::from_millis(100),
+            Duration::from_secs(60),
+            10,
+        );
+
+        let delay1 = manager.on_failure().unwrap();
+        let delay2 = manager.on_failure().unwrap();
+        let delay3 = manager.on_failure().unwrap();
+        let delay4 = manager.on_failure().unwrap();
+
+        // 验证指数增长：每次应该是前一次的两倍（直到达到最大延迟）
+        assert_eq!(delay1, Duration::from_millis(100));
+        assert_eq!(delay2, Duration::from_millis(200));
+        assert_eq!(delay3, Duration::from_millis(400));
+        assert_eq!(delay4, Duration::from_millis(800));
+
+        // 验证递增顺序
+        assert!(delay1 < delay2);
+        assert!(delay2 < delay3);
+        assert!(delay3 < delay4);
+    }
+
+    #[test]
+    fn test_attempts_counter_increments() {
+        let mut manager = ReconnectManager::with_config(
+            Duration::from_millis(100),
+            Duration::from_secs(10),
+            5,
+        );
+
+        for i in 1..=5 {
+            manager.on_failure();
+            assert_eq!(manager.get_attempts(), i);
+        }
+    }
+
+    #[test]
+    fn test_success_resets_attempts() {
+        let mut manager = ReconnectManager::with_config(
+            Duration::from_millis(100),
+            Duration::from_secs(10),
+            5,
+        );
+
+        // 累积失败
+        manager.on_failure();
+        manager.on_failure();
+        manager.on_failure();
+        assert_eq!(manager.get_attempts(), 3);
+
+        // 成功重置
+        manager.on_success();
+        assert_eq!(manager.get_attempts(), 0);
+    }
+
+    #[test]
+    fn test_custom_config() {
+        let manager = ReconnectManager::with_config(
+            Duration::from_millis(200),
+            Duration::from_secs(30),
+            4,
+        );
+
+        assert_eq!(manager.initial_delay, Duration::from_millis(200));
+        assert_eq!(manager.max_delay, Duration::from_secs(30));
+        assert_eq!(manager.max_attempts, 4);
+    }
+
+    #[test]
+    fn test_long_backoff_sequence() {
+        let mut manager = ReconnectManager::with_config(
+            Duration::from_millis(10),
+            Duration::from_secs(10),
+            8,
+        );
+
+        let mut prev_delay = Duration::from_millis(0);
+        for _ in 0..8 {
+            if let Some(delay) = manager.on_failure() {
+                // 每个延迟应该大于等于前一个（除了达到最大延迟后）
+                assert!(delay >= prev_delay);
+                prev_delay = delay;
+            } else {
+                panic!("Expected Some(delay), got None before max attempts");
+            }
+        }
+
+        // 超过最大尝试次数应该返回 None
+        assert!(manager.on_failure().is_none());
+    }
+
+    #[test]
+    fn test_rapid_success_failure_cycles() {
+        let mut manager = ReconnectManager::with_config(
+            Duration::from_millis(50),
+            Duration::from_secs(5),
+            3,
+        );
+
+        for _ in 0..5 {
+            // 失败一次
+            assert!(manager.on_failure().is_some());
+            assert_eq!(manager.get_attempts(), 1);
+            
+            // 立即成功
+            manager.on_success();
+            assert_eq!(manager.get_attempts(), 0);
+        }
+    }
+
+    #[test]
+    fn test_delay_never_exceeds_max() {
+        let mut manager = ReconnectManager::with_config(
+            Duration::from_millis(100),
+            Duration::from_millis(500),
+            20,
+        );
+
+        let max_delay = manager.max_delay;
+        for _ in 0..20 {
+            if let Some(delay) = manager.on_failure() {
+                assert!(
+                    delay <= max_delay,
+                    "Delay {:?} exceeded max {:?}",
+                    delay,
+                    max_delay
+                );
+            }
+        }
+    }
 }
