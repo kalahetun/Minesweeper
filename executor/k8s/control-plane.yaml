@@ -2,23 +2,23 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: hfi-control-plane
-  namespace: default
+  namespace: boifi
   labels:
-    app: hfi-control-plane
+    app: control-plane
     component: control-plane
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: hfi-control-plane
+      app: control-plane
   template:
     metadata:
       labels:
-        app: hfi-control-plane
+        app: control-plane
     spec:
       containers:
       - name: control-plane
-        image: hfi/control-plane:latest
+        image: docker.io/boifi/control-plane:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
@@ -27,7 +27,7 @@ spec:
         - name: STORAGE_BACKEND
           value: "etcd"
         - name: ETCD_ENDPOINTS
-          value: "http://hfi-etcd.default.svc.cluster.local:2379"
+          value: "http://hfi-etcd.boifi.svc.cluster.local:2379"
         - name: LOG_LEVEL
           value: "info"
         resources:
@@ -51,13 +51,14 @@ spec:
           periodSeconds: 10
       restartPolicy: Always
 
+---
 apiVersion: v1
 kind: Service
 metadata:
   name: hfi-control-plane
-  namespace: default
+  namespace: boifi
   labels:
-    app: hfi-control-plane
+    app: control-plane
     component: control-plane
 spec:
   type: ClusterIP
@@ -67,14 +68,15 @@ spec:
     protocol: TCP
     name: http
   selector:
-    app: hfi-control-plane
+    app: control-plane
 
+---
 # etcd deployment for storage backend
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: hfi-etcd
-  namespace: default
+  namespace: boifi
   labels:
     app: hfi-etcd
     component: storage
@@ -124,11 +126,12 @@ spec:
       - name: etcd-data
         emptyDir: {}
 
+---
 apiVersion: v1
 kind: Service
 metadata:
   name: hfi-etcd
-  namespace: default
+  namespace: boifi
   labels:
     app: hfi-etcd
     component: storage

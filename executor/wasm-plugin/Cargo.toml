@@ -37,6 +37,10 @@ path = "tests/integration/stateful_test.rs"
 name = "temporal_test"
 path = "tests/integration/temporal_test.rs"
 
+[[test]]
+name = "envoy_test"
+path = "tests/e2e/envoy_test.rs"
+
 # Benchmark configurations
 [[bench]]
 name = "matcher_bench"

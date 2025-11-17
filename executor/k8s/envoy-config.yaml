@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: hfi-envoy-config
-  namespace: default
+  namespace: boifi
   labels:
     app: hfi-envoy
     component: proxy
@@ -42,7 +42,7 @@ data:
                         "@type": type.googleapis.com/google.protobuf.StringValue
                         value: |
                           {
-                            "address": "http://hfi-control-plane.default.svc.cluster.local:8080"
+                            "address": "http://hfi-control-plane.boifi.svc.cluster.local:8080"
                           }
               - name: envoy.filters.http.router
                 typed_config:
