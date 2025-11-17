@@ -7,7 +7,7 @@
 ## Metadata 字段
 
 | 字段名 | 类型 | 必需 | 默认值 | 说明 |
-|--|||--||
+|--|--|--|--|--|
 | `metadata.name` | string | ✅ | - | 策略的唯一名称，必须符合 Kubernetes 命名规范 |
 | `metadata.namespace` | string | ❌ | "default" | 策略所属的命名空间 |
 | `metadata.labels` | map[string]string | ❌ | {} | 用于分组和选择的标签 |
@@ -16,7 +16,7 @@
 ## Spec 核心字段
 
 | 字段名 | 类型 | 必需 | 默认值 | 说明 |
-|--|||--||
+|--|--|--|--|--|
 | `spec.priority` | integer | ❌ | 0 | 策略优先级，数字越大优先级越高 (0-1000) |
 | `spec.enabled` | boolean | ❌ | true | 策略是否启用 |
 
@@ -25,7 +25,7 @@
 ### HTTP 方法匹配
 
 | 字段名 | 类型 | 必需 | 说明 |
-|--||||
+|--|--|--|--|
 | `spec.match.method.exact` | string | ❌ | 精确匹配 HTTP 方法 (GET, POST, PUT, DELETE 等) |
 | `spec.match.method.prefix` | string | ❌ | 前缀匹配 HTTP 方法 |
 | `spec.match.method.regex` | string | ❌ | 正则表达式匹配 HTTP 方法 |
@@ -33,7 +33,7 @@
 ### URL 路径匹配
 
 | 字段名 | 类型 | 必需 | 说明 |
-|--||||
+|--|--|--|--|
 | `spec.match.path.exact` | string | ❌ | 精确匹配 URL 路径 |
 | `spec.match.path.prefix` | string | ❌ | 前缀匹配 URL 路径，最常用的匹配方式 |
 | `spec.match.path.regex` | string | ❌ | 正则表达式匹配 URL 路径 |
@@ -41,7 +41,7 @@
 ### 请求头匹配
 
 | 字段名 | 类型 | 必需 | 说明 |
-|--||||
+|--|--|--|--|
 | `spec.match.headers[].name` | string | ✅ | 头部名称 (不区分大小写) |
 | `spec.match.headers[].value.exact` | string | ❌ | 精确匹配头部值 |
 | `spec.match.headers[].value.prefix` | string | ❌ | 前缀匹配头部值 |
@@ -52,7 +52,7 @@
 ### 查询参数匹配
 
 | 字段名 | 类型 | 必需 | 说明 |
-|--||||
+|--|--|--|--|
 | `spec.match.queryParams[].name` | string | ✅ | 查询参数名称 |
 | `spec.match.queryParams[].value.exact` | string | ❌ | 精确匹配参数值 |
 | `spec.match.queryParams[].value.prefix` | string | ❌ | 前缀匹配参数值 |
@@ -62,7 +62,7 @@
 ### 其他匹配字段
 
 | 字段名 | 类型 | 必需 | 说明 |
-|--||||
+|--|--|--|--|
 | `spec.match.body.regex` | string | ❌ | 正则表达式匹配请求体内容 (谨慎使用) |
 | `spec.match.sourceIP[]` | string | ❌ | 源 IP 地址或 CIDR 范围 |
 
@@ -71,7 +71,7 @@
 ### 延迟故障
 
 | 字段名 | 类型 | 必需 | 默认值 | 说明 |
-|--|||--||
+|--|--|--|--|--|
 | `spec.fault.delay.percentage` | float | ✅ | - | 受影响的请求百分比 (0.0-100.0) |
 | `spec.fault.delay.fixedDelay` | string | ❌ | - | 固定延迟时间 (如 "1s", "500ms") |
 | `spec.fault.delay.randomDelay.min` | string | ❌ | - | 随机延迟最小值 |
@@ -82,7 +82,7 @@
 ### 错误注入故障
 
 | 字段名 | 类型 | 必需 | 默认值 | 说明 |
-|--|||--||
+|--|--|--|--|--|
 | `spec.fault.abort.percentage` | float | ✅ | - | 受影响的请求百分比 (0.0-100.0) |
 | `spec.fault.abort.httpStatus` | integer | ✅ | - | HTTP 状态码 (400-599) |
 | `spec.fault.abort.body` | string | ❌ | "" | 响应体内容 |
@@ -92,7 +92,7 @@
 ### 限流故障
 
 | 字段名 | 类型 | 必需 | 默认值 | 说明 |
-|--|||--||
+|--|--|--|--|--|
 | `spec.fault.rateLimit.percentage` | float | ✅ | - | 受影响的请求百分比 |
 | `spec.fault.rateLimit.requestsPerSecond` | integer | ✅ | - | 每秒允许的请求数 |
 | `spec.fault.rateLimit.burstSize` | integer | ❌ | requestsPerSecond | 突发请求容量 |
@@ -102,7 +102,7 @@
 ### 响应修改
 
 | 字段名 | 类型 | 必需 | 说明 |
-|--||||
+|--|--|--|--|
 | `spec.fault.responseModification.headers.add[].name` | string | ✅ | 要添加的响应头名称 |
 | `spec.fault.responseModification.headers.add[].value` | string | ✅ | 要添加的响应头值 |
 | `spec.fault.responseModification.headers.remove[]` | string | ❌ | 要删除的响应头名称 |
@@ -114,7 +114,7 @@
 ## Advanced 高级配置字段
 
 | 字段名 | 类型 | 必需 | 默认值 | 说明 |
-|--|||--||
+|--|--|--|--|--|
 | `spec.advanced.sampling.strategy` | string | ❌ | "probabilistic" | 采样策略 (probabilistic, deterministic) |
 | `spec.advanced.sampling.rate` | float | ❌ | 1.0 | 采样率 (0.0-1.0) |
 | `spec.advanced.conditions.timeWindow.start` | string | ❌ | - | 生效开始时间 (HH:MM 格式) |
@@ -128,7 +128,7 @@
 ## Observability 可观测性字段
 
 | 字段名 | 类型 | 必需 | 默认值 | 说明 |
-|--|||--||
+|--|--|--|--|--|
 | `spec.observability.metrics.labels` | map[string]string | ❌ | {} | 自定义指标标签 |
 | `spec.observability.logging.level` | string | ❌ | "INFO" | 日志级别 (DEBUG, INFO, WARN, ERROR) |
 | `spec.observability.logging.sampleRate` | float | ❌ | 0.01 | 日志采样率 |
@@ -140,7 +140,7 @@
 # API 端点概览
 
 | Method | Path | 描述 | 认证 |
-|--||||
+|--|--|--|--|
 | GET | `/v1/health` | 健康检查 | ❌ |
 | GET | `/v1/metrics` | Prometheus 指标 | ❌ |
 | GET | `/v1/policies` | 获取策略列表 | ✅ |

@@ -187,7 +187,7 @@ graph TB
 支持的故障类型:
 
 | 故障类型 | 实现方式 | 配置参数 |
-||--|--|
+|--|--|--|
 | 延迟 | 设置定时器，暂停请求处理 | 延迟时长、概率 |
 | 中止 | 直接返回 HTTP 错误响应 | 状态码、响应体 |
 | 速率限制 | 修改响应头或返回 429 | 限制阈值、重试延迟 |
@@ -247,7 +247,7 @@ wasm-plugin/src/
 ## 文件说明
 
 | 文件 | 行数 | 职责 |
-||||
+|--|--|--|
 | `lib.rs` | ~408 | 插件生命周期和上下文 |
 | `executor.rs` | ~300 | 故障注入执行 |
 | `matcher.rs` | ~250 | 请求匹配 |
@@ -297,7 +297,7 @@ WASM 插件发现了 9 个问题，全部已修复。
 ### CRITICAL 修复 (4 个)
 
 | 问题 | 文件 | 描述 | 修复 |
-|||||
+|--|--|--|--|
 | C1 | executor.rs | 全局 SEED 非线程安全 | 使用 `thread_local! + RefCell` |
 | C2 | lib.rs | RwLock 可能死锁 | 改为 `Arc<Mutex<>>` |
 | C3 | executor.rs | 忙轮询浪费 CPU | 改为 `Action::Pause` |
@@ -306,7 +306,7 @@ WASM 插件发现了 9 个问题，全部已修复。
 ### MEDIUM 修复 (3 个)
 
 | 问题 | 文件 | 描述 | 修复 |
-|||||
+|--|--|--|--|
 | M1 | executor.rs | DelayManager 无法取消 | 添加 cancel 方法 |
 | M2 | reconnect.rs | 错误分类不足 | 实现 ErrorType 枚举 |
 | M3 | matcher.rs | 头部提取失败无备选 | 增加 10 个备用字段 |
@@ -319,7 +319,7 @@ WASM 插件发现了 9 个问题，全部已修复。
 ## Docker 集成修复
 
 | 问题 | 位置 | 修复 |
-||||
+|--|--|--|
 | WASM cluster 名称不匹配 | envoy.yaml | `control_plane` → `hfi_control_plane` |
 | 日志噪音 | lib.rs | "Reconnection tick" debug 级别 |
 
