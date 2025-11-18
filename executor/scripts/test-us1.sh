@@ -150,7 +150,7 @@ run_control_plane_tests() {
 
     cd "$EXECUTOR_DIR/control-plane"
 
-    local test_cmd="go test ./tests/integration ./tests/unit ./tests/e2e_manual_chaos/e2e"
+    local test_cmd="go test ./tests/integration ./tests/unit ./tests/e2e -run TestE2EManualChaos"
 
     if [ "$VERBOSE" = true ]; then
         test_cmd="$test_cmd -v"
@@ -217,7 +217,7 @@ count_tests() {
     print_header "测试统计"
 
     cd "$EXECUTOR_DIR/control-plane"
-    cp_count=$(go test ./tests/integration ./tests/unit ./tests/e2e_manual_chaos/e2e -v 2>&1 | grep "^=== RUN" | wc -l)
+    cp_count=$(go test ./tests/integration ./tests/unit ./tests/e2e -run TestE2EManualChaos -v 2>&1 | grep "^=== RUN" | wc -l)
 
     cd "$EXECUTOR_DIR/cli"
     cli_count=$(go test ./tests/integration ./tests/unit -v 2>&1 | grep "^=== RUN" | wc -l)
