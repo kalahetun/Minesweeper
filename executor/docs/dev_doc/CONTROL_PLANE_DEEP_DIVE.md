@@ -284,7 +284,7 @@ control-plane/
 实际文件说明:
 
 | 文件 | 行数 | 职责 |
-||||
+|--|--|--|
 | `main.go` | 244 | 应用启动、路由配置、优雅关闭 |
 | `distributor.go` | 234 | SSE 客户端管理、配置推送、事件监听 |
 | `api/policy_controller.go` | 201 | HTTP 处理器（创建、更新、删除、查询） |
@@ -393,7 +393,7 @@ control-plane/
 为什么选择 SSE 而不是 WebSocket？
 
 | 特性 | SSE | WebSocket |
-||--|-|
+|--|--|-|
 | 使用场景 | 单向推送（适合我们） | 双向实时通信 |
 | 实现复杂度 | 简单（基于 HTTP） | 复杂（需要特殊协议） |
 | 代理兼容性 | 优秀 | 一般（需要特殊配置） |
@@ -486,7 +486,7 @@ Control Plane 在完整的代码审计中发现了 13 个问题（4 CRITICAL, 5 
 ### CRITICAL 修复 (✅ 已完成)
 
 | 问题 | 文件 | 描述 | 修复方案 |
-|||||
+|--|--|--|--|
 | C1 | `storage/etcd_store.rs` | etcd 连接池并发访问不安全 | 实现 Copy-On-Read 机制 |
 | C2 | `distributor.go` | 全局 distributor 实例非原子更新 | 使用 `atomic.Value` 存储 |
 | C3 | `distributor.go` | 无 Stop() 方法，goroutine 无法优雅关闭 | 添加 Stop() 和 Shutdown() 方法 |
@@ -495,7 +495,7 @@ Control Plane 在完整的代码审计中发现了 13 个问题（4 CRITICAL, 5 
 ### MEDIUM 修复 (✅ 已完成)
 
 | 问题 | 文件 | 描述 | 修复方案 |
-|||||
+|--|--|--|--|
 | M1 | `service/policy_service.go` | 缺少策略版本验证 | 添加版本 validate 逻辑 |
 | M2 | `storage/memoryStore.go` | Watch 通道未检查关闭 | 添加通道状态检查 |
 | M3 | `storage/store.go` | WatchWithContext 接口缺失 | 新增带超时的 Watch 方法 |
@@ -505,7 +505,7 @@ Control Plane 在完整的代码审计中发现了 13 个问题（4 CRITICAL, 5 
 ### MINOR 修复 (✅ 已完成)
 
 | 问题 | 文件 | 描述 | 修复方案 |
-|||||
+|--|--|--|--|
 | Minor1 | `api/policy_controller.go` | 缺少请求超时控制 | 添加 30s 上下文超时 |
 | Minor2 | `api/policy_controller.go` | SSE 心跳检查缺失 | 每 5s 发送心跳消息 |
 | Minor3 | `service/policy_service.go` | 资源清理不彻底 | 显式关闭所有通道 |

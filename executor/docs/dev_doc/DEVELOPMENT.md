@@ -7,7 +7,7 @@
 ### 核心开发工具
 
 | 工具 | 推荐版本 | 用途 | 安装说明 |
-||-||-|
+|--|-|--|-|
 | Go | 1.24+ | Control Plane & CLI 开发 | [官方安装指南](https://golang.org/doc/install) |
 | Rust | 1.89+ | WASM 插件开发 | [官方安装指南](https://rustup.rs/) |
 | Docker | 20.10+ | 容器化构建和运行 | [官方安装指南](https://docs.docker.com/get-docker/) |
@@ -28,7 +28,7 @@ cargo install wasm-opt --locked
 ### Kubernetes 工具 (可选)
 
 | 工具 | 推荐版本 | 用途 | 安装说明 |
-||-||-|
+|--|-|--|-|
 | kubectl | 1.28+ | Kubernetes 集群管理 | [官方安装指南](https://kubernetes.io/docs/tasks/tools/) |
 | kind | 0.20+ | 本地 Kubernetes 集群 | [官方安装指南](https://kind.sigs.k8s.io/docs/user/quick-start/) |
 | minikube | 1.31+ | 本地 Kubernetes 集群 | [官方安装指南](https://minikube.sigs.k8s.io/docs/start/) |

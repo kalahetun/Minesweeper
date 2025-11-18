@@ -87,6 +87,11 @@ func (s *PolicyService) DeletePolicy(name string) error {
 	return s.store.Delete(name)
 }
 
+// GetExpirationRegistry returns the expiration registry for testing purposes.
+func (s *PolicyService) GetExpirationRegistry() *ExpirationRegistry {
+	return s.expirationRegistry
+}
+
 // validatePolicyForCreate performs additional validation for policy creation.
 func (s *PolicyService) validatePolicyForCreate(policy *storage.FaultInjectionPolicy) error {
 	// Basic validation first
