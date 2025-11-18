@@ -28,7 +28,7 @@ VERBOSE=false
 COVERAGE=false
 FAST=false
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-EXECUTOR_DIR="$SCRIPT_DIR"
+EXECUTOR_DIR="$(dirname "$SCRIPT_DIR")"
 
 # 函数定义
 print_header() {
