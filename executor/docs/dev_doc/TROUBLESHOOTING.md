@@ -589,3 +589,445 @@ echo -e "\n=== 诊断完成 ==="
 **文档版本**: v1.0  
 **最后更新**: 2024-11-13  
 **维护者**: HFI 团队
+
+## 5. 测试故障排查
+
+### 测试执行常见问题
+
+#### 问题：`go test` 超时
+
+**症状**:
+```bash
+$ go test ./tests/e2e -timeout 30s
+...
+FAIL	github.com/boifi/executor/tests/e2e	[build failed]
+context deadline exceeded
+```
+
+**原因和解决**:
+
+| 原因 | 诊断 | 解决方案 |
+|------|------|---------|
+| 超时时间过短 | `go test -timeout 60s` 重试 | 增加 timeout：`go test -timeout 5m` |
+| 阻塞操作 | 查看测试中的 channel 读/写 | 添加超时控制：`ctx, cancel := context.WithTimeout()` |
+| 死锁 | 运行 `go test -race` | 检查锁的获取顺序，使用 tools 分析 |
+| etcd 连接 | 检查 `etcd` 是否运行 | 启动 etcd：`etcd &` 或使用内存存储 |
+
+**调试步骤**:
+
+```bash
+# 1. 增加超时并启用 verbose 模式
+go test -v -timeout 5m ./tests/e2e
+
+# 2. 运行竞争条件检测
+go test -race -timeout 5m ./tests/e2e
+
+# 3. 单独运行具体测试
+go test -v -run TestE2EWorkflowCreation ./tests/e2e
+
+# 4. 检查系统资源
+ps aux | grep etcd
+lsof -i :2379  # etcd 默认端口
+```
+
+#### 问题：`import not found` 错误
+
+**症状**:
+```
+./tests/unit/service_test.go:5:2: cannot find module providing package ...
+```
+
+**原因和解决**:
+
+```bash
+# 问题：依赖未初始化或 go.mod 不同步
+# 解决：
+cd executor/control-plane
+go mod tidy         # 同步依赖
+go get ./...        # 下载依赖
+go test ./tests/unit
+```
+
+#### 问题：测试数据初始化失败
+
+**症状**:
+```
+panic: runtime error: invalid memory address or nil pointer dereference
+```
+
+**调试**:
+
+```bash
+# 添加日志输出查看初始化流程
+go test -v -run TestName 2>&1 | head -50
+
+# 检查 setup/teardown 函数
+grep -n "func setup" tests/unit/*_test.go
+```
+
+### 单元测试常见问题
+
+#### 问题：表驱动测试失败
+
+**症状**:
+```
+--- FAIL: TestPolicyService (0.02s)
+    --- FAIL: TestPolicyService/create_with_invalid_name (0.00s)
+        service_test.go:45: got error <nil>, wantErr true
+```
+
+**解决**:
+
+```go
+// ❌ 错误：没有检查所有错误路径
+for _, tt := range tests {
+    t.Run(tt.name, func(t *testing.T) {
+        got := Feature(tt.input)
+        if got != tt.want {
+            t.Errorf("got %v, want %v", got, tt.want)
+        }
+    })
+}
+
+// ✅ 正确：检查所有条件
+for _, tt := range tests {
+    t.Run(tt.name, func(t *testing.T) {
+        got, err := Feature(tt.input)
+        if (err != nil) != tt.wantErr {
+            t.Errorf("wantErr %v, got %v", tt.wantErr, err != nil)
+        }
+        if err == nil && got != tt.want {
+            t.Errorf("got %v, want %v", got, tt.want)
+        }
+    })
+}
+```
+
+#### 问题：并发测试失败（Race Condition）
+
+**症状**:
+```
+WARNING: DATA RACE
+Write at 0x00c000250000 by goroutine 23:
+    github.com/boifi/executor/service.(*PolicyService).Create()
+        service.go:50 +0x44
+
+Read at 0x00c000250000 by goroutine 22:
+    github.com/boifi/executor/tests/unit.TestPolicyServiceConcurrent()
+```
+
+**诊断和修复**:
+
+```bash
+# 步骤 1：用 -race 标志运行测试
+go test -race ./tests/unit -run TestConcurrent
+
+# 步骤 2：检查代码中的共享变量
+# 不能在 goroutine 中直接修改共享变量，需要使用锁
+
+# ❌ 不安全的代码
+var counter int
+go func() {
+    counter++  // 数据竞争！
+}()
+
+# ✅ 安全的代码
+var (
+    mu      sync.Mutex
+    counter int
+)
+go func() {
+    mu.Lock()
+    counter++
+    mu.Unlock()
+}()
+```
+
+#### 问题：测试中的 HTTP Mock 失败
+
+**症状**:
+```
+net/http: request canceled
+connection refused
+```
+
+**修复**:
+
+```go
+// ❌ 错误：直接关闭了 server
+ts := httptest.NewServer(handler)
+ts.Close()
+// 在这里使用 ts.Client() 会失败！
+
+// ✅ 正确：defer 确保顺序
+func TestAPI(t *testing.T) {
+    ts := httptest.NewServer(handler)
+    defer ts.Close()  // 测试结束后关闭
+    
+    // 测试代码
+    resp, err := ts.Client().Get(ts.URL)
+    // ...
+}
+```
+
+### 集成测试常见问题
+
+#### 问题：etcd 连接失败
+
+**症状**:
+```
+Error: dial tcp 127.0.0.1:2379: connection refused
+```
+
+**诊断**:
+
+```bash
+# 检查 etcd 是否运行
+etcdctl member list
+
+# 如果未启动，有两个选择：
+# 选项 1：启动真实 etcd
+etcd &
+
+# 选项 2：使用内存存储（推荐用于测试）
+# 在测试中初始化 MemoryStore 而不是 EtcdStore
+store := storage.NewMemoryStore()  // 而不是 storage.NewEtcdStore()
+```
+
+#### 问题：存储状态污染
+
+**症状**:
+```
+测试 A 通过，但测试 A -> B 顺序运行时 B 失败
+```
+
+**原因和解决**:
+
+```go
+// ❌ 错误：使用全局存储，测试间相互影响
+var globalStore storage.IPolicyStore = nil
+
+func TestA(t *testing.T) {
+    if globalStore == nil {
+        globalStore = storage.NewMemoryStore()
+    }
+    globalStore.CreateOrUpdate(&policy1)
+    // ...
+}
+
+// ✅ 正确：每个测试使用独立的存储
+func TestA(t *testing.T) {
+    store := storage.NewMemoryStore()  // 独立实例
+    store.CreateOrUpdate(&policy1)
+    // ...
+}
+
+func TestB(t *testing.T) {
+    store := storage.NewMemoryStore()  // 不受 TestA 影响
+    // ...
+}
+```
+
+### E2E 测试常见问题
+
+#### 问题：工作流测试中的 JSON 序列化失败
+
+**症状**:
+```
+json: cannot unmarshal number into Go struct field FaultAction.Percentage of type float32
+```
+
+**修复**:
+
+```go
+// ❌ 错误：类型不匹配
+type FaultAction struct {
+    Percentage int32  // 但 JSON 可能是 float64
+}
+
+// ✅ 正确：使用正确的类型或自定义 UnmarshalJSON
+type FaultAction struct {
+    Percentage float64
+    Abort      *AbortAction  `json:"abort,omitempty"`
+}
+
+// 或者使用自定义反序列化
+func (fa *FaultAction) UnmarshalJSON(data []byte) error {
+    type Alias FaultAction
+    aux := &struct {
+        Percentage interface{} `json:"percentage"`
+        *Alias
+    }{
+        Alias: (*Alias)(fa),
+    }
+    if err := json.Unmarshal(data, &aux); err != nil {
+        return err
+    }
+    if v, ok := aux.Percentage.(float64); ok {
+        fa.Percentage = v
+    }
+    return nil
+}
+```
+
+### 测试覆盖率问题
+
+#### 问题：覆盖率低于目标
+
+**症状**:
+```
+coverage: 65.3% of statements
+```
+
+**分析和改进**:
+
+```bash
+# 步骤 1：生成覆盖率报告
+go test -v -coverprofile=coverage.out ./tests/unit
+go tool cover -html=coverage.out -o coverage.html
+
+# 步骤 2：查看哪些行未覆盖
+go tool cover -func=coverage.out | grep -E "^\s+\[.*\]\s+0%"
+
+# 步骤 3：添加缺失的测试用例
+# 找到 0% 覆盖的行，编写相应的测试
+```
+
+**改进前后对比**:
+
+```go
+// 原始代码（可能没有测试）
+func validateName(name string) error {
+    if name == "" {
+        return errors.New("empty name")
+    }
+    if len(name) > 100 {
+        return errors.New("name too long")
+    }
+    return nil
+}
+
+// 添加缺失的测试
+func TestValidateName(t *testing.T) {
+    tests := []struct {
+        name    string
+        input   string
+        wantErr bool
+    }{
+        {"empty", "", true},              // ← 新增测试
+        {"valid", "my-policy", false},    // ← 新增测试
+        {"too long", strings.Repeat("a", 101), true},  // ← 新增测试
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            err := validateName(tt.input)
+            if (err != nil) != tt.wantErr {
+                t.Errorf("wantErr %v, got %v", tt.wantErr, err != nil)
+            }
+        })
+    }
+}
+```
+
+### 调试命令参考
+
+```bash
+# 运行并显示详细日志
+go test -v ./tests/unit
+
+# 运行特定测试
+go test -v -run TestName ./tests/unit
+
+# 运行特定的子测试
+go test -v -run TestName/subtestname ./tests/unit
+
+# 竞争条件检测
+go test -race ./tests/...
+
+# 内存泄漏检测（需要特殊工具）
+go test -v -leak ./tests/unit  # 需要 github.com/uber-go/goleak
+
+# 覆盖率报告
+go test -cover ./tests/unit
+go test -coverprofile=coverage.out ./tests/unit
+go tool cover -html=coverage.out
+
+# 性能基准测试
+go test -bench=. -benchmem ./tests/unit
+
+# 超时和资源限制
+go test -timeout=5m -maxfails=1 ./tests/unit
+
+# 并行运行（默认）vs 串行运行
+go test -p=1 ./tests/unit  # 串行，避免竞争条件
+go test -parallel=4 ./tests/unit  # 4 个并行
+```
+
+### 测试策略和最佳实践
+
+#### 避免测试间的依赖
+
+```go
+// ❌ 反面例子
+var sharedStore storage.IPolicyStore
+
+func TestFirst(t *testing.T) {
+    if sharedStore == nil {
+        sharedStore = storage.NewMemoryStore()
+    }
+    // 测试依赖于 sharedStore 的状态
+}
+
+func TestSecond(t *testing.T) {
+    // 可能失败，因为依赖 TestFirst 的副作用
+}
+
+// ✅ 好的实践
+func TestFirst(t *testing.T) {
+    store := storage.NewMemoryStore()
+    // ...
+}
+
+func TestSecond(t *testing.T) {
+    store := storage.NewMemoryStore()
+    // ...
+}
+```
+
+#### 使用工厂函数
+
+```go
+// setupTest 创建测试环境
+func setupTest(t *testing.T) (store storage.IPolicyStore, cleanup func()) {
+    store = storage.NewMemoryStore()
+    return store, func() {
+        // 清理资源
+        store = nil
+    }
+}
+
+func TestSomething(t *testing.T) {
+    store, cleanup := setupTest(t)
+    defer cleanup()
+    
+    // 使用 store
+}
+```
+
+#### 验证错误消息
+
+```go
+// 不仅检查是否有错误，也检查错误内容
+func TestErrorMessage(t *testing.T) {
+    _, err := Feature("invalid")
+    if err == nil {
+        t.Fatal("expected error, got nil")
+    }
+    if !strings.Contains(err.Error(), "expected message") {
+        t.Errorf("got error %q, want to contain %q", err.Error(), "expected message")
+    }
+}
+```
+
+````

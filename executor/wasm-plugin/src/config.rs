@@ -351,4 +351,351 @@ mod tests {
         let method_matcher = rule.match_condition.method.as_ref().unwrap();
         assert_eq!(method_matcher.exact.as_ref().unwrap(), "GET");
     }
+
+    #[test]
+    fn test_parse_delay_action() {
+        let json = r#"
+        {
+            "version": "1.0",
+            "rules": [
+                {
+                    "name": "delay-rule",
+                    "match": {
+                        "path": {
+                            "prefix": "/api"
+                        }
+                    },
+                    "fault": {
+                        "percentage": 100,
+                        "delay": {
+                            "fixed_delay": "2s"
+                        }
+                    }
+                }
+            ]
+        }
+        "#;
+        
+        let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
+        let rule = &ruleset.rules[0];
+        
+        assert_eq!(rule.fault.delay.as_ref().unwrap().fixed_delay, "2s");
+        assert_eq!(rule.fault.delay.as_ref().unwrap().parsed_duration_ms, Some(2000));
+    }
+
+    #[test]
+    fn test_parse_path_prefix_matcher() {
+        let json = r#"
+        {
+            "version": "1.0",
+            "rules": [
+                {
+                    "name": "prefix-rule",
+                    "match": {
+                        "path": {
+                            "prefix": "/api/v1"
+                        }
+                    },
+                    "fault": {
+                        "percentage": 50,
+                        "abort": {
+                            "httpStatus": 500
+                        }
+                    }
+                }
+            ]
+        }
+        "#;
+        
+        let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
+        let rule = &ruleset.rules[0];
+        let path_matcher = rule.match_condition.path.as_ref().unwrap();
+        
+        assert_eq!(path_matcher.prefix.as_ref().unwrap(), "/api/v1");
+        assert!(path_matcher.exact.is_none());
+    }
+
+    #[test]
+    fn test_parse_method_matcher() {
+        let json = r#"
+        {
+            "version": "1.0",
+            "rules": [
+                {
+                    "name": "method-rule",
+                    "match": {
+                        "method": {
+                            "exact": "POST"
+                        }
+                    },
+                    "fault": {
+                        "percentage": 75,
+                        "abort": {
+                            "httpStatus": 503
+                        }
+                    }
+                }
+            ]
+        }
+        "#;
+        
+        let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
+        let rule = &ruleset.rules[0];
+        
+        assert_eq!(rule.match_condition.method.as_ref().unwrap().exact.as_ref().unwrap(), "POST");
+    }
+
+    #[test]
+    fn test_parse_header_matchers() {
+        let json = r#"
+        {
+            "version": "1.0",
+            "rules": [
+                {
+                    "name": "header-rule",
+                    "match": {
+                        "headers": [
+                            {
+                                "name": "Authorization",
+                                "regex": "Bearer .*"
+                            },
+                            {
+                                "name": "Content-Type",
+                                "prefix": "application/"
+                            }
+                        ]
+                    },
+                    "fault": {
+                        "percentage": 100,
+                        "abort": {
+                            "httpStatus": 401
+                        }
+                    }
+                }
+            ]
+        }
+        "#;
+        
+        let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
+        let rule = &ruleset.rules[0];
+        
+        let headers = rule.match_condition.headers.as_ref().unwrap();
+        assert_eq!(headers.len(), 2);
+        assert_eq!(headers[0].name, "Authorization");
+        assert_eq!(headers[1].name, "Content-Type");
+    }
+
+    #[test]
+    fn test_parse_multiple_rules() {
+        let json = r#"
+        {
+            "version": "2.0",
+            "rules": [
+                {
+                    "name": "rule-1",
+                    "match": {
+                        "path": {
+                            "exact": "/api/users"
+                        }
+                    },
+                    "fault": {
+                        "percentage": 50,
+                        "abort": {
+                            "httpStatus": 500
+                        }
+                    }
+                },
+                {
+                    "name": "rule-2",
+                    "match": {
+                        "path": {
+                            "exact": "/api/orders"
+                        }
+                    },
+                    "fault": {
+                        "percentage": 25,
+                        "delay": {
+                            "fixed_delay": "1s"
+                        }
+                    }
+                }
+            ]
+        }
+        "#;
+        
+        let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
+        assert_eq!(ruleset.rules.len(), 2);
+        assert_eq!(ruleset.version, "2.0");
+        
+        assert_eq!(ruleset.rules[0].name, "rule-1");
+        assert_eq!(ruleset.rules[1].name, "rule-2");
+    }
+
+    #[test]
+    fn test_parse_percentage_boundary() {
+        let json = r#"
+        {
+            "version": "1.0",
+            "rules": [
+                {
+                    "name": "pct-0",
+                    "match": {"path": {"exact": "/a"}},
+                    "fault": {"percentage": 0, "abort": {"httpStatus": 500}}
+                },
+                {
+                    "name": "pct-50",
+                    "match": {"path": {"exact": "/b"}},
+                    "fault": {"percentage": 50, "abort": {"httpStatus": 500}}
+                },
+                {
+                    "name": "pct-100",
+                    "match": {"path": {"exact": "/c"}},
+                    "fault": {"percentage": 100, "abort": {"httpStatus": 500}}
+                }
+            ]
+        }
+        "#;
+        
+        let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
+        assert_eq!(ruleset.rules[0].fault.percentage, 0);
+        assert_eq!(ruleset.rules[1].fault.percentage, 50);
+        assert_eq!(ruleset.rules[2].fault.percentage, 100);
+    }
+
+    #[test]
+    fn test_parse_timing_controls() {
+        let json = r#"
+        {
+            "version": "1.0",
+            "rules": [
+                {
+                    "name": "timed-rule",
+                    "match": {
+                        "path": {
+                            "exact": "/api/test"
+                        }
+                    },
+                    "fault": {
+                        "percentage": 100,
+                        "start_delay_ms": 1000,
+                        "duration_seconds": 300,
+                        "abort": {
+                            "httpStatus": 500
+                        }
+                    }
+                }
+            ]
+        }
+        "#;
+        
+        let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
+        let rule = &ruleset.rules[0];
+        
+        assert_eq!(rule.fault.start_delay_ms, 1000);
+        assert_eq!(rule.fault.duration_seconds, 300);
+    }
+
+    #[test]
+    fn test_parse_empty_ruleset() {
+        let json = r#"
+        {
+            "version": "1.0",
+            "rules": []
+        }
+        "#;
+        
+        let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
+        assert_eq!(ruleset.rules.len(), 0);
+        assert_eq!(ruleset.version, "1.0");
+    }
+
+    #[test]
+    fn test_parse_invalid_json() {
+        let json = r#"{ invalid json "#;
+        
+        let result = CompiledRuleSet::from_slice(json.as_bytes());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_regex_compilation() {
+        let json = r#"
+        {
+            "version": "1.0",
+            "rules": [
+                {
+                    "name": "regex-rule",
+                    "match": {
+                        "path": {
+                            "regex": "^/api/v[0-9]+/.*"
+                        }
+                    },
+                    "fault": {
+                        "percentage": 100,
+                        "abort": {
+                            "httpStatus": 500
+                        }
+                    }
+                }
+            ]
+        }
+        "#;
+        
+        let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
+        let rule = &ruleset.rules[0];
+        let path_matcher = rule.match_condition.path.as_ref().unwrap();
+        
+        assert!(path_matcher.compiled_regex.is_some());
+        assert_eq!(path_matcher.regex.as_ref().unwrap(), "^/api/v[0-9]+/.*");
+    }
+
+    #[test]
+    fn test_parse_complex_policy() {
+        let json = r#"
+        {
+            "version": "3.0",
+            "rules": [
+                {
+                    "name": "complex-rule",
+                    "match": {
+                        "path": {
+                            "regex": "^/api/.*"
+                        },
+                        "method": {
+                            "exact": "GET"
+                        },
+                        "headers": [
+                            {
+                                "name": "User-Agent",
+                                "prefix": "curl/"
+                            }
+                        ]
+                    },
+                    "fault": {
+                        "percentage": 50,
+                        "start_delay_ms": 500,
+                        "duration_seconds": 120,
+                        "abort": {
+                            "httpStatus": 503,
+                            "body": "Service Temporarily Unavailable"
+                        }
+                    }
+                }
+            ]
+        }
+        "#;
+        
+        let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
+        let rule = &ruleset.rules[0];
+        
+        // Verify all components parsed
+        assert_eq!(rule.name, "complex-rule");
+        assert!(rule.match_condition.path.is_some());
+        assert!(rule.match_condition.method.is_some());
+        assert!(rule.match_condition.headers.is_some());
+        assert_eq!(rule.fault.percentage, 50);
+        assert!(rule.fault.abort.is_some());
+        assert_eq!(rule.fault.start_delay_ms, 500);
+        assert_eq!(rule.fault.duration_seconds, 120);
+    }
 }

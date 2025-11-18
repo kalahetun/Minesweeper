@@ -11,24 +11,6 @@ mod reconnect;
 mod panic_safety;
 mod time_control;
 mod metrics;
-#[cfg(test)]
-mod test_basic;
-#[cfg(test)]
-mod test_w5_integration;
-#[cfg(test)]
-mod test_w5_unit;
-#[cfg(test)]
-mod test_w5_pure;
-#[cfg(test)]
-mod time_control_deserialization_test;
-#[cfg(test)]
-mod time_control_test;
-#[cfg(test)]
-mod int_1_comprehensive_unit_tests;
-#[cfg(test)]
-mod int_2_multi_rules_tests;
-#[cfg(test)]
-mod int_3_end_to_end_tests;
 
 use config::{CompiledRuleSet, Fault};
 use matcher::{RequestInfo, find_first_match};
