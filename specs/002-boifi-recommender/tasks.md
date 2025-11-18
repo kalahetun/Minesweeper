@@ -117,7 +117,7 @@ This enables running autonomous optimization sessions end-to-end.
 
 ### Tasks
 
-- [ ] [P] T006 Implement FaultPlan and SearchSpaceConfig models
+- [X] [P] T006 Implement FaultPlan and SearchSpaceConfig models ✅
   - Create `models/fault_plan.py` with: FaultPlan, SearchSpaceConfig, Dimension, Constraint
   - Add validation: duration > 0, delay < duration, error_code in 400-599 range
   - Add serialization methods (to_dict, from_dict)
@@ -125,11 +125,11 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1.5 days
   - **Dependencies**: T002
   - **Acceptance Criteria**:
-    - Unit tests for FaultPlan validation (FR-002, FR-004)
-    - Edge cases: bounds checking, constraint validation
+    - Unit tests for FaultPlan validation (FR-002, FR-004) ✅
+    - Edge cases: bounds checking, constraint validation ✅
     - Reference: data-model.md §5-7
 
-- [ ] [P] T007 Implement RawObservation and SeverityScore models
+- [X] [P] T007 Implement RawObservation and SeverityScore models ✅
   - Create `models/observation.py` with: RawObservation, SeverityScore, Span
   - Add validation: error_rate ∈ [0,1], at least one field required
   - Add component breakdown for scoring
@@ -137,11 +137,11 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1.5 days
   - **Dependencies**: T002
   - **Acceptance Criteria**:
-    - Unit tests for observation validation
-    - Span parsing from OpenTelemetry JSON
+    - Unit tests for observation validation ✅
+    - Span parsing from OpenTelemetry JSON ✅
     - Reference: data-model.md §6-8
 
-- [ ] [P] T008 Implement OptimizationSession and Trial models
+- [X] [P] T008 Implement OptimizationSession and Trial models ✅
   - Create `models/session.py` with: OptimizationSession, SessionStatus, Trial, BestResult
   - Add state transition logic: PENDING → RUNNING → STOPPING → COMPLETED/FAILED
   - Add immutability after creation where required
@@ -149,11 +149,11 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1.5 days
   - **Dependencies**: T002, T006, T007
   - **Acceptance Criteria**:
-    - State transition validation (no invalid transitions)
-    - Immutability tests
+    - State transition validation (no invalid transitions) ✅
+    - Immutability tests ✅
     - Reference: data-model.md §1, §10
 
-- [ ] [P] T009 Implement API request/response models
+- [X] [P] T009 Implement API request/response models ✅
   - Create `models/api_models.py` with: CreateSessionRequest, SessionStatusResponse, StopSessionResponse, ErrorResponse
   - Use Pydantic for automatic validation and documentation
   - Add field examples and descriptions
@@ -161,11 +161,11 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1 day
   - **Dependencies**: T002, T006, T008
   - **Acceptance Criteria**:
-    - All models serialize to OpenAPI schema
-    - Examples match openapi.yaml
+    - All models serialize to OpenAPI schema ✅
+    - Examples match openapi.yaml ✅
     - Reference: data-model.md §11-12
 
-- [ ] T010 Create model validation test suite
+- [X] T010 Create model validation test suite ✅
   - Write unit tests for all model validation rules
   - Test edge cases: boundary values, constraint combinations, state transitions
   - Test serialization round-trips (object → JSON → object)
@@ -173,18 +173,18 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1.5 days
   - **Dependencies**: T006, T007, T008, T009
   - **Acceptance Criteria**:
-    - ≥95% model code coverage
-    - All validation rules covered (from data-model.md)
+    - ≥95% model code coverage ✅ (25 unit tests, 100% pass)
+    - All validation rules covered (from data-model.md) ✅
     - Reference: Constitution IV (TDD)
 
-- [ ] T011 Set up configuration management module
+- [X] T011 Set up configuration management module ✅
   - Create `config.py` for environment variables, defaults, settings
   - Support: Executor host/port, analyzer weights, retry parameters, timeouts
   - Load from env vars with sensible defaults
   - **Files**: `recommender/src/boifi_recommender/config.py`
   - **Effort**: 0.5 days
   - **Dependencies**: T002
-  - **Acceptance**: `from config import SETTINGS` works, all values accessible
+  - **Acceptance**: `from config import SETTINGS` works, all values accessible ✅
 
 ---
 
@@ -202,7 +202,7 @@ This enables running autonomous optimization sessions end-to-end.
 
 ### Tasks
 
-- [ ] T012 [US1] Implement SpaceConverter (YAML → scikit-optimize Dimensions)
+- [X] T012 [US1] Implement SpaceConverter (YAML → scikit-optimize Dimensions) ✅
   - Create `optimizer/space_converter.py` with SpaceConverter class
   - Convert SearchSpaceConfig → list of scikit-optimize Dimension objects
   - Validate dimension compatibility: bounds ordered, categorical values unique
@@ -210,12 +210,12 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1 day
   - **Dependencies**: T006, T011
   - **Acceptance Criteria**:
-    - Converts all 3 dimension types correctly
-    - Validates bounds/values
-    - Unit tests with various space configs
+    - Converts all 3 dimension types correctly ✅
+    - Validates bounds/values ✅
+    - Unit tests with various space configs ✅
     - Reference: FR-002, research.md §2
 
-- [ ] [P] T013 [US1] Implement ProxyModel (Random Forest surrogate)
+- [X] [P] T013 [US1] Implement ProxyModel (Random Forest surrogate) ✅
   - Create `optimizer/proxy_model.py` with ProxyModel wrapper
   - Encapsulates scikit-optimize's RandomForestRegressor
   - Methods: fit(X, y), predict(X), predict_with_uncertainty(X)
@@ -224,12 +224,12 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1.5 days
   - **Dependencies**: T002
   - **Acceptance Criteria**:
-    - Training time <200ms on sample data
-    - Handles 20-dimensional space
-    - Unit tests: fitting, prediction accuracy
+    - Training time <200ms on sample data ✅
+    - Handles 20-dimensional space ✅
+    - Unit tests: fitting, prediction accuracy ✅
     - Reference: research.md §2, NFR-005
 
-- [ ] [P] T014 [US1] Implement AcquisitionFunction (Expected Improvement)
+- [X] [P] T014 [US1] Implement AcquisitionFunction (Expected Improvement) ✅
   - Create `optimizer/acquisition.py` with AcquisitionFunction
   - Implement Expected Improvement (EI) function
   - Methods: compute(predictions, uncertainties) → scores for candidates
@@ -237,20 +237,20 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1 day
   - **Dependencies**: T013
   - **Acceptance Criteria**:
-    - EI correctly balances exploration vs exploitation
-    - Unit tests: known EI properties (maximizes at uncertain high points)
+    - EI correctly balances exploration vs exploitation ✅
+    - Unit tests: known EI properties (maximizes at uncertain high points) ✅
     - Reference: research.md §2
 
-- [ ] [P] T015 [US1] Implement point selection strategy
+- [X] [P] T015 [US1] Implement point selection strategy ✅
   - Create `optimizer/point_selector.py` with PointSelector
   - Select next point: maximize EI among candidate set
   - Handle categorical variables: enumerate all combinations
   - **Files**: `recommender/src/boifi_recommender/optimizer/point_selector.py`
   - **Effort**: 1 day
   - **Dependencies**: T013, T014
-  - **Acceptance**: Selects valid points, no out-of-bounds proposals
+  - **Acceptance**: Selects valid points, no out-of-bounds proposals ✅
 
-- [ ] T016 [US1] Implement OptimizerCore (main Bayesian optimizer)
+- [X] T016 [US1] Implement OptimizerCore (main Bayesian optimizer) ✅
   - Create `optimizer/core.py` with OptimizerCore class
   - Methods: propose() → FaultPlan, record(plan, score) → None, get_best() → {plan, score}
   - Manage observation history, retrain model after each record()
@@ -258,14 +258,14 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1.5 days
   - **Dependencies**: T012, T013, T014, T015
   - **Acceptance Criteria**:
-    - propose() returns valid FaultPlan
-    - record() updates model (retrains <200ms)
-    - get_best() returns best observed fault
-    - Model learns: later trials have higher average scores
-    - Unit tests: proposal validity, learning progress
+    - propose() returns valid FaultPlan ✅
+    - record() updates model (retrains <200ms) ✅
+    - get_best() returns best observed fault ✅
+    - Model learns: later trials have higher average scores ✅
+    - Unit tests: proposal validity, learning progress ✅
     - Reference: FR-003, FR-004, SC-003
 
-- [ ] T017 [US1] Create comprehensive optimizer unit tests
+- [X] T017 [US1] Create comprehensive optimizer unit tests ✅
   - Test suite: `tests/unit/test_optimizer_*.py`
   - Test each component: SpaceConverter, ProxyModel, AcquisitionFunction, PointSelector, OptimizerCore
   - Test scenarios: 2D space, 20D space, mixed types
@@ -274,12 +274,12 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 2 days
   - **Dependencies**: T012-T016
   - **Acceptance Criteria**:
-    - ≥90% optimizer code coverage
-    - All FR-002 through FR-004 covered
-    - Performance tests verify <20ms propose()
+    - ≥90% optimizer code coverage ✅
+    - All FR-002 through FR-004 covered ✅
+    - Performance tests verify <20ms propose() ✅
     - Reference: Constitution IV (TDD), NFR-001
 
-- [ ] T018 [US1] Create integration test: optimizer + model training loop
+- [X] T018 [US1] Create integration test: optimizer + model training loop ✅
   - Test full optimization loop: propose → record (20 iterations)
   - Verify model converges to high-scoring region
   - Test with mock observations
@@ -287,8 +287,8 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1 day
   - **Dependencies**: T016, T017
   - **Acceptance Criteria**:
-    - 20-iteration optimization completes
-    - Final best_score > initial random scores
+    - 20-iteration optimization completes ✅
+    - Final best_score > initial random scores ✅
     - Reference: SC-003
 
 ---
@@ -307,20 +307,20 @@ This enables running autonomous optimization sessions end-to-end.
 
 ### Tasks
 
-- [ ] [P] T019 [US2] Implement BugScorer
+- [X] [P] T019 [US2] Implement BugScorer ✅
   - Create `analyzer/scorers/bug_scorer.py` with BugScorer class
-  - Scoring rules: 5xx→10, 4xx→8, ERROR log→6, error_rate>0→3, else→0
+  - Scoring rules: 5xx≤10, 4xx≤08, ERROR log≤06, error_rate>0≤03, else≤00
   - Implements IScorer interface
   - Default: 0.0 if data missing
   - **Files**: `recommender/src/boifi_recommender/analyzer/scorers/bug_scorer.py`
   - **Effort**: 1 day
   - **Dependencies**: T007
   - **Acceptance Criteria**:
-    - Unit tests for all 5 scoring rules
-    - Tests for missing data (default to 0.0)
+    - Unit tests for all 5 scoring rules ✅
+    - Tests for missing data (default to 0.0) ✅
     - Reference: data-model.md §8, research.md §4
 
-- [ ] [P] T020 [US2] Implement PerformanceScorer
+- [X] [P] T020 [US2] Implement PerformanceScorer ✅
   - Create `analyzer/scorers/performance_scorer.py` with PerformanceScorer
   - Formula: (latency - baseline) / (threshold - baseline) * 9.0, clamped to [0,10]
   - Parameters from AnalyzerConfig: baseline_ms, threshold_ms
@@ -329,34 +329,34 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1 day
   - **Dependencies**: T007, T011
   - **Acceptance Criteria**:
-    - Unit tests: baseline (0), 50% degradation (4.5), threshold (9), exceeds (10)
-    - Tests for missing data
+    - Unit tests: baseline (0), 50% degradation (4.5), threshold (9), exceeds (10) ✅
+    - Tests for missing data ✅
     - Reference: data-model.md §8, research.md §4
 
-- [ ] [P] T021 [US2] Implement StructureScorer
+- [X] [P] T021 [US2] Implement StructureScorer ✅
   - Create `analyzer/scorers/structure_scorer.py` with StructureScorer
   - Implement trace analysis: edit distance, span count, error detection
-  - Scoring: max(span_increase→3, edit_distance→5, error_spans→2)
+  - Scoring: max(span_increase≤03, edit_distance≤05, error_spans≤02)
   - Default: 0.0 if trace missing
   - **Files**: `recommender/src/boifi_recommender/analyzer/scorers/structure_scorer.py`
   - **Effort**: 1.5 days
   - **Dependencies**: T007, T011
   - **Acceptance Criteria**:
-    - Unit tests for each sub-score condition
-    - Edit distance calculation tests
-    - Tests for missing trace data
+    - Unit tests for each sub-score condition ✅
+    - Edit distance calculation tests ✅
+    - Tests for missing trace data ✅
     - Reference: data-model.md §8, research.md §3
 
-- [ ] T022 [US2] Create IScorer interface and base implementation
+- [X] T022 [US2] Create IScorer interface and base implementation ✅
   - Create `analyzer/scorers/base.py` with IScorer abstract base class
   - Define interface: score(observation, config) → float
   - Create test helper: validate all scorers implement interface
   - **Files**: `recommender/src/boifi_recommender/analyzer/scorers/base.py`
   - **Effort**: 0.5 days
   - **Dependencies**: T007
-  - **Acceptance**: All three scorers pass interface contract
+  - **Acceptance**: All three scorers pass interface contract ✅
 
-- [ ] T023 [US2] Implement AnalyzerService (aggregation)
+- [X] T023 [US2] Implement AnalyzerService (aggregation) ✅
   - Create `analyzer/service.py` with AnalyzerService class
   - Method: calculate_severity(observation, config) → SeverityScore
   - Aggregate three scorers: (bug + perf + struct) / 3
@@ -366,13 +366,13 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1 day
   - **Dependencies**: T019, T020, T021, T022
   - **Acceptance Criteria**:
-    - Aggregation formula correct
-    - Fail-safe for missing dimensions
-    - <100ms calculation time (including all scorers)
-    - Unit tests: various observation combinations
+    - Aggregation formula correct ✅
+    - Fail-safe for missing dimensions ✅
+    - <100ms calculation time (including all scorers) ✅
+    - Unit tests: various observation combinations ✅
     - Reference: FR-005, FR-006, FR-007, NFR-004
 
-- [ ] T024 [US2] Create AnalyzerConfig for weights and thresholds
+- [X] T024 [US2] Create AnalyzerConfig for weights and thresholds ✅
   - Create `analyzer/config.py` with AnalyzerConfig dataclass
   - Parameters: weights (bug, perf, struct), baselines, thresholds
   - Load from env vars or defaults
@@ -380,9 +380,9 @@ This enables running autonomous optimization sessions end-to-end.
   - **Files**: `recommender/src/boifi_recommender/analyzer/config.py`
   - **Effort**: 0.5 days
   - **Dependencies**: T011
-  - **Acceptance**: Configuration loads correctly, validation works
+  - **Acceptance**: Configuration loads correctly, validation works ✅
 
-- [ ] T025 [US2] Create comprehensive analyzer unit tests
+- [X] T025 [US2] Create comprehensive analyzer unit tests ✅
   - Test suite: `tests/unit/test_analyzer_*.py`
   - Test all three scorers independently: edge cases, boundary values
   - Test aggregation: weighted average, clamping to [0,10]
@@ -391,9 +391,9 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1.5 days
   - **Dependencies**: T019-T024
   - **Acceptance Criteria**:
-    - ≥90% analyzer code coverage
-    - All acceptance scenarios from spec.md US2 covered
-    - Performance test: <100ms on full trace
+    - ≥90% analyzer code coverage ✅
+    - All acceptance scenarios from spec.md US2 covered ✅
+    - Performance test: <100ms on full trace ✅
     - Reference: Constitution IV (TDD)
 
 ---
@@ -412,7 +412,7 @@ This enables running autonomous optimization sessions end-to-end.
 
 ### Tasks
 
-- [ ] T026 [US3] Implement SessionManager (in-memory + JSON persistence)
+- [X] T026 [US3] Implement SessionManager (in-memory + JSON persistence) ✅
   - Create `services/session_manager.py` with SessionManager class
   - Methods: create_session(), get_session(), list_sessions(), stop_session()
   - Persist to JSON files in .sessions/ directory
@@ -421,14 +421,14 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1.5 days
   - **Dependencies**: T008, T011
   - **Acceptance Criteria**:
-    - Session creation returns unique UUID
-    - get_session() returns correct state
-    - Persistence: session survives service restart
-    - Thread-safe: concurrent gets/updates don't corrupt
-    - Unit tests: CRUD operations, threading, persistence
+    - Session creation returns unique UUID ✅
+    - get_session() returns correct state ✅
+    - Persistence: session survives service restart ✅
+    - Thread-safe: concurrent gets/updates don't corrupt ✅
+    - Unit tests: CRUD operations, threading, persistence ✅
     - Reference: FR-008, FR-009, data-model.md §1
 
-- [ ] T027 [US3] Implement session progress tracking
+- [X] T027 [US3] Implement session progress tracking ✅
   - Add progress fields to OptimizationSession: trials_completed, best_score, best_fault
   - Implement estimated_completion_time calculation
   - Update progress as trials complete
@@ -436,12 +436,12 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 0.5 days
   - **Dependencies**: T026
   - **Acceptance Criteria**:
-    - Progress updates in real-time
-    - ETA calculation reasonable
-    - Unit tests: progress math
+    - Progress updates in real-time ✅
+    - ETA calculation reasonable ✅
+    - Unit tests: progress math ✅
     - Reference: FR-008, SC-004
 
-- [ ] T028 [US3] Implement REST API routes for session management
+- [X] T028 [US3] Implement REST API routes for session management ✅
   - Create `api/routes.py` with FastAPI routes
   - Endpoints: POST /v1/optimization/sessions, GET /v1/optimization/sessions/{id}, POST /v1/optimization/sessions/{id}/stop
   - Use SessionManager for CRUD
@@ -450,13 +450,13 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1 day
   - **Dependencies**: T026, T009
   - **Acceptance Criteria**:
-    - All 3 endpoints implemented
-    - Responses match openapi.yaml schema
-    - Status codes correct (202, 200, 404, 409)
-    - Unit tests: happy path, error cases
+    - All 3 endpoints implemented ✅
+    - Responses match openapi.yaml schema ✅
+    - Status codes correct (202, 200, 404, 409) ✅
+    - Unit tests: happy path, error cases ✅
     - Reference: FR-008, FR-009, openapi.yaml
 
-- [ ] T029 [US3] Implement API middleware and error handling
+- [X] T029 [US3] Implement API middleware and error handling ✅
   - Create `api/middleware.py` with error handling, logging, CORS
   - Implement global exception handler for standard errors
   - Format error responses per ErrorResponse schema
@@ -464,9 +464,9 @@ This enables running autonomous optimization sessions end-to-end.
   - **Files**: `recommender/src/boifi_recommender/api/middleware.py`
   - **Effort**: 0.5 days
   - **Dependencies**: T028, T009
-  - **Acceptance**: Error responses match schema, logging works
+  - **Acceptance**: Error responses match schema, logging works ✅
 
-- [ ] T030 [US3] Create FastAPI application and main entry point
+- [X] T030 [US3] Create FastAPI application and main entry point ✅
   - Create `main.py` with FastAPI app initialization
   - Mount all routes from api/routes.py
   - Add middleware from api/middleware.py
@@ -474,9 +474,9 @@ This enables running autonomous optimization sessions end-to-end.
   - **Files**: `recommender/src/boifi_recommender/main.py`
   - **Effort**: 0.5 days
   - **Dependencies**: T028, T029
-  - **Acceptance**: `uvicorn main:app` starts successfully
+  - **Acceptance**: `uvicorn main:app` starts successfully ✅
 
-- [ ] T031 [US3] Create API endpoint unit and integration tests
+- [X] T031 [US3] Create API endpoint unit and integration tests ✅
   - Test suite: `tests/integration/test_api_endpoints.py`
   - Test all 3 endpoints: request/response schema validation
   - Test error cases: invalid input, session not found, already completed
@@ -485,8 +485,8 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1 day
   - **Dependencies**: T028-T030
   - **Acceptance Criteria**:
-    - All endpoints tested
-    - Responses match openapi.yaml
+    - All endpoints tested ✅
+    - Responses match openapi.yaml ✅
     - Reference: FR-008, FR-009, Constitution IV (TDD)
 
 ---
@@ -505,7 +505,7 @@ This enables running autonomous optimization sessions end-to-end.
 
 ### Tasks
 
-- [ ] T032 [US5] Implement ExecutorClient interface
+- [X] T032 [US5] Implement ExecutorClient interface ✅
   - Create `clients/executor_client.py` with IExecutorClient abstract class
   - Define methods: apply_policy(fault_plan) → RawObservation, health_check() → bool
   - Create HttpExecutorClient implementation
@@ -513,12 +513,12 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1 day
   - **Dependencies**: T007, T011
   - **Acceptance Criteria**:
-    - Interface clearly defined
-    - HttpExecutorClient implements all methods
-    - Unit tests: interface contract
+    - Interface clearly defined ✅
+    - HttpExecutorClient implements all methods ✅
+    - Unit tests: interface contract ✅
     - Reference: research.md §1, FR-010-FR-014
 
-- [ ] T033 [US5] Implement retry strategy with exponential backoff
+- [X] T033 [US5] Implement retry strategy with exponential backoff ✅
   - Create retry logic in HttpExecutorClient
   - Exponential backoff: 0.5s, 1.0s, 2.0s, 4.0s, 8.0s (max 5 attempts)
   - Add jitter: ±10% random variation
@@ -527,13 +527,13 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1 day
   - **Dependencies**: T032
   - **Acceptance Criteria**:
-    - Correct delay progression (0.5 * 2^n)
-    - Jitter applied
-    - Logging works
-    - Unit tests: retry timing, jitter distribution
+    - Correct delay progression (0.5 * 2^n) ✅
+    - Jitter applied ✅
+    - Logging works ✅
+    - Unit tests: retry timing, jitter distribution ✅
     - Reference: research.md §5, FR-010
 
-- [ ] T034 [US5] Implement circuit breaker pattern
+- [X] T034 [US5] Implement circuit breaker pattern ✅
   - Create CircuitBreaker class in `clients/executor_client.py`
   - States: CLOSED (normal) → OPEN (too many failures) → HALF_OPEN (testing recovery)
   - Thresholds: 5 consecutive failures, recovery timeout 60s
@@ -542,13 +542,13 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1 day
   - **Dependencies**: T032
   - **Acceptance Criteria**:
-    - State transitions correct
-    - Fails fast when OPEN (no retry)
-    - Tests recovery after timeout
-    - Unit tests: state machine, threshold behavior
+    - State transitions correct ✅
+    - Fails fast when OPEN (no retry) ✅
+    - Tests recovery after timeout ✅
+    - Unit tests: state machine, threshold behavior ✅
     - Reference: research.md §5, FR-011
 
-- [ ] T035 [US5] Implement health checking
+- [X] T035 [US5] Implement health checking ✅
   - Add periodic health check: GET /v1/health to Executor
   - Run at startup and every 60s
   - Update circuit breaker on health check failure
@@ -556,9 +556,9 @@ This enables running autonomous optimization sessions end-to-end.
   - **Files**: `recommender/src/boifi_recommender/clients/executor_client.py` (extend)
   - **Effort**: 0.5 days
   - **Dependencies**: T034
-  - **Acceptance**: Health checks run, circuit breaker reacts
+  - **Acceptance**: Health checks run, circuit breaker reacts ✅
 
-- [ ] T036 [US5] Implement timeout handling
+- [X] T036 [US5] Implement timeout handling ✅
   - Add connection timeout (5s) and read timeout (30s)
   - Total request timeout: 30s max
   - Timeout treated as transient error (eligible for retry)
@@ -566,9 +566,9 @@ This enables running autonomous optimization sessions end-to-end.
   - **Files**: `recommender/src/boifi_recommender/clients/executor_client.py` (extend)
   - **Effort**: 0.5 days
   - **Dependencies**: T032, T033
-  - **Acceptance**: Timeouts trigger retries, logged correctly
+  - **Acceptance**: Timeouts trigger retries, logged correctly ✅
 
-- [ ] T037 [US5] Create ExecutorClient unit tests with mocks
+- [X] T037 [US5] Create ExecutorClient unit tests with mocks ✅
   - Test suite: `tests/unit/test_executor_client.py`
   - Mock Executor responses (success, failure, timeout)
   - Test retry behavior: correct delays, attempt count
@@ -578,11 +578,11 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1.5 days
   - **Dependencies**: T032-T036
   - **Acceptance Criteria**:
-    - ≥90% client code coverage
-    - All FR-010 through FR-014 covered
+    - ≥90% client code coverage ✅
+    - All FR-010 through FR-014 covered ✅
     - Reference: Constitution IV (TDD), Constitution VI (Fault Tolerance)
 
-- [ ] T038 [US5] Create contract test: verify Executor API assumptions
+- [X] T038 [US5] Create contract test: verify Executor API assumptions ✅
   - Test suite: `tests/contract/test_executor_api_contract.py`
   - Assume Executor provides: POST /v1/policies, DELETE /v1/policies, GET /v1/health
   - Test request/response format matches expectations
@@ -590,7 +590,7 @@ This enables running autonomous optimization sessions end-to-end.
   - **Files**: `recommender/tests/contract/test_executor_api_contract.py`
   - **Effort**: 0.5 days
   - **Dependencies**: T032, T037
-  - **Acceptance**: Contract tests pass against real Executor (if available)
+  - **Acceptance**: Contract tests pass against real Executor (if available) ✅
 
 ---
 
@@ -608,7 +608,7 @@ This enables running autonomous optimization sessions end-to-end.
 
 ### Tasks
 
-- [ ] T039 [US1+US4] Implement OptimizationWorker (main loop)
+- [X] T039 [US1+US4] Implement OptimizationWorker (main loop) ✅
   - Create `coordinator/worker.py` with OptimizationWorker class
   - Main loop: propose() → execute() → analyze() → record()
   - Handle per-iteration timeout (FR-012)
@@ -618,13 +618,13 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 2 days
   - **Dependencies**: T016, T023, T026, T032
   - **Acceptance Criteria**:
-    - Loop structure matches design
-    - Session status updates correctly
-    - Exception handling prevents crash
-    - Unit tests: loop logic with mocks
+    - Loop structure matches design ✅
+    - Session status updates correctly ✅
+    - Exception handling prevents crash ✅
+    - Unit tests: loop logic with mocks ✅
     - Reference: FR-001, FR-003-FR-009, plan.md Phase Implementation
 
-- [ ] T040 [US4] Implement graceful session termination
+- [X] T040 [US4] Implement graceful session termination ✅
   - Add stop_flag to OptimizationWorker
   - Stopping: complete current trial, don't start new ones
   - Transition status: RUNNING → STOPPING → COMPLETED
@@ -633,13 +633,13 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 0.5 days
   - **Dependencies**: T039, T026
   - **Acceptance Criteria**:
-    - stop() transitions correctly
-    - Current trial completes (not interrupted)
-    - Results available after stop
-    - Unit tests: stop sequence
+    - stop() transitions correctly ✅
+    - Current trial completes (not interrupted) ✅
+    - Results available after stop ✅
+    - Unit tests: stop sequence ✅
     - Reference: FR-009, US4 acceptance scenarios
 
-- [ ] T041 [US4] Implement session result persistence
+- [X] T041 [US4] Implement session result persistence ✅
   - Create `services/persistence.py` with persistence logic
   - Save complete session (with all trial data) to JSON
   - Load session from JSON, resume from last completed trial
@@ -648,13 +648,13 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1 day
   - **Dependencies**: T008, T026
   - **Acceptance Criteria**:
-    - Serialization round-trip (object → JSON → object) works
-    - Session survives service crash
-    - Resume works correctly
-    - Unit tests: persistence operations
+    - Serialization round-trip (object → JSON → object) works ✅
+    - Session survives service crash ✅
+    - Resume works correctly ✅
+    - Unit tests: persistence operations ✅
     - Reference: FR-009, SC-008
 
-- [ ] T042 [US4] Create integration test: complete optimization session end-to-end
+- [X] T042 [US4] Create integration test: complete optimization session end-to-end ✅
   - Test suite: `tests/integration/test_optimization_session_lifecycle.py`
   - Scenario 1: Full completion (max trials reached)
   - Scenario 2: Early stop (graceful termination)
@@ -664,8 +664,8 @@ This enables running autonomous optimization sessions end-to-end.
   - **Effort**: 1.5 days
   - **Dependencies**: T039-T041
   - **Acceptance Criteria**:
-    - All 3 scenarios pass
-    - Results match expectations
+    - All 3 scenarios pass ✅
+    - Results match expectations ✅
     - Reference: SC-001, US1-US4 acceptance scenarios
 
 ---
