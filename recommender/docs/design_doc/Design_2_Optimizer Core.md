@@ -230,7 +230,7 @@ end note
 错误分类与处理矩阵:
 
 | 业务方法 | 触发条件 | 抛出的异常类型 | 上层 `Worker` 的处理策略 | 描述 |
-| : | : | : | : | : |
+| :-- | :-- | :-- | :-- | :-- |
 | `__init__` | 搜索空间配置无效（例如，`SpaceConverter` 失败）。 | `InitializationError` | 致命错误。`Worker` 初始化失败，整个会话应立即进入 `FAILED` 状态。 | 这是一个配置错误，无法继续。 |
 | | 底层优化库（如 `skopt.Optimizer`）初始化失败。 | `InitializationError` | 同上。 | 可能是库的 bug 或配置问题。 |
 | `propose` | 底层库的 `ask()` 方法失败或 `panic`。 | `ProposalError` | 致命错误。`Worker` 无法获取下一步的计划，优化循环无法继续。应中断循环并进入 `FAILED` 状态。 | 这是一个严重的内部错误，表明优化器状态已损坏。 |
@@ -375,7 +375,7 @@ end note
 Wrapper 层的职责是将底层 `skopt` 库可能抛出的异常，捕获并翻译成我们定义的、统一的领域异常（如 `ProposalError`, `RecordingError`）。
 
 | `skopt` 方法 / 阶段 | 潜在异常/错误 | 严重性 | Wrapper 的处理策略 | 向上层 (`Worker`) 抛出的异常 |
-| : | : | : | : | : |
+| :-- | :-- | :-- | :-- | :-- |
 | `__init__` | `skopt.Optimizer(...)` 初始化失败（例如，传入的 `dimensions` 格式错误）。 | 高 (Config Error) | 1. 使用 `try...except` 块包裹 `skopt.Optimizer` 的创建。<br>2. 捕获 `ValueError`, `TypeError` 等。<br>3. 记录详细的原始错误日志。 | `InitializationError` (包装原始错误) |
 | `propose` | `self.skopt_optimizer.ask()` 失败或 `panic`。 | 高 (Critical Bug) | 1. 使用 `try...except Exception` 块包裹 `ask()` 调用。<br>2. 捕获任何异常。<br>3. 记录致命错误日志和堆栈。 | `ProposalError` (包装原始异常) |
 | `record` | `self.skopt_optimizer.tell(point, score)` 失败。 | 高 (Critical Bug) | 1. 使用 `try...except Exception` 块包裹 `tell()` 调用。<br>2. 捕获任何异常（例如，模型拟合失败）。<br>3. 记录致命错误日志和堆栈。 | `RecordingError` (包装原始异常) |
@@ -839,7 +839,7 @@ Converter 的核心职责之一就是验证配置文件的正确性。它的异�
 错误分类与处理矩阵:
 
 | 发生阶段 | 潜在异常/错误 | 严重性 | 处理策略 | 向上层 (`Optimizer` 初始化) 抛出的异常/信息 |
-| : | : | : | : | : |
+| :-- | :-- | :-- | :-- | :-- |
 | 文件加载时 | 文件不存在、无权限、非标准 YAML/JSON。 | 高 (User/Config Error) | 由调用方处理。`SpaceConverter` 假设它接收的是一个已经成功加载的 Python `dict`。 | (调用方应处理 `FileNotFoundError`, `yaml.YAMLError` 等) |
 | 转换过程中 | `dimensions` 列表不存在或不是列表。 | 高 (Config Error) | 在循环前检查 `config.get("dimensions")` 是否为列表，否则抛出异常。 | `InvalidConfigError("'dimensions' key is missing or not a list")` |
 | | 维度对象缺少 `name` 或 `type` 字段。 | 高 (Config Error) | 在循环内部，检查每个维度字典是否包含必要的 `key`。 | `InvalidConfigError("Dimension at index 2 is missing 'name' field")` |
@@ -1092,7 +1092,7 @@ function _validate_dimension_value(dim_name: str, value: Any) -> bool:
 ### 条件维度的三种处理策略对比
 
 | 策略 | 描述 | Phase 1 可用性 | 优点 | 缺点 | 实现复杂度 |
-|:|:|::|:|:|::|
+|:-- |:-- |:-- |:-- |:-- |:-- |
 | Expand | 搜索空间包含所有维度的笛卡尔积。条件维度总是参与，但在不满足条件时被忽略。 | ✅ Yes | 简单、无需动态维度构造 | 搜索空间可能很大（含无效点） | 低 |
 | Filter | 在运行时根据条件动态确定包含哪些维度。只有满足条件的维度才加入 skopt。 | ⏳ No | 搜索空间紧凑、高效 | 需要动态维度列表、复杂的状态管理 | 中 |
 | Encode | 将条件维度编码为额外的特征或独立维度。使用编码技巧处理条件逻辑。 | 🔮 No | 数学上优雅、支持复杂条件 | 需要特殊的特征工程和解码逻辑 | 高 |
