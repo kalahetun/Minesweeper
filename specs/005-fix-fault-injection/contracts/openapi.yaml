@@ -1,0 +1,137 @@
+openapi: 3.0.0
+info:
+  title: BOIFI Control Plane API
+  version: 1.0.0
+paths:
+  /policies:
+    get:
+      summary: List all policies
+      responses:
+        '200':
+          description: List of policies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FaultInjectionPolicy'
+    post:
+      summary: Create or update a policy
+      requestBody:
+        required: true
+        content:
+          application/yaml:
+            schema:
+              $ref: '#/components/schemas/FaultInjectionPolicy'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FaultInjectionPolicy'
+      responses:
+        '200':
+          description: Policy applied
+  /policies/{name}:
+    get:
+      summary: Get a policy by name
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaultInjectionPolicy'
+    delete:
+      summary: Delete a policy
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Policy deleted
+
+components:
+  schemas:
+    FaultInjectionPolicy:
+      type: object
+      properties:
+        metadata:
+          type: object
+          properties:
+            name:
+              type: string
+        spec:
+          type: object
+          properties:
+            rules:
+              type: array
+              items:
+                $ref: '#/components/schemas/PolicyRule'
+    PolicyRule:
+      type: object
+      properties:
+        match:
+          $ref: '#/components/schemas/MatchCondition'
+        fault:
+          $ref: '#/components/schemas/FaultAction'
+    MatchCondition:
+      type: object
+      properties:
+        method:
+          $ref: '#/components/schemas/StringMatch'
+        path:
+          $ref: '#/components/schemas/StringMatch'
+        headers:
+          type: array
+          items:
+            $ref: '#/components/schemas/HeaderMatch'
+    StringMatch:
+      type: object
+      properties:
+        exact:
+          type: string
+        prefix:
+          type: string
+        regex:
+          type: string
+    HeaderMatch:
+      type: object
+      properties:
+        name:
+          type: string
+        value:
+          $ref: '#/components/schemas/StringMatch'
+    FaultAction:
+      type: object
+      properties:
+        percentage:
+          type: number
+          format: float
+        duration_seconds:
+          type: integer
+          format: int64
+        start_delay_ms:
+          type: integer
+          format: int64
+        abort:
+          $ref: '#/components/schemas/AbortFault'
+        delay:
+          $ref: '#/components/schemas/DelayFault'
+    AbortFault:
+      type: object
+      properties:
+        httpStatus:
+          type: integer
+    DelayFault:
+      type: object
+      properties:
+        fixedDelayMs:
+          type: integer
+          format: int64
