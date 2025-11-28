@@ -237,6 +237,7 @@ mod tests {
                 start_delay_ms: 0,
                 duration_seconds: 0,
             },
+            creation_time_ms: 0,
         }
     }
 

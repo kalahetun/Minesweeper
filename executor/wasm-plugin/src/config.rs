@@ -42,6 +42,9 @@ pub struct CompiledRule {
     #[serde(rename = "match")]
     pub match_condition: MatchCondition,
     pub fault: Fault,
+    /// 规则创建时间戳（毫秒），用于过期检查
+    #[serde(skip)]
+    pub creation_time_ms: u64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -234,6 +237,9 @@ impl CompiledRuleSet {
     pub fn from_policies_response(bytes: &[u8]) -> Result<Self, serde_json::Error> {
         let response: PoliciesResponse = serde_json::from_slice(bytes)?;
         
+        // 获取当前时间戳用于记录规则创建时间
+        let current_time_ms = crate::time_control::get_current_time_ms();
+        
         let mut rules = Vec::new();
         for policy in response.policies {
             for rule_spec in policy.spec.rules {
@@ -241,6 +247,7 @@ impl CompiledRuleSet {
                     name: policy.metadata.name.clone(),
                     match_condition: rule_spec.match_condition,
                     fault: rule_spec.fault,
+                    creation_time_ms: current_time_ms,
                 };
                 rules.push(compiled_rule);
             }

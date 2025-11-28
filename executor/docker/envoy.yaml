@@ -96,3 +96,19 @@ static_resources:
               socket_address:
                 address: control-plane
                 port_value: 8080
+
+  # 延迟注入专用集群 (使用黑洞地址实现延迟)
+  - name: hfi_delay_cluster
+    connect_timeout: 60s
+    type: STATIC
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: hfi_delay_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                # 使用不可达地址，依赖超时实现延迟
+                address: 240.0.0.1
+                port_value: 1

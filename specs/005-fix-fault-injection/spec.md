@@ -82,7 +82,13 @@ As an operator, I need to ensure that fault injection policies automatically exp
 
 ### User Story 5 - Verify Start Delay Execution (Priority: P3)
 
-As a developer, I need the system to support a `start_delay_ms` configuration, which delays the *injection* of the fault by a specified time after the request arrives, so that I can simulate faults that occur mid-processing (e.g., after some initial computation or downstream calls).
+As a developer, I need the system to support a `start_delay_ms` configuration, which delays the *injection* of the fault by a specified time **after the request arrives**, so that I can simulate faults that occur mid-processing (e.g., after some initial computation or downstream calls).
+
+**Clarification**: `start_delay_ms` is a **request-level delay**, meaning each individual request will wait for this duration before the fault is injected. This is different from:
+- **Policy-level delay**: When the policy becomes active (handled by `duration_seconds` start time)
+- **Delay fault**: The `delay` fault type which adds latency *before forwarding* the request to upstream
+
+**Use Case**: Simulate "late-stage" failures where a service starts processing a request, does some work (database queries, API calls), and then fails. This is critical for testing partial failure handling, resource cleanup, and transaction rollback.
 
 **Why this priority**: This enables more sophisticated failure scenarios, such as "late-stage" failures, which are critical for testing partial failure handling and resource cleanup.
 
@@ -90,8 +96,9 @@ As a developer, I need the system to support a `start_delay_ms` configuration, w
 
 **Acceptance Scenarios**:
 
-1. **Given** a policy with `start_delay_ms: 200` and `abort: 503`, **When** I send a matching request, **Then** the system waits for approximately 200ms before returning the 503 error.
-2. **Given** a policy with `start_delay_ms: 0` (default), **When** I send a matching request, **Then** the fault is injected immediately.
+1. **Given** a policy with `start_delay_ms: 200` and `abort: 503`, **When** I send a matching request, **Then** the system waits for approximately 200ms after the request arrives before returning the 503 error (TTFB ≈ 200ms).
+2. **Given** a policy with `start_delay_ms: 0` (default), **When** I send a matching request, **Then** the fault is injected immediately without additional delay.
+3. **Given** a policy with `start_delay_ms: 500` and `delay: 1000ms`, **When** I send a matching request, **Then** the system waits 500ms, then applies a 1000ms delay before forwarding (total latency ≈ 1500ms).
 
 ### Edge Cases
 
@@ -117,7 +124,7 @@ As a developer, I need the system to support a `start_delay_ms` configuration, w
 - **FR-010**: The system MUST support matching requests based on custom HTTP headers (e.g., `x-boifi-request-id`) to allow precise targeting by the Request Generator.
 - **FR-011**: The Wasm Plugin MUST emit Prometheus metrics (e.g., `boifi_fault_injected_total`) for each injected fault, including labels for `policy_id`, `service`, `fault_type`, and `result`.
 - **FR-012**: The system MUST stop enforcing a policy once its configured expiration time or duration has passed.
-- **FR-013**: The system MUST support a `start_delay_ms` parameter in the policy, causing the fault injection (abort or delay) to be postponed by the specified duration after the request is received.
+- **FR-013**: The system MUST support a `start_delay_ms` parameter in the policy, causing the fault injection (abort or delay) to be postponed by the specified duration **after each individual request is received**. This is a per-request delay, not a policy activation delay.
 
 ### Success Criteria
 
@@ -126,7 +133,7 @@ As a developer, I need the system to support a `start_delay_ms` configuration, w
 - **SC-003**: Policies with specific header matchers do not affect requests missing those headers.
 - **SC-004**: Policies with `percentage` < 100 do not affect all requests.
 - **SC-005**: Policies with a configured duration cease to be active after the duration elapses.
-- **SC-006**: Policies with `start_delay_ms` introduce a pre-injection latency corresponding to the configured value before the fault occurs.
+- **SC-006**: Policies with `start_delay_ms` introduce a per-request pre-injection latency corresponding to the configured value before the fault occurs (e.g., `start_delay_ms: 200` results in TTFB ≈ 200ms for abort faults).
 
 ### Key Entities
 
