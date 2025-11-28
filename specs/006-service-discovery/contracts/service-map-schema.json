@@ -1,0 +1,164 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://boifi.io/schemas/service-map.json",
+  "title": "BOIFI Service Map",
+  "description": "Service Discovery 输出的服务地图结构，包含服务列表、API 端点和服务级拓扑",
+  "type": "object",
+  "required": ["timestamp", "services", "topology", "metadata"],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "服务地图生成时间 (RFC3339 格式)"
+    },
+    "services": {
+      "type": "object",
+      "description": "服务列表，key 为服务名",
+      "additionalProperties": {
+        "$ref": "#/definitions/ServiceInfo"
+      }
+    },
+    "topology": {
+      "type": "array",
+      "description": "服务级调用拓扑 (有向边列表)",
+      "items": {
+        "$ref": "#/definitions/ServiceEdge"
+      }
+    },
+    "metadata": {
+      "$ref": "#/definitions/MapMetadata"
+    }
+  },
+  "definitions": {
+    "ServiceInfo": {
+      "type": "object",
+      "required": ["name", "namespace", "apis", "source"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "服务名称",
+          "minLength": 1
+        },
+        "namespace": {
+          "type": "string",
+          "description": "服务所在 Kubernetes 命名空间",
+          "minLength": 1
+        },
+        "apis": {
+          "type": "array",
+          "description": "服务暴露的 API 端点列表",
+          "items": {
+            "$ref": "#/definitions/APIEndpoint"
+          }
+        },
+        "source": {
+          "type": "string",
+          "description": "数据来源",
+          "enum": ["virtualservice", "openapi", "merged"]
+        }
+      }
+    },
+    "APIEndpoint": {
+      "type": "object",
+      "required": ["method", "path", "match_type"],
+      "properties": {
+        "method": {
+          "type": "string",
+          "description": "HTTP 方法，* 表示所有方法",
+          "enum": ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "*"]
+        },
+        "path": {
+          "type": "string",
+          "description": "路径模式",
+          "minLength": 1
+        },
+        "match_type": {
+          "type": "string",
+          "description": "路径匹配类型",
+          "enum": ["exact", "prefix", "regex"]
+        }
+      }
+    },
+    "ServiceEdge": {
+      "type": "object",
+      "required": ["source", "target", "call_count"],
+      "properties": {
+        "source": {
+          "type": "string",
+          "description": "调用方服务名",
+          "minLength": 1
+        },
+        "target": {
+          "type": "string",
+          "description": "被调用方服务名",
+          "minLength": 1
+        },
+        "call_count": {
+          "type": "integer",
+          "description": "统计周期内的调用次数",
+          "minimum": 0
+        }
+      }
+    },
+    "MapMetadata": {
+      "type": "object",
+      "required": ["discovery_interval", "jaeger_lookback", "stale"],
+      "properties": {
+        "discovery_interval": {
+          "type": "string",
+          "description": "发现周期配置 (如 5m)",
+          "pattern": "^[0-9]+[smh]$"
+        },
+        "jaeger_lookback": {
+          "type": "string",
+          "description": "Jaeger 查询时间范围 (如 1h)",
+          "pattern": "^[0-9]+[smh]$"
+        },
+        "stale": {
+          "type": "boolean",
+          "description": "数据是否来自缓存（过期数据）"
+        },
+        "errors": {
+          "type": "array",
+          "description": "发现过程中的错误信息",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "timestamp": "2025-11-28T10:30:00Z",
+      "services": {
+        "productpage": {
+          "name": "productpage",
+          "namespace": "default",
+          "apis": [
+            {"method": "GET", "path": "/productpage", "match_type": "exact"},
+            {"method": "GET", "path": "/api/v1/products", "match_type": "prefix"}
+          ],
+          "source": "virtualservice"
+        },
+        "reviews": {
+          "name": "reviews",
+          "namespace": "default",
+          "apis": [
+            {"method": "*", "path": "/reviews", "match_type": "prefix"}
+          ],
+          "source": "virtualservice"
+        }
+      },
+      "topology": [
+        {"source": "istio-ingressgateway", "target": "productpage", "call_count": 1000},
+        {"source": "productpage", "target": "reviews", "call_count": 980}
+      ],
+      "metadata": {
+        "discovery_interval": "5m",
+        "jaeger_lookback": "1h",
+        "stale": false
+      }
+    }
+  ]
+}
