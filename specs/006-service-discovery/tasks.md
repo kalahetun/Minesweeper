@@ -78,7 +78,7 @@ service-discovery/
 
 ---
 
-## Phase 4: User Story 2 - 构建服务级调用拓扑图 (Priority: P1)
+## Phase 4: User Story 2 - 构建服务级调用拓扑图 (Priority: P1) ✅ COMPLETED
 
 **Goal**: 通过 Jaeger Dependencies API 构建服务间调用关系图
 
@@ -86,18 +86,18 @@ service-discovery/
 
 ### Tests for User Story 2
 
-- [ ] T019 [P] [US2] 单元测试: Jaeger Dependencies API 解析测试: `service-discovery/tests/unit/jaeger_test.go`
+- [x] T019 [P] [US2] 单元测试: Jaeger Dependencies API 解析测试: `service-discovery/tests/unit/jaeger_test.go`
 
 ### Implementation for User Story 2
 
-- [ ] T020 [US2] 定义 Jaeger API 响应结构: `service-discovery/internal/discovery/jaeger.go` (JaegerDependency struct)
-- [ ] T021 [US2] 实现 Jaeger 客户端初始化: `service-discovery/internal/discovery/jaeger.go` (NewJaegerClient 函数)
-- [ ] T022 [US2] 实现 Dependencies API 调用: `service-discovery/internal/discovery/jaeger.go` (FetchDependencies 方法)
-- [ ] T023 [US2] 实现依赖数据到 ServiceEdge 的转换: `service-discovery/internal/discovery/jaeger.go` (BuildTopology 方法)
-- [ ] T024 [US2] 添加 Jaeger 不可用时的降级处理: `service-discovery/internal/discovery/jaeger.go`
-- [ ] T025 [US2] 添加 Jaeger 连接错误处理和日志: `service-discovery/internal/discovery/jaeger.go`
+- [x] T020 [US2] 定义 Jaeger API 响应结构: `service-discovery/internal/discovery/jaeger.go` (JaegerDependency struct)
+- [x] T021 [US2] 实现 Jaeger 客户端初始化: `service-discovery/internal/discovery/jaeger.go` (NewJaegerClient 函数)
+- [x] T022 [US2] 实现 Dependencies API 调用: `service-discovery/internal/discovery/jaeger.go` (FetchDependencies 方法)
+- [x] T023 [US2] 实现依赖数据到 ServiceEdge 的转换: `service-discovery/internal/discovery/jaeger.go` (BuildTopology 方法)
+- [x] T024 [US2] 添加 Jaeger 不可用时的降级处理: `service-discovery/internal/discovery/jaeger.go`
+- [x] T025 [US2] 添加 Jaeger 连接错误处理和日志: `service-discovery/internal/discovery/jaeger.go`
 
-**Checkpoint**: US2 完成 - 可以独立测试 Jaeger 拓扑构建功能
+**Checkpoint**: ✅ US2 完成 - 可以独立测试 Jaeger 拓扑构建功能
 
 ---
 
