@@ -101,7 +101,7 @@ service-discovery/
 
 ---
 
-## Phase 5: User Story 3 - 发布服务地图到共享存储 (Priority: P1)
+## Phase 5: User Story 3 - 发布服务地图到共享存储 (Priority: P1) ✅ COMPLETED
 
 **Goal**: 将 ServiceMap 序列化为 JSON 并发布到 Redis
 
@@ -109,18 +109,18 @@ service-discovery/
 
 ### Tests for User Story 3
 
-- [ ] T026 [P] [US3] 单元测试: Redis 发布测试: `service-discovery/tests/unit/redis_test.go`
+- [x] T026 [P] [US3] 单元测试: Redis 发布测试: `service-discovery/tests/unit/redis_test.go`
 
 ### Implementation for User Story 3
 
-- [ ] T027 [US3] 实现 Redis 客户端初始化: `service-discovery/internal/publisher/redis.go` (NewRedisPublisher 函数)
-- [ ] T028 [US3] 实现 ServiceMap JSON 序列化: `service-discovery/internal/publisher/redis.go` (SerializeServiceMap 方法)
-- [ ] T029 [US3] 实现 Redis SET 操作: `service-discovery/internal/publisher/redis.go` (PublishServiceMap 方法)
-- [ ] T030 [US3] 实现 Redis PUBLISH 通知: `service-discovery/internal/publisher/redis.go` (NotifyUpdate 方法)
-- [ ] T031 [US3] 实现指数退避重试逻辑: `service-discovery/internal/publisher/redis.go` (retryWithBackoff 函数)
-- [ ] T032 [US3] 添加 Redis 错误处理和日志: `service-discovery/internal/publisher/redis.go`
+- [x] T027 [US3] 实现 Redis 客户端初始化: `service-discovery/internal/publisher/redis.go` (NewRedisPublisher 函数)
+- [x] T028 [US3] 实现 ServiceMap JSON 序列化: `service-discovery/internal/publisher/redis.go` (SerializeServiceMap 方法)
+- [x] T029 [US3] 实现 Redis SET 操作: `service-discovery/internal/publisher/redis.go` (PublishServiceMap 方法)
+- [x] T030 [US3] 实现 Redis PUBLISH 通知: `service-discovery/internal/publisher/redis.go` (NotifyUpdate 方法)
+- [x] T031 [US3] 实现指数退避重试逻辑: `service-discovery/internal/publisher/redis.go` (retryWithBackoff 函数)
+- [x] T032 [US3] 添加 Redis 错误处理和日志: `service-discovery/internal/publisher/redis.go`
 
-**Checkpoint**: US3 完成 - 可以独立测试 Redis 发布功能
+**Checkpoint**: ✅ US3 完成 - 可以独立测试 Redis 发布功能
 
 ---
 
