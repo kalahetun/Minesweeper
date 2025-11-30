@@ -37,6 +37,7 @@ var (
 	configPath string
 	logLevel   string
 	logFormat  string
+	runOnce    bool
 )
 
 func main() {
@@ -70,6 +71,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "", "配置文件路径")
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "", "日志级别 (debug, info, warn, error)")
 	rootCmd.PersistentFlags().StringVar(&logFormat, "log-format", "", "日志格式 (json, text)")
+	rootCmd.Flags().BoolVar(&runOnce, "once", false, "执行一次发现后退出 (不启动周期调度)")
 
 	// 子命令
 	rootCmd.AddCommand(versionCmd)
@@ -110,7 +112,7 @@ func run(cmd *cobra.Command, args []string) error {
 	// 启动服务
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- runService(ctx, cfg, log)
+		errCh <- runService(ctx, cfg, log, runOnce)
 	}()
 
 	// 等待退出
@@ -132,11 +134,12 @@ func run(cmd *cobra.Command, args []string) error {
 }
 
 // runService 运行主服务逻辑
-func runService(ctx context.Context, cfg *config.Config, log logger.Logger) error {
+func runService(ctx context.Context, cfg *config.Config, log logger.Logger, once bool) error {
 	log.Info("initializing service components",
 		"discovery_interval", cfg.Discovery.Interval.String(),
 		"jaeger_url", cfg.Jaeger.URL,
 		"redis_addr", cfg.Redis.Address,
+		"run_once", once,
 	)
 
 	// 1. 创建 Kubernetes 发现器
@@ -187,7 +190,18 @@ func runService(ctx context.Context, cfg *config.Config, log logger.Logger) erro
 		slog.Default(),
 	)
 
-	// 5. 启动 Scheduler
+	// 5. 根据模式运行
+	if once {
+		// 单次执行模式
+		log.Info("running single discovery (--once mode)")
+		if err := sched.RunDiscovery(ctx); err != nil {
+			return fmt.Errorf("discovery failed: %w", err)
+		}
+		log.Info("single discovery completed successfully")
+		return nil
+	}
+
+	// 周期执行模式
 	sched.Start(ctx)
 	log.Info("scheduler started", "interval", cfg.Discovery.Interval.String())
 

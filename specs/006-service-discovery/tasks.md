@@ -124,7 +124,7 @@ service-discovery/
 
 ---
 
-## Phase 6: User Story 4 - 周期性自动执行发现流程 (Priority: P2)
+## Phase 6: User Story 4 - 周期性自动执行发现流程 (Priority: P2) ✅ COMPLETED
 
 **Goal**: 实现定时器控制的周期性发现和发布流程
 
@@ -132,23 +132,23 @@ service-discovery/
 
 ### Tests for User Story 4
 
-- [ ] T033 [P] [US4] 单元测试: 调度器测试: `service-discovery/tests/unit/scheduler_test.go`
+- [x] T033 [P] [US4] 单元测试: 调度器测试: `service-discovery/tests/unit/scheduler_test.go`
 
 ### Implementation for User Story 4
 
-- [ ] T034 [US4] 实现调度器结构: `service-discovery/internal/scheduler/ticker.go` (Scheduler struct)
-- [ ] T035 [US4] 实现发现流程编排: `service-discovery/internal/scheduler/ticker.go` (RunDiscovery 方法 - 调用 K8s + Jaeger + Redis)
-- [ ] T036 [US4] 实现周期性 Ticker: `service-discovery/internal/scheduler/ticker.go` (Start 方法)
-- [ ] T037 [US4] 实现优雅停止: `service-discovery/internal/scheduler/ticker.go` (Stop 方法)
-- [ ] T038 [US4] 实现任务重叠防护 (跳过或等待): `service-discovery/internal/scheduler/ticker.go`
-- [ ] T039 [US4] 实现内存缓存 (上次成功的 ServiceMap): `service-discovery/internal/scheduler/ticker.go` (lastSuccessfulMap 字段)
-- [ ] T040 [US4] 完善主程序: 集成调度器和信号处理: `service-discovery/cmd/main.go`
+- [x] T034 [US4] 实现调度器结构: `service-discovery/internal/scheduler/ticker.go` (Scheduler struct)
+- [x] T035 [US4] 实现发现流程编排: `service-discovery/internal/scheduler/ticker.go` (RunDiscovery 方法 - 调用 K8s + Jaeger + Redis)
+- [x] T036 [US4] 实现周期性 Ticker: `service-discovery/internal/scheduler/ticker.go` (Start 方法)
+- [x] T037 [US4] 实现优雅停止: `service-discovery/internal/scheduler/ticker.go` (Stop 方法)
+- [x] T038 [US4] 实现任务重叠防护 (跳过或等待): `service-discovery/internal/scheduler/ticker.go`
+- [x] T039 [US4] 实现内存缓存 (上次成功的 ServiceMap): `service-discovery/internal/scheduler/ticker.go` (lastSuccessfulMap 字段)
+- [x] T040 [US4] 完善主程序: 集成调度器和信号处理: `service-discovery/cmd/main.go`
 
-**Checkpoint**: US4 完成 - 可以独立测试周期性执行功能
+**Checkpoint**: ✅ US4 完成 - 可以独立测试周期性执行功能
 
 ---
 
-## Phase 7: User Story 5 - OpenAPI 规范增强 (Priority: P3)
+## Phase 7: User Story 5 - OpenAPI 规范增强 (Priority: P3) ✅ COMPLETED
 
 **Goal**: 尝试获取服务的 OpenAPI 规范补充 API 信息
 
@@ -156,31 +156,31 @@ service-discovery/
 
 ### Tests for User Story 5
 
-- [ ] T041 [P] [US5] 单元测试: OpenAPI 获取和解析测试: `service-discovery/tests/unit/openapi_test.go`
+- [x] T041 [P] [US5] 单元测试: OpenAPI 获取和解析测试: `service-discovery/tests/unit/openapi_test.go`
 
 ### Implementation for User Story 5
 
-- [ ] T042 [US5] 实现 OpenAPI 获取器结构: `service-discovery/internal/discovery/openapi.go` (OpenAPIFetcher struct)
-- [ ] T043 [US5] 实现 OpenAPI 端点探测: `service-discovery/internal/discovery/openapi.go` (FetchOpenAPI 方法 - 尝试多个路径)
-- [ ] T044 [US5] 实现 OpenAPI JSON 解析: `service-discovery/internal/discovery/openapi.go` (ParseOpenAPISpec 方法)
-- [ ] T045 [US5] 实现 API 信息合并 (OpenAPI 优先): `service-discovery/internal/discovery/openapi.go` (MergeAPIs 方法)
-- [ ] T046 [US5] 添加 OpenAPI 获取失败的降级处理 (仅 DEBUG 日志): `service-discovery/internal/discovery/openapi.go`
-- [ ] T047 [US5] 集成 OpenAPI 增强到调度器流程: `service-discovery/internal/scheduler/ticker.go` (修改 RunDiscovery)
+- [x] T042 [US5] 实现 OpenAPI 获取器结构: `service-discovery/internal/discovery/openapi.go` (OpenAPIFetcher struct)
+- [x] T043 [US5] 实现 OpenAPI 端点探测: `service-discovery/internal/discovery/openapi.go` (FetchOpenAPI 方法 - 尝试多个路径)
+- [x] T044 [US5] 实现 OpenAPI JSON 解析: `service-discovery/internal/discovery/openapi.go` (ParseOpenAPISpec 方法)
+- [x] T045 [US5] 实现 API 信息合并 (OpenAPI 优先): `service-discovery/internal/discovery/openapi.go` (MergeAPIs 方法)
+- [x] T046 [US5] 添加 OpenAPI 获取失败的降级处理 (仅 DEBUG 日志): `service-discovery/internal/discovery/openapi.go`
+- [x] T047 [US5] 集成 OpenAPI 增强到调度器流程: `service-discovery/internal/scheduler/ticker.go` (修改 RunDiscovery)
 
-**Checkpoint**: US5 完成 - 可以独立测试 OpenAPI 增强功能
+**Checkpoint**: ✅ US5 完成 - 可以独立测试 OpenAPI 增强功能
 
 ---
 
-## Phase 8: Polish & Cross-Cutting Concerns
+## Phase 8: Polish & Cross-Cutting Concerns ✅ COMPLETED
 
 **Purpose**: 集成测试、文档和最终优化
 
-- [ ] T048 [P] 集成测试: 端到端发现流程: `service-discovery/tests/integration/discovery_test.go`
-- [ ] T049 [P] 添加 --once 参数支持单次执行: `service-discovery/cmd/main.go`
-- [ ] T050 [P] 创建 README.md: `service-discovery/README.md`
-- [ ] T051 [P] 创建 Kubernetes 部署清单: `service-discovery/k8s/deployment.yaml`
-- [ ] T052 运行并验证 quickstart.md 中的所有步骤
-- [ ] T053 代码审查和清理
+- [x] T048 [P] 集成测试: 端到端发现流程: `service-discovery/tests/integration/discovery_test.go`
+- [x] T049 [P] 添加 --once 参数支持单次执行: `service-discovery/cmd/main.go`
+- [x] T050 [P] 创建 README.md: `service-discovery/README.md`
+- [x] T051 [P] 创建 Kubernetes 部署清单: `service-discovery/k8s/deployment.yaml`
+- [x] T052 运行并验证 quickstart.md 中的所有步骤
+- [x] T053 代码审查和清理
 
 ---
 
