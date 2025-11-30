@@ -5,13 +5,19 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/boifi/service-discovery/internal/config"
+	"github.com/boifi/service-discovery/internal/discovery"
+	"github.com/boifi/service-discovery/internal/publisher"
+	"github.com/boifi/service-discovery/internal/scheduler"
+	"github.com/boifi/service-discovery/internal/types"
 	"github.com/boifi/service-discovery/pkg/logger"
 )
 
@@ -126,15 +132,91 @@ func run(cmd *cobra.Command, args []string) error {
 }
 
 // runService 运行主服务逻辑
-// TODO: 在后续 Phase 中实现具体的服务逻辑
 func runService(ctx context.Context, cfg *config.Config, log logger.Logger) error {
-	log.Info("service is running",
+	log.Info("initializing service components",
 		"discovery_interval", cfg.Discovery.Interval.String(),
 		"jaeger_url", cfg.Jaeger.URL,
 		"redis_addr", cfg.Redis.Address,
 	)
 
+	// 1. 创建 Kubernetes 发现器
+	k8sDiscoverer, err := discovery.NewKubernetesDiscoverer(
+		cfg.Kubernetes.Kubeconfig,
+		log.With("component", "kubernetes"),
+	)
+	if err != nil {
+		return fmt.Errorf("create kubernetes discoverer: %w", err)
+	}
+	log.Info("kubernetes discoverer initialized")
+
+	// 2. 创建 Jaeger 客户端
+	jaegerClient := discovery.NewJaegerClient(
+		cfg.Jaeger.URL,
+		cfg.Jaeger.Timeout,
+		cfg.Jaeger.Lookback,
+		log.With("component", "jaeger"),
+	)
+	log.Info("jaeger client initialized", "url", cfg.Jaeger.URL)
+
+	// 3. 创建 Redis 发布器
+	redisPublisher := publisher.NewRedisPublisher(
+		cfg.Redis.Address,
+		cfg.Redis.Password,
+		cfg.Redis.DB,
+		cfg.Redis.Key,
+		cfg.Redis.Channel,
+		log.With("component", "redis"),
+	)
+	defer redisPublisher.Close()
+
+	// Ping Redis 确保连接正常
+	if err := redisPublisher.Ping(ctx); err != nil {
+		log.Warn("redis ping failed, will retry on first publish", "error", err.Error())
+	} else {
+		log.Info("redis publisher initialized", "addr", cfg.Redis.Address)
+	}
+
+	// 4. 创建 Scheduler
+	sched := scheduler.NewScheduler(
+		&k8sDiscovererAdapter{k8sDiscoverer},
+		jaegerClient,
+		redisPublisher,
+		cfg.Discovery.Interval,
+		formatDuration(cfg.Jaeger.Lookback),
+		cfg.Discovery.Interval.String(),
+		slog.Default(),
+	)
+
+	// 5. 启动 Scheduler
+	sched.Start(ctx)
+	log.Info("scheduler started", "interval", cfg.Discovery.Interval.String())
+
 	// 等待 context 取消
 	<-ctx.Done()
+
+	// 优雅关闭
+	log.Info("stopping scheduler...")
+	sched.Stop()
+
 	return nil
+}
+
+// k8sDiscovererAdapter 适配 Kubernetes 发现器到 Scheduler 接口
+type k8sDiscovererAdapter struct {
+	discoverer *discovery.KubernetesDiscoverer
+}
+
+func (a *k8sDiscovererAdapter) Discover(ctx context.Context, namespace string) ([]types.ServiceInfo, error) {
+	return a.discoverer.AggregateServices(ctx, namespace)
+}
+
+// formatDuration 格式化 duration 为可读字符串
+func formatDuration(d time.Duration) string {
+	if d >= time.Hour {
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	}
+	if d >= time.Minute {
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	}
+	return d.String()
 }
