@@ -55,7 +55,7 @@ service-discovery/
 
 ---
 
-## Phase 3: User Story 1 - 自动发现 K8s 服务与 API 端点 (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 - 自动发现 K8s 服务与 API 端点 (Priority: P1) 🎯 MVP ✅ COMPLETED
 
 **Goal**: 连接 Kubernetes API，解析 Istio VirtualService，提取服务和 API 端点信息
 
@@ -63,18 +63,18 @@ service-discovery/
 
 ### Tests for User Story 1
 
-- [ ] T012 [P] [US1] 单元测试: VirtualService 解析测试: `service-discovery/tests/unit/kubernetes_test.go`
+- [x] T012 [P] [US1] 单元测试: VirtualService 解析测试: `service-discovery/tests/unit/kubernetes_test.go`
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] 实现 K8s 客户端初始化: `service-discovery/internal/discovery/kubernetes.go` (NewKubernetesDiscoverer 函数)
-- [ ] T014 [US1] 实现 VirtualService 列表获取: `service-discovery/internal/discovery/kubernetes.go` (ListVirtualServices 方法)
-- [ ] T015 [US1] 实现 VirtualService 解析逻辑 (exact/prefix/regex): `service-discovery/internal/discovery/kubernetes.go` (ParseVirtualService 方法)
-- [ ] T016 [US1] 实现 HTTP 方法提取 (默认为 *): `service-discovery/internal/discovery/kubernetes.go` (extractHTTPMethods 函数)
-- [ ] T017 [US1] 实现服务信息聚合: `service-discovery/internal/discovery/kubernetes.go` (AggregateServices 方法)
-- [ ] T018 [US1] 添加 K8s 连接错误处理和日志: `service-discovery/internal/discovery/kubernetes.go`
+- [x] T013 [US1] 实现 K8s 客户端初始化: `service-discovery/internal/discovery/kubernetes.go` (NewKubernetesDiscoverer 函数)
+- [x] T014 [US1] 实现 VirtualService 列表获取: `service-discovery/internal/discovery/kubernetes.go` (ListVirtualServices 方法)
+- [x] T015 [US1] 实现 VirtualService 解析逻辑 (exact/prefix/regex): `service-discovery/internal/discovery/kubernetes.go` (ParseVirtualService 方法)
+- [x] T016 [US1] 实现 HTTP 方法提取 (默认为 *): `service-discovery/internal/discovery/kubernetes.go` (extractHTTPMethods 函数)
+- [x] T017 [US1] 实现服务信息聚合: `service-discovery/internal/discovery/kubernetes.go` (AggregateServices 方法)
+- [x] T018 [US1] 添加 K8s 连接错误处理和日志: `service-discovery/internal/discovery/kubernetes.go`
 
-**Checkpoint**: US1 完成 - 可以独立测试 K8s 服务发现功能
+**Checkpoint**: ✅ US1 完成 - 可以独立测试 K8s 服务发现功能
 
 ---
 

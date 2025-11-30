@@ -32,6 +32,15 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestLoadFromFile(t *testing.T) {
+	// 保存并清除可能干扰测试的环境变量
+	oldKubeconfig := os.Getenv("KUBECONFIG")
+	os.Unsetenv("KUBECONFIG")
+	t.Cleanup(func() {
+		if oldKubeconfig != "" {
+			os.Setenv("KUBECONFIG", oldKubeconfig)
+		}
+	})
+
 	// 创建临时配置文件
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yaml")
