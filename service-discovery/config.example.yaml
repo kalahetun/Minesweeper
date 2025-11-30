@@ -1,0 +1,56 @@
+# Service Discovery 配置示例
+# 复制为 config.yaml 并根据环境修改
+
+# Kubernetes 配置
+kubernetes:
+  # kubeconfig 文件路径
+  # 留空表示使用 in-cluster 配置（适用于 Pod 内运行）
+  # 本地开发时设置为 ~/.kube/config
+  kubeconfig: ""
+
+# Jaeger 配置
+jaeger:
+  # Jaeger Query API 地址
+  url: "http://jaeger-query:16686"
+  # 查询时间范围（支持 Go duration 格式：1h, 30m, 2h30m）
+  lookback: "1h"
+  # API 请求超时
+  timeout: "30s"
+
+# Redis 配置
+redis:
+  # Redis 服务器地址
+  address: "redis:6379"
+  # Redis 密码（可选）
+  password: ""
+  # Redis 数据库编号
+  db: 0
+  # 存储 ServiceMap 的 key
+  key: "boifi:service-map"
+  # 发布更新通知的 channel
+  channel: "boifi:service-map:updates"
+
+# 发现配置
+discovery:
+  # 发现周期（支持 Go duration 格式）
+  # 建议生产环境设置为 5m
+  interval: "5m"
+
+# OpenAPI 增强配置（可选功能）
+openapi:
+  # 是否启用 OpenAPI 规范获取
+  enabled: false
+  # 尝试访问的 OpenAPI 路径列表
+  paths:
+    - "/swagger.json"
+    - "/v3/api-docs"
+    - "/openapi.json"
+  # 单个请求超时
+  timeout: "5s"
+
+# 日志配置
+log:
+  # 日志级别：debug, info, warn, error
+  level: "info"
+  # 日志格式：json, text
+  format: "json"

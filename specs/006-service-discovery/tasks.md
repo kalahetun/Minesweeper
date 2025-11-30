@@ -26,32 +26,32 @@ service-discovery/
 
 ---
 
-## Phase 1: Setup (项目初始化)
+## Phase 1: Setup (项目初始化) ✅ COMPLETED
 
 **Purpose**: 创建项目结构和基础依赖配置
 
-- [ ] T001 创建项目目录结构: `service-discovery/cmd/`, `service-discovery/internal/`, `service-discovery/pkg/`, `service-discovery/tests/`
-- [ ] T002 初始化 Go module: `service-discovery/go.mod`
-- [ ] T003 [P] 创建 Makefile 构建脚本: `service-discovery/Makefile`
-- [ ] T004 [P] 创建 Dockerfile: `service-discovery/Dockerfile`
-- [ ] T005 [P] 创建示例配置文件: `service-discovery/config.example.yaml`
+- [x] T001 创建项目目录结构: `service-discovery/cmd/`, `service-discovery/internal/`, `service-discovery/pkg/`, `service-discovery/tests/`
+- [x] T002 初始化 Go module: `service-discovery/go.mod`
+- [x] T003 [P] 创建 Makefile 构建脚本: `service-discovery/Makefile`
+- [x] T004 [P] 创建 Dockerfile: `service-discovery/Dockerfile`
+- [x] T005 [P] 创建示例配置文件: `service-discovery/config.example.yaml`
 
 ---
 
-## Phase 2: Foundational (基础设施)
+## Phase 2: Foundational (基础设施) ✅ COMPLETED
 
 **Purpose**: 所有用户故事依赖的核心基础设施
 
 **⚠️ CRITICAL**: 此阶段完成前，不能开始任何用户故事
 
-- [ ] T006 定义 ServiceMap 数据结构: `service-discovery/internal/types/servicemap.go`
-- [ ] T007 [P] 定义配置数据结构: `service-discovery/internal/config/types.go`
-- [ ] T008 [P] 实现配置加载 (viper): `service-discovery/internal/config/config.go`
-- [ ] T009 [P] 实现结构化日志 (slog): `service-discovery/pkg/logger/logger.go`
-- [ ] T010 创建主程序入口框架: `service-discovery/cmd/main.go`
-- [ ] T011 [P] 单元测试: 配置加载测试: `service-discovery/tests/unit/config_test.go`
+- [x] T006 定义 ServiceMap 数据结构: `service-discovery/internal/types/servicemap.go`
+- [x] T007 [P] 定义配置数据结构: `service-discovery/internal/config/types.go`
+- [x] T008 [P] 实现配置加载 (viper): `service-discovery/internal/config/config.go`
+- [x] T009 [P] 实现结构化日志 (slog): `service-discovery/pkg/logger/logger.go`
+- [x] T010 创建主程序入口框架: `service-discovery/cmd/main.go`
+- [x] T011 [P] 单元测试: 配置加载测试: `service-discovery/tests/unit/config_test.go`
 
-**Checkpoint**: 基础设施就绪 - 可以开始用户故事实现
+**Checkpoint**: ✅ 基础设施就绪 - 可以开始用户故事实现
 
 ---
 
