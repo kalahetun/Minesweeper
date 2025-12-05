@@ -75,6 +75,19 @@ func (e *EtcdStore) Close() error {
 	return e.client.Close()
 }
 
+// HealthCheck verifies the etcd connection is healthy by performing a simple get operation.
+func (e *EtcdStore) HealthCheck() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	// Perform a simple status check on the etcd cluster
+	_, err := e.client.Status(ctx, e.client.Endpoints()[0])
+	if err != nil {
+		return fmt.Errorf("etcd health check failed: %w", err)
+	}
+	return nil
+}
+
 // policyKey returns the etcd key for a given policy name.
 func (e *EtcdStore) policyKey(name string) string {
 	return policyPrefix + name

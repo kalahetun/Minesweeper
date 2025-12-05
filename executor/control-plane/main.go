@@ -95,9 +95,28 @@ func main() {
 	// 7. 定义 v1 路由组
 	v1 := router.Group("/v1")
 	{
-		// 健康检查端点
+		// 健康检查端点 - Liveness probe
 		v1.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "healthy"})
+		})
+
+		// 就绪检查端点 - Readiness probe (包含存储后端连接状态)
+		v1.GET("/ready", func(c *gin.Context) {
+			// 检查存储后端连接状态
+			if etcdStore, ok := store.(*storage.EtcdStore); ok {
+				if err := etcdStore.HealthCheck(); err != nil {
+					c.JSON(503, gin.H{
+						"status": "not_ready",
+						"reason": "etcd connection failed",
+						"error":  err.Error(),
+					})
+					return
+				}
+			}
+			c.JSON(200, gin.H{
+				"status":  "ready",
+				"storage": *storageType,
+			})
 		})
 
 		// 策略管理端点
