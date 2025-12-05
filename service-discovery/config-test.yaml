@@ -1,0 +1,21 @@
+kubernetes:
+  kubeconfig: ""  # in-cluster 配置
+
+jaeger:
+  url: "http://localhost:16686/jaeger"
+  lookback: 1h
+  timeout: 30s
+
+redis:
+  address: "localhost:6379"
+  password: ""
+  db: 0
+  key: "boifi:service-map"
+  channel: "boifi:service-map:updates"
+
+discovery:
+  interval: 5m
+
+log:
+  level: debug
+  format: text

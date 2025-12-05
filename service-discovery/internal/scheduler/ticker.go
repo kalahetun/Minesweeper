@@ -16,9 +16,19 @@ type Discoverer interface {
 	Discover(ctx context.Context, namespace string) ([]types.ServiceInfo, error)
 }
 
+// FullDiscoverer 完整服务发现接口（包含自动发现 K8s Services）
+type FullDiscoverer interface {
+	DiscoverAllServices(ctx context.Context, namespace string) ([]types.ServiceInfo, error)
+}
+
 // TopologyBuilder 拓扑构建接口
 type TopologyBuilder interface {
 	BuildTopologyGraceful(ctx context.Context) ([]types.ServiceEdge, error)
+}
+
+// TopologyBuilderWithAPIs 带 API 信息的拓扑构建接口
+type TopologyBuilderWithAPIs interface {
+	BuildTopologyWithAPIsGraceful(ctx context.Context) ([]types.ServiceEdge, error)
 }
 
 // Publisher 发布接口
@@ -28,13 +38,19 @@ type Publisher interface {
 
 // Scheduler 定期服务发现调度器
 type Scheduler struct {
-	discoverer  Discoverer
-	topology    TopologyBuilder
-	publisher   Publisher
-	interval    time.Duration
-	lookback    string
-	lookbackStr string
-	logger      *slog.Logger
+	discoverer     Discoverer
+	fullDiscoverer FullDiscoverer
+	topology       TopologyBuilder
+	topologyAPIs   TopologyBuilderWithAPIs
+	publisher      Publisher
+	interval       time.Duration
+	lookback       string
+	lookbackStr    string
+	logger         *slog.Logger
+
+	// 配置选项
+	useFullDiscovery bool // 是否使用完整服务发现（包含 K8s Services）
+	useAPIs          bool // 是否提取 API 调用信息
 
 	// 运行状态
 	running int32
@@ -74,6 +90,39 @@ func NewScheduler(
 	}
 }
 
+// NewSchedulerWithOptions 创建带选项的调度器
+func NewSchedulerWithOptions(
+	discoverer Discoverer,
+	fullDiscoverer FullDiscoverer,
+	topology TopologyBuilder,
+	topologyAPIs TopologyBuilderWithAPIs,
+	publisher Publisher,
+	interval time.Duration,
+	lookback string,
+	lookbackStr string,
+	useFullDiscovery bool,
+	useAPIs bool,
+	logger *slog.Logger,
+) *Scheduler {
+	if logger == nil {
+		logger = slog.Default()
+	}
+
+	return &Scheduler{
+		discoverer:       discoverer,
+		fullDiscoverer:   fullDiscoverer,
+		topology:         topology,
+		topologyAPIs:     topologyAPIs,
+		publisher:        publisher,
+		interval:         interval,
+		lookback:         lookback,
+		lookbackStr:      lookbackStr,
+		useFullDiscovery: useFullDiscovery,
+		useAPIs:          useAPIs,
+		logger:           logger,
+	}
+}
+
 // RunDiscovery 执行一次发现流程
 func (s *Scheduler) RunDiscovery(ctx context.Context) error {
 	// 检查上下文是否已取消
@@ -87,20 +136,47 @@ func (s *Scheduler) RunDiscovery(ctx context.Context) error {
 	startTime := time.Now()
 
 	// 1. 从 Kubernetes 发现服务
-	services, err := s.discoverer.Discover(ctx, "")
-	if err != nil {
-		s.logger.Error("kubernetes discovery failed", "error", err)
-		return err
+	var services []types.ServiceInfo
+	var err error
+
+	if s.useFullDiscovery && s.fullDiscoverer != nil {
+		// 使用完整服务发现（包含 K8s Services）
+		services, err = s.fullDiscoverer.DiscoverAllServices(ctx, "")
+		if err != nil {
+			s.logger.Error("full kubernetes discovery failed", "error", err)
+			return err
+		}
+		s.logger.Info("full kubernetes discovery completed", "service_count", len(services))
+	} else {
+		// 使用 VirtualService 发现
+		services, err = s.discoverer.Discover(ctx, "")
+		if err != nil {
+			s.logger.Error("kubernetes discovery failed", "error", err)
+			return err
+		}
+		s.logger.Info("kubernetes discovery completed", "service_count", len(services))
 	}
-	s.logger.Info("kubernetes discovery completed", "service_count", len(services))
 
 	// 2. 从 Jaeger 获取拓扑（优雅降级）
-	edges, err := s.topology.BuildTopologyGraceful(ctx)
-	if err != nil {
-		s.logger.Warn("jaeger topology failed, continuing without edges", "error", err)
-		edges = []types.ServiceEdge{} // 优雅降级
+	var edges []types.ServiceEdge
+
+	if s.useAPIs && s.topologyAPIs != nil {
+		// 使用带 API 信息的拓扑构建
+		edges, err = s.topologyAPIs.BuildTopologyWithAPIsGraceful(ctx)
+		if err != nil {
+			s.logger.Warn("jaeger topology with APIs failed, continuing without edges", "error", err)
+			edges = []types.ServiceEdge{}
+		} else {
+			s.logger.Info("jaeger topology with APIs completed", "edge_count", len(edges))
+		}
 	} else {
-		s.logger.Info("jaeger topology completed", "edge_count", len(edges))
+		edges, err = s.topology.BuildTopologyGraceful(ctx)
+		if err != nil {
+			s.logger.Warn("jaeger topology failed, continuing without edges", "error", err)
+			edges = []types.ServiceEdge{}
+		} else {
+			s.logger.Info("jaeger topology completed", "edge_count", len(edges))
+		}
 	}
 
 	// 3. 构建 ServiceMap

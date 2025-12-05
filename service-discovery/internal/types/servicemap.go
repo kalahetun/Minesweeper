@@ -62,6 +62,21 @@ type ServiceEdge struct {
 
 	// CallCount 统计周期内的调用次数
 	CallCount int `json:"call_count"`
+
+	// APIs 此调用关系中涉及的 API 列表 (从 Jaeger traces 提取)
+	APIs []EdgeAPI `json:"apis,omitempty"`
+}
+
+// EdgeAPI 边上的 API 调用详情
+type EdgeAPI struct {
+	// Path API 路径 (如 /hipstershop.CheckoutService/PlaceOrder)
+	Path string `json:"path"`
+
+	// Method HTTP 方法 (GET, POST, etc.)
+	Method string `json:"method"`
+
+	// CallCount 此 API 的调用次数
+	CallCount int `json:"call_count"`
 }
 
 // MapMetadata 服务地图元数据
@@ -89,8 +104,10 @@ const (
 // Source 常量
 const (
 	SourceVirtualService = "virtualservice"
+	SourceKubeService    = "kubeservice"
 	SourceOpenAPI        = "openapi"
 	SourceMerged         = "merged"
+	SourceJaeger         = "jaeger"
 )
 
 // HTTP 方法常量

@@ -34,10 +34,12 @@ var (
 
 // 命令行参数
 var (
-	configPath string
-	logLevel   string
-	logFormat  string
-	runOnce    bool
+	configPath    string
+	logLevel      string
+	logFormat     string
+	runOnce       bool
+	fullDiscovery bool // 自动发现所有 K8s Services
+	extractAPIs   bool // 从 Jaeger traces 提取 API 调用信息
 )
 
 func main() {
@@ -72,6 +74,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "", "日志级别 (debug, info, warn, error)")
 	rootCmd.PersistentFlags().StringVar(&logFormat, "log-format", "", "日志格式 (json, text)")
 	rootCmd.Flags().BoolVar(&runOnce, "once", false, "执行一次发现后退出 (不启动周期调度)")
+	rootCmd.Flags().BoolVar(&fullDiscovery, "full-discovery", true, "自动发现所有 K8s Services (不仅是 VirtualServices)")
+	rootCmd.Flags().BoolVar(&extractAPIs, "extract-apis", true, "从 Jaeger traces 提取 API 调用信息")
 
 	// 子命令
 	rootCmd.AddCommand(versionCmd)
@@ -140,6 +144,8 @@ func runService(ctx context.Context, cfg *config.Config, log logger.Logger, once
 		"jaeger_url", cfg.Jaeger.URL,
 		"redis_addr", cfg.Redis.Address,
 		"run_once", once,
+		"full_discovery", fullDiscovery,
+		"extract_apis", extractAPIs,
 	)
 
 	// 1. 创建 Kubernetes 发现器
@@ -179,14 +185,18 @@ func runService(ctx context.Context, cfg *config.Config, log logger.Logger, once
 		log.Info("redis publisher initialized", "addr", cfg.Redis.Address)
 	}
 
-	// 4. 创建 Scheduler
-	sched := scheduler.NewScheduler(
+	// 4. 创建 Scheduler（使用新的选项构造函数）
+	sched := scheduler.NewSchedulerWithOptions(
 		&k8sDiscovererAdapter{k8sDiscoverer},
+		&k8sFullDiscovererAdapter{k8sDiscoverer},
+		jaegerClient,
 		jaegerClient,
 		redisPublisher,
 		cfg.Discovery.Interval,
 		formatDuration(cfg.Jaeger.Lookback),
 		cfg.Discovery.Interval.String(),
+		fullDiscovery,
+		extractAPIs,
 		slog.Default(),
 	)
 
@@ -222,6 +232,15 @@ type k8sDiscovererAdapter struct {
 
 func (a *k8sDiscovererAdapter) Discover(ctx context.Context, namespace string) ([]types.ServiceInfo, error) {
 	return a.discoverer.AggregateServices(ctx, namespace)
+}
+
+// k8sFullDiscovererAdapter 适配 Kubernetes 完整发现器到 Scheduler 接口
+type k8sFullDiscovererAdapter struct {
+	discoverer *discovery.KubernetesDiscoverer
+}
+
+func (a *k8sFullDiscovererAdapter) DiscoverAllServices(ctx context.Context, namespace string) ([]types.ServiceInfo, error) {
+	return a.discoverer.DiscoverAllServices(ctx, namespace)
 }
 
 // formatDuration 格式化 duration 为可读字符串

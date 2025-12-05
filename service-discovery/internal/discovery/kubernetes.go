@@ -4,11 +4,14 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	networkingv1beta1 "istio.io/api/networking/v1beta1"
 	"istio.io/client-go/pkg/apis/networking/v1beta1"
 	versionedclient "istio.io/client-go/pkg/clientset/versioned"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -19,7 +22,10 @@ import (
 // KubernetesDiscoverer 通过 Kubernetes API 发现服务
 type KubernetesDiscoverer struct {
 	istioClient versionedclient.Interface
+	kubeClient  kubernetes.Interface
 	log         logger.Logger
+	// excludeNamespaces 排除的命名空间
+	excludeNamespaces map[string]bool
 }
 
 // NewKubernetesDiscoverer 创建新的 Kubernetes 发现器
@@ -47,13 +53,26 @@ func NewKubernetesDiscoverer(kubeconfigPath string, log logger.Logger) (*Kuberne
 		return nil, fmt.Errorf("failed to create istio client: %w", err)
 	}
 
+	kubeClient, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
 	if log == nil {
 		log = logger.NewDefault()
 	}
 
 	return &KubernetesDiscoverer{
 		istioClient: istioClient,
+		kubeClient:  kubeClient,
 		log:         log,
+		excludeNamespaces: map[string]bool{
+			"kube-system":     true,
+			"kube-public":     true,
+			"kube-node-lease": true,
+			"istio-system":    true,
+			"observability":   true,
+		},
 	}, nil
 }
 
@@ -64,7 +83,42 @@ func NewKubernetesDiscovererWithClient(istioClient versionedclient.Interface, lo
 	}
 	return &KubernetesDiscoverer{
 		istioClient: istioClient,
+		kubeClient:  nil,
 		log:         log,
+		excludeNamespaces: map[string]bool{
+			"kube-system":     true,
+			"kube-public":     true,
+			"kube-node-lease": true,
+			"istio-system":    true,
+			"observability":   true,
+		},
+	}
+}
+
+// NewKubernetesDiscovererWithClients 使用提供的两个客户端创建发现器（用于测试）
+func NewKubernetesDiscovererWithClients(istioClient versionedclient.Interface, kubeClient kubernetes.Interface, log logger.Logger) *KubernetesDiscoverer {
+	if log == nil {
+		log = logger.NewDefault()
+	}
+	return &KubernetesDiscoverer{
+		istioClient: istioClient,
+		kubeClient:  kubeClient,
+		log:         log,
+		excludeNamespaces: map[string]bool{
+			"kube-system":     true,
+			"kube-public":     true,
+			"kube-node-lease": true,
+			"istio-system":    true,
+			"observability":   true,
+		},
+	}
+}
+
+// SetExcludeNamespaces 设置要排除的命名空间列表
+func (k *KubernetesDiscoverer) SetExcludeNamespaces(namespaces []string) {
+	k.excludeNamespaces = make(map[string]bool)
+	for _, ns := range namespaces {
+		k.excludeNamespaces[ns] = true
 	}
 }
 
@@ -297,4 +351,128 @@ func (k *KubernetesDiscoverer) Discover(ctx context.Context, namespace string) (
 	)
 
 	return services, nil
+}
+
+// DiscoverAllServices 自动发现所有 K8s Services
+// 合并 VirtualService 和普通 K8s Service 的信息
+func (k *KubernetesDiscoverer) DiscoverAllServices(ctx context.Context, namespace string) ([]types.ServiceInfo, error) {
+	k.log.Info("starting full kubernetes service discovery", "namespace", namespace)
+
+	// 使用 map 聚合服务信息
+	serviceMap := make(map[string]*types.ServiceInfo)
+
+	// 1. 从 VirtualServices 发现服务
+	vsServices, err := k.AggregateServices(ctx, namespace)
+	if err != nil {
+		k.log.Warn("failed to discover virtual services", "error", err.Error())
+		// 继续执行，不中断
+	} else {
+		for _, svc := range vsServices {
+			svcCopy := svc
+			serviceMap[svc.Name] = &svcCopy
+		}
+	}
+
+	// 2. 从 K8s Services 发现服务（如果 kubeClient 可用）
+	if k.kubeClient != nil {
+		kubeServices, err := k.ListKubeServices(ctx, namespace)
+		if err != nil {
+			k.log.Warn("failed to discover kube services", "error", err.Error())
+		} else {
+			for _, svc := range kubeServices {
+				if existing, exists := serviceMap[svc.Name]; exists {
+					// VirtualService 优先，但标记来源为 merged
+					existing.Source = types.SourceMerged
+				} else {
+					svcCopy := svc
+					serviceMap[svc.Name] = &svcCopy
+				}
+			}
+		}
+	}
+
+	// 转换为切片
+	result := make([]types.ServiceInfo, 0, len(serviceMap))
+	for _, svc := range serviceMap {
+		result = append(result, *svc)
+	}
+
+	k.log.Info("full kubernetes discovery completed",
+		"total_services", len(result),
+	)
+
+	return result, nil
+}
+
+// ListKubeServices 列出 K8s Services
+func (k *KubernetesDiscoverer) ListKubeServices(ctx context.Context, namespace string) ([]types.ServiceInfo, error) {
+	if k.kubeClient == nil {
+		return nil, fmt.Errorf("kubernetes client not initialized")
+	}
+
+	k.log.Debug("listing kubernetes services", "namespace", namespace)
+
+	svcList, err := k.kubeClient.CoreV1().Services(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list kubernetes services: %w", err)
+	}
+
+	var result []types.ServiceInfo
+	for _, svc := range svcList.Items {
+		// 排除系统命名空间
+		if k.excludeNamespaces[svc.Namespace] {
+			continue
+		}
+
+		// 排除 Kubernetes 内置服务
+		if svc.Name == "kubernetes" {
+			continue
+		}
+
+		// 排除没有 ClusterIP 的服务 (如 ExternalName, Headless)
+		if svc.Spec.ClusterIP == "" || svc.Spec.ClusterIP == "None" {
+			continue
+		}
+
+		info := k.parseKubeService(&svc)
+		result = append(result, info)
+	}
+
+	k.log.Debug("found kubernetes services",
+		"count", len(result),
+		"namespace", namespace,
+	)
+
+	return result, nil
+}
+
+// parseKubeService 解析单个 K8s Service
+func (k *KubernetesDiscoverer) parseKubeService(svc *corev1.Service) types.ServiceInfo {
+	info := types.ServiceInfo{
+		Name:      svc.Name,
+		Namespace: svc.Namespace,
+		Source:    types.SourceKubeService,
+		APIs:      []types.APIEndpoint{},
+	}
+
+	// 从端口信息推断 API 端点
+	for _, port := range svc.Spec.Ports {
+		api := types.APIEndpoint{
+			Method:    types.MethodAll,
+			Path:      fmt.Sprintf("/*:%d", port.Port),
+			MatchType: types.MatchTypePrefix,
+		}
+
+		// 根据端口名或协议推断更多信息
+		portName := strings.ToLower(port.Name)
+		if strings.Contains(portName, "grpc") {
+			api.Path = fmt.Sprintf("/grpc:%d", port.Port)
+		} else if strings.Contains(portName, "http") {
+			api.Path = fmt.Sprintf("/*:%d", port.Port)
+		}
+
+		info.APIs = append(info.APIs, api)
+	}
+
+	return info
 }
