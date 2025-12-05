@@ -249,6 +249,10 @@ impl CompiledRuleSet {
 
     /// Create CompiledRuleSet from Control Plane API response
     /// Filters policies based on the provided service identity.
+    /// 
+    /// Fail-open behavior:
+    /// - If identity is None or invalid, only wildcard policies are applied
+    /// - If filtering fails for any reason, policies are still loaded
     pub fn from_policies_response(bytes: &[u8], identity: Option<&crate::identity::EnvoyIdentity>) -> Result<Self, serde_json::Error> {
         let response: PoliciesResponse = serde_json::from_slice(bytes)?;
         
@@ -258,23 +262,48 @@ impl CompiledRuleSet {
         let mut rules = Vec::new();
         let mut filtered_count = 0;
         let mut total_count = 0;
+        let mut wildcard_count = 0;
+        
+        // Determine if we're in fail-open mode (no valid identity)
+        let fail_open_mode = match identity {
+            Some(id) => !id.is_valid(),
+            None => true,
+        };
+        
+        if fail_open_mode {
+            log::warn!(
+                "Policy filtering in fail-open mode: only wildcard policies will be applied"
+            );
+        }
         
         for policy in response.policies {
             total_count += 1;
             
             // Check if this policy applies to the current service
             let selector = policy.spec.effective_selector();
-            let matches = match identity {
-                Some(id) => id.matches_selector(&selector),
-                None => true, // No identity = accept all policies (testing/fallback)
+            let is_wildcard = selector.service == "*" && selector.namespace == "*";
+            
+            if is_wildcard {
+                wildcard_count += 1;
+            }
+            
+            // In fail-open mode, only apply wildcard policies
+            let matches = if fail_open_mode {
+                is_wildcard
+            } else {
+                match identity {
+                    Some(id) => id.matches_selector(&selector),
+                    None => true,
+                }
             };
             
             if !matches {
                 log::debug!(
-                    "Policy '{}' filtered out: selector {}.{} doesn't match identity",
+                    "Policy '{}' filtered out: selector {}.{} doesn't match identity{}",
                     policy.metadata.name,
                     selector.service,
-                    selector.namespace
+                    selector.namespace,
+                    if fail_open_mode { " (fail-open mode)" } else { "" }
                 );
                 filtered_count += 1;
                 continue;
@@ -298,12 +327,21 @@ impl CompiledRuleSet {
             }
         }
         
-        log::info!(
-            "Policy filtering: {} total, {} filtered out, {} applicable",
-            total_count,
-            filtered_count,
-            total_count - filtered_count
-        );
+        if fail_open_mode {
+            log::info!(
+                "Policy filtering (fail-open): {} total, {} wildcard, {} applicable (non-wildcard policies ignored)",
+                total_count,
+                wildcard_count,
+                total_count - filtered_count
+            );
+        } else {
+            log::info!(
+                "Policy filtering: {} total, {} filtered out, {} applicable",
+                total_count,
+                filtered_count,
+                total_count - filtered_count
+            );
+        }
         
         let mut ruleset = CompiledRuleSet {
             version: "1.0".to_string(),

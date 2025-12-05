@@ -283,13 +283,42 @@ impl Context for PluginRootContext {
 }
 
 impl RootContext for PluginRootContext {
+    fn on_vm_start(&mut self, _vm_configuration_size: usize) -> bool {
+        info!("BOIFI Wasm Plugin VM starting...");
+        
+        // Extract Envoy identity early in VM lifecycle for service-level policy filtering
+        self.envoy_identity = Some(EnvoyIdentity::from_envoy_metadata());
+        
+        if let Some(ref identity) = self.envoy_identity {
+            if identity.is_valid() {
+                info!(
+                    "Pod identity established: {} (pod: {})",
+                    identity.display(),
+                    identity.pod_name.as_deref().unwrap_or("unknown")
+                );
+            } else {
+                warn!(
+                    "Pod identity extraction incomplete - running in fail-open mode. \
+                     Only wildcard policies will be applied. Identity: {}",
+                    identity.display_detailed()
+                );
+            }
+        }
+        
+        true
+    }
+
     fn on_configure(&mut self, _plugin_configuration_size: usize) -> bool {
         info!("Plugin configured...");
         
-        // Extract Envoy identity for service-level policy filtering (NEW for multi-pod deployment)
-        self.envoy_identity = Some(EnvoyIdentity::from_envoy_metadata());
+        // Re-extract identity if not already done in on_vm_start
+        // (on_vm_start may not be called in all environments)
+        if self.envoy_identity.is_none() {
+            self.envoy_identity = Some(EnvoyIdentity::from_envoy_metadata());
+        }
+        
         if let Some(ref identity) = self.envoy_identity {
-            info!("Service identity: {}", identity.display());
+            info!("Service identity: {}", identity.display_detailed());
         }
         
         // Define metrics

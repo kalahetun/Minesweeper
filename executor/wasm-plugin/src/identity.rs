@@ -17,6 +17,8 @@ pub struct EnvoyIdentity {
     pub pod_name: Option<String>,
     /// Istio cluster ID (e.g., "frontend.demo")
     pub cluster: Option<String>,
+    /// Whether identity was successfully extracted (not using fallback wildcards)
+    pub is_valid: bool,
 }
 
 impl EnvoyIdentity {
@@ -30,44 +32,79 @@ impl EnvoyIdentity {
     ///
     /// If metadata is unavailable, defaults to "*" (wildcard) for required fields.
     pub fn from_envoy_metadata() -> Self {
-        let workload_name = get_property(vec!["node", "metadata", "WORKLOAD_NAME"])
+        log::debug!("Extracting Envoy identity from node metadata...");
+        
+        // Try to extract workload name
+        let workload_result = get_property(vec!["node", "metadata", "WORKLOAD_NAME"]);
+        let workload_name = workload_result
             .ok()
             .flatten()
-            .and_then(|v| String::from_utf8(v).ok())
-            .unwrap_or_else(|| "*".to_string());
-
-        let namespace = get_property(vec!["node", "metadata", "NAMESPACE"])
+            .and_then(|v| String::from_utf8(v).ok());
+        
+        let has_workload = workload_name.is_some();
+        if !has_workload {
+            log::warn!("Failed to extract WORKLOAD_NAME from Envoy metadata, using wildcard");
+        }
+        
+        // Try to extract namespace
+        let namespace_result = get_property(vec!["node", "metadata", "NAMESPACE"]);
+        let namespace = namespace_result
             .ok()
             .flatten()
-            .and_then(|v| String::from_utf8(v).ok())
-            .unwrap_or_else(|| "*".to_string());
+            .and_then(|v| String::from_utf8(v).ok());
+        
+        let has_namespace = namespace.is_some();
+        if !has_namespace {
+            log::warn!("Failed to extract NAMESPACE from Envoy metadata, using wildcard");
+        }
 
+        // Try to extract pod name (optional, for debugging)
         let pod_name = get_property(vec!["node", "metadata", "NAME"])
             .ok()
             .flatten()
             .and_then(|v| String::from_utf8(v).ok());
 
+        // Try to extract cluster ID (optional)
         let cluster = get_property(vec!["node", "cluster"])
             .ok()
             .flatten()
             .and_then(|v| String::from_utf8(v).ok());
 
+        let is_valid = has_workload && has_namespace;
+        
         let identity = Self {
-            workload_name,
-            namespace,
+            workload_name: workload_name.unwrap_or_else(|| "*".to_string()),
+            namespace: namespace.unwrap_or_else(|| "*".to_string()),
             pod_name,
             cluster,
+            is_valid,
         };
 
-        log::info!(
-            "EnvoyIdentity extracted: workload={}, namespace={}, pod={:?}, cluster={:?}",
-            identity.workload_name,
-            identity.namespace,
-            identity.pod_name,
-            identity.cluster
-        );
+        // Log at appropriate level based on success/failure
+        if is_valid {
+            log::info!(
+                "EnvoyIdentity successfully extracted: workload={}, namespace={}, pod={:?}, cluster={:?}",
+                identity.workload_name,
+                identity.namespace,
+                identity.pod_name,
+                identity.cluster
+            );
+        } else {
+            log::warn!(
+                "EnvoyIdentity extraction incomplete (fail-open mode): workload={}, namespace={}, pod={:?}. Only wildcard policies will apply.",
+                identity.workload_name,
+                identity.namespace,
+                identity.pod_name
+            );
+        }
 
         identity
+    }
+
+    /// Returns true if identity was successfully extracted from Envoy metadata.
+    /// If false, only wildcard policies should be applied (fail-open mode).
+    pub fn is_valid(&self) -> bool {
+        self.is_valid
     }
 
     /// Checks if this identity matches a given ServiceSelector.
@@ -86,7 +123,18 @@ impl EnvoyIdentity {
             || selector.namespace == "*"
             || selector.namespace == self.namespace;
 
-        service_matches && namespace_matches
+        let result = service_matches && namespace_matches;
+        
+        log::debug!(
+            "Selector match check: identity={}.{} vs selector={}.{} => {}",
+            self.workload_name,
+            self.namespace,
+            selector.service,
+            selector.namespace,
+            if result { "MATCH" } else { "NO MATCH" }
+        );
+        
+        result
     }
 
     /// Returns a display string for logging purposes.
@@ -95,6 +143,17 @@ impl EnvoyIdentity {
             "{}.{}",
             self.workload_name,
             self.namespace
+        )
+    }
+    
+    /// Returns detailed display string including pod name and validity.
+    pub fn display_detailed(&self) -> String {
+        format!(
+            "{}.{} (pod: {}, valid: {})",
+            self.workload_name,
+            self.namespace,
+            self.pod_name.as_deref().unwrap_or("unknown"),
+            self.is_valid
         )
     }
 }
