@@ -1,99 +1,122 @@
 # Policy Examples
 
-This directory contains example fault injection policies that demonstrate various features of HFI.
+This directory contains example fault injection policies for BOIFI (Bayesian Optimized Intelligent Fault Injection).
 
 ## Available Examples
 
 ### Basic Fault Types
 
-- `abort-policy.yaml` - Simple abort fault (HTTP 503)
-  - Matches: `GET /`
-  - Effect: Returns HTTP 503 status with 100% probability
+| File | Description | Match | Effect |
+|------|-------------|-------|--------|
+| `abort-policy.yaml` | Abort 故障 | `GET /` | 返回 HTTP 503 |
+| `delay-policy.yaml` | Delay 故障 | `GET /` | 延迟 1 秒 |
+| `percentage-policy.yaml` | 概率故障 | `GET /` | 50% 概率延迟 500ms |
+| `header-policy.yaml` | Header 匹配 | `GET /` + `x-user-id: test` | 延迟 800ms |
 
-- `delay-policy.yaml` - Simple delay fault (1 second)
-  - Matches: `GET /test`
-  - Effect: Adds 1000ms delay with 100% probability
+### Advanced Time Control
 
-### Advanced Examples
+| File | Description | start_delay_ms | duration_seconds |
+|------|-------------|----------------|------------------|
+| `immediate-fault-policy.yaml` | 立即+永久 | 0 | 0 (永久) |
+| `time-limited-fault-policy.yaml` | 立即+自动过期 | 0 | 300 (5分钟) |
+| `late-stage-fault-policy.yaml` | 延迟执行+永久 | 500 | 0 |
+| `delayed-timed-fault-policy.yaml` | 延迟执行+自动过期 | 200 | 60 |
 
-- `50-percent-policy.yaml` - Probability-based fault injection
-  - Demonstrates 50% fault injection probability
+### Testing
 
-- `header-policy.yaml` - Header-based fault matching
-  - Shows how to match requests based on HTTP headers
+| File | Description |
+|------|-------------|
+| `invalid-policy.yaml` | 无效策略示例（缺少 name 字段） |
 
-- `no-fault-policy.yaml` - Policy with no faults (passthrough)
-  - Useful for testing policy application without actual fault injection
+## Time Control Fields
+
+### `start_delay_ms` (请求级延迟)
+
+请求到达后等待指定毫秒数再注入故障。模拟 "late-stage" 故障场景。
+
+```yaml
+fault:
+  start_delay_ms: 500  # 请求到达 500ms 后才注入故障
+  abort:
+    httpStatus: 503
+```
+
+### `duration_seconds` (策略过期时间)
+
+策略创建后的有效时间（秒）。过期后不再注入故障。
+
+```yaml
+fault:
+  duration_seconds: 300  # 5 分钟后自动过期
+  delay:
+    fixed_delay: "500ms"
+```
 
 ## Usage
 
-Apply a policy using the HFI CLI:
-
 ```bash
 # Apply a policy
-hfi-cli policy apply -f examples/delay-policy.yaml
+hfi-cli policy apply -f examples/abort-policy.yaml
 
 # List applied policies
 hfi-cli policy list
 
+# Get policy details
+hfi-cli policy get <policy-name>
+
 # Delete a policy
-hfi-cli policy delete test-delay-policy
+hfi-cli policy delete <policy-name>
+
+# Apply with time override
+hfi-cli policy apply -f examples/abort-policy.yaml --duration-seconds 60
+hfi-cli policy apply -f examples/abort-policy.yaml --start-delay-ms 1000
+```
+
+## Testing
+
+```bash
+# Test abort policy
+curl -w "\nStatus: %{http_code}\n" http://localhost:18000/
+
+# Test delay policy (measure time)
+time curl http://localhost:18000/
+
+# Test header-based policy
+curl -H "x-user-id: test" http://localhost:18000/
+
+# Test percentage policy (run multiple times)
+for i in {1..10}; do curl -s -o /dev/null -w "%{http_code}\n" http://localhost:18000/; done
 ```
 
 ## Policy Structure
 
-All policies follow the same basic structure:
-
 ```yaml
 metadata:
-  name: "policy-name"
-  version: "1.0.0"  # Optional
+  name: "policy-name"           # Required: unique policy name
 spec:
   rules:
     - match:
         method:
-          exact: "GET"
+          exact: "GET"          # HTTP method
         path:
-          prefix: "/api"
-        headers:  # Optional
-          - name: "x-user-type"
-            exact: "premium"
+          exact: "/api/users"   # or prefix: "/api"
+        headers:                # Optional: header matchers
+          - name: "x-user-id"
+            exact: "test"       # or prefix: "test-"
       fault:
-        percentage: 50  # 0-100
-        delay:  # Optional
-          fixed_delay: "1s"
-        abort:  # Optional
+        percentage: 100         # 0-100, probability of fault injection
+        start_delay_ms: 0       # Optional: wait before injecting fault
+        duration_seconds: 0     # Optional: policy expiration (0 = never)
+        abort:                  # Fault type 1: return error
           httpStatus: 503
-```
-
-## Testing Policies
-
-After applying a policy, you can test it using curl:
-
-```bash
-# Test delay policy
-time curl http://localhost:8000/test
-
-# Test abort policy  
-curl -w "HTTP %{http_code}\n" http://localhost:8000/
-
-# Test header-based policy
-curl -H "x-user-type: premium" http://localhost:8000/api/users
+        delay:                  # Fault type 2: add latency
+          fixed_delay: "1000ms"
 ```
 
 ## Best Practices
 
-1. Start with low percentages - Begin with 10-20% fault injection rates
-2. Use meaningful names - Policy names should describe their purpose
-3. Test in staging first - Always validate policies in non-production environments
-4. Monitor metrics - Use Envoy admin interface to monitor fault injection metrics
-5. Clean up policies - Remove test policies when no longer needed
-
-## Troubleshooting
-
-If a policy doesn't seem to be working:
-
-1. Check that the policy was applied successfully: `hfi-cli policy list`
-2. Verify the request matches the policy conditions (method, path, headers)
-3. Check Envoy logs for any WASM plugin errors
-4. Verify the control plane is healthy: `kubectl get pods -l app=hfi-control-plane`
+1. **Start small**: Begin with low percentages (10-20%) in production
+2. **Use expiration**: Set `duration_seconds` for experimental policies
+3. **Test locally**: Validate in Docker Compose before Kubernetes
+4. **Monitor**: Check Envoy logs for fault injection confirmations
+5. **Clean up**: Remove test policies after experiments

@@ -1,0 +1,17 @@
+# 概率故障注入策略
+# 功能：按百分比概率注入故障
+# 场景：模拟间歇性故障，测试重试机制
+
+metadata:
+  name: "percentage-policy"
+spec:
+  rules:
+    - match:
+        method:
+          exact: "GET"
+        path:
+          exact: "/"
+      fault:
+        percentage: 50           # 50% 概率触发
+        delay:
+          fixed_delay: "500ms"   # 延迟 500ms

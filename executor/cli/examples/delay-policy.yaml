@@ -1,16 +1,17 @@
+# Delay 故障注入策略
+# 功能：延迟请求响应指定时间
+# 场景：测试服务对慢响应的超时处理
+
 metadata:
-  name: "test-delay-policy"
+  name: "delay-policy"
 spec:
   rules:
     - match:
         method:
           exact: "GET"
         path:
-          exact: "/test"
+          exact: "/"
       fault:
-        percentage: 100
-        start_delay_ms: 0        # [新增] 立即执行故障（可选）
-        duration_seconds: 0      # [新增] 无限期有效（可选）
+        percentage: 100          # 100% 触发
         delay:
-          fixed_delay: "1000ms"
-
+          fixed_delay: "1000ms"  # 延迟 1 秒

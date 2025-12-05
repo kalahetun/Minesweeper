@@ -1,6 +1,6 @@
-# 时间限制故障策略 - 故障立即执行，但仅在指定时间内有效
-# 场景：推荐系统的快速实验，自动过期
-# 用于：临时注入故障用于测试，过期后自动清理
+# 时间限制故障策略
+# 功能：故障立即执行，但在指定时间后自动过期
+# 场景：临时故障注入实验，自动清理
 
 metadata:
   name: "time-limited-fault-policy"
@@ -12,8 +12,8 @@ spec:
         path:
           exact: "/api/recommendations"
       fault:
-        percentage: 50
+        percentage: 50           # 50% 概率触发
         start_delay_ms: 0        # 请求到达时立即执行
-        duration_seconds: 300    # 仅在 5 分钟内有效，然后自动删除
+        duration_seconds: 300    # 5 分钟后自动过期
         delay:
           fixed_delay: "500ms"

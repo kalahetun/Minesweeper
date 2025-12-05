@@ -336,6 +336,7 @@ impl RootContext for PluginRootContext {
                 delays_total: self.delays_total_metric,
                 delay_duration_histogram: self.delay_duration_histogram,
             },
+            pending_action: None,
         }))
     }
 
@@ -346,14 +347,134 @@ impl RootContext for PluginRootContext {
 
 //  HTTP Context 
 
+/// HTTP 上下文的等待状态
+#[derive(Debug, Clone)]
+enum PendingAction {
+    /// 等待 start_delay_ms 完成后执行故障注入
+    StartDelay {
+        /// 要执行的故障配置
+        fault: Fault,
+        /// 规则名称（用于日志）
+        rule_name: String,
+    },
+    /// 等待 delay fault 完成后继续请求
+    DelayFault,
+}
+
 // HTTP context for each request
 struct PluginHttpContext {
     context_id: u32,
     rules: Arc<Mutex<Option<CompiledRuleSet>>>,
     metrics: executor::MetricsIds,
+    /// 当前等待的动作（用于 on_http_call_response 回调）
+    pending_action: Option<PendingAction>,
 }
 
-impl Context for PluginHttpContext {}
+impl Context for PluginHttpContext {
+    fn on_http_call_response(
+        &mut self,
+        _token_id: u32,
+        _num_headers: usize,
+        _body_size: usize,
+        _num_trailers: usize,
+    ) {
+        match self.pending_action.take() {
+            Some(PendingAction::StartDelay { fault, rule_name }) => {
+                // start_delay_ms 等待完成，现在执行实际的故障注入
+                info!("Start delay completed for context {}, now injecting fault from rule '{}'", 
+                      self.context_id, rule_name);
+                
+                // 检查是否有 delay fault 需要执行
+                if let Some(delay) = &fault.delay {
+                    if let Some(duration_ms) = delay.parsed_duration_ms {
+                        info!("Executing delay fault after start_delay: {}ms for context {}", 
+                              duration_ms, self.context_id);
+                        
+                        // Increment delay counter metric
+                        if let Some(metric_id) = self.metrics.delays_total {
+                            if let Err(e) = proxy_wasm::hostcalls::increment_metric(metric_id, 1) {
+                                warn!("Failed to increment delay counter: {:?}", e);
+                            } else {
+                                debug!("Incremented hfi.faults.delays_total counter (after start_delay)");
+                            }
+                        }
+                        
+                        // Record delay duration in histogram
+                        if let Some(metric_id) = self.metrics.delay_duration_histogram {
+                            if let Err(e) = proxy_wasm::hostcalls::record_metric(metric_id, duration_ms) {
+                                warn!("Failed to record delay duration histogram: {:?}", e);
+                            }
+                        }
+                        
+                        let timeout = Duration::from_millis(duration_ms);
+                        self.pending_action = Some(PendingAction::DelayFault);
+                        
+                        match self.dispatch_http_call(
+                            "hfi_delay_cluster",
+                            vec![
+                                (":method", "GET"),
+                                (":path", "/delay"),
+                                (":authority", "delay.local"),
+                            ],
+                            None,
+                            vec![],
+                            timeout,
+                        ) {
+                            Ok(_) => {
+                                info!("Delay fault triggered after start_delay for context {} - {}ms", 
+                                      self.context_id, duration_ms);
+                                // 保持暂停状态，等待 delay 完成
+                                return;
+                            }
+                            Err(e) => {
+                                warn!("Failed to dispatch delay call: {:?}, resuming request", e);
+                                self.resume_http_request();
+                                return;
+                            }
+                        }
+                    }
+                }
+                
+                // 执行 abort fault
+                if let Some(abort) = &fault.abort {
+                    info!("Executing abort fault after start_delay: {} for context {}", 
+                          abort.http_status, self.context_id);
+                    
+                    // Increment abort counter metric
+                    if let Some(metric_id) = self.metrics.aborts_total {
+                        if let Err(e) = proxy_wasm::hostcalls::increment_metric(metric_id, 1) {
+                            warn!("Failed to increment abort counter: {:?}", e);
+                        } else {
+                            debug!("Incremented hfi.faults.aborts_total counter (after start_delay)");
+                        }
+                    }
+                    
+                    let body = abort.body.clone().unwrap_or_else(|| 
+                        "Fault injection: Service unavailable".to_string());
+                    self.send_http_response(
+                        abort.http_status,
+                        vec![("content-type", "text/plain"), ("x-fault-injected", "abort")],
+                        Some(body.as_bytes()),
+                    );
+                    return;
+                }
+                
+                // 没有具体的故障配置，继续请求
+                self.resume_http_request();
+            }
+            Some(PendingAction::DelayFault) => {
+                // Delay fault 完成，继续请求
+                info!("Delay fault completed for context {}, resuming request", self.context_id);
+                self.resume_http_request();
+            }
+            None => {
+                // 没有等待的动作，这应该不会发生
+                warn!("Unexpected http_call_response for context {} with no pending action", self.context_id);
+                self.resume_http_request();
+            }
+        }
+    }
+}
 
 impl HttpContext for PluginHttpContext {
     fn on_http_request_headers(&mut self, _num_headers: usize, _end_of_stream: bool) -> Action {
@@ -387,7 +508,106 @@ impl HttpContext for PluginHttpContext {
             info!("Request matched rule '{}' with {}% fault probability", 
                   matched_rule.name, matched_rule.fault.percentage);
             
-            // Execute fault injection using the executor module
+            // Phase 6: Check policy expiration (duration_seconds)
+            if matched_rule.fault.duration_seconds > 0 {
+                let current_time_ms = time_control::get_current_time_ms();
+                let rule_age_ms = current_time_ms.saturating_sub(matched_rule.creation_time_ms);
+                let validity_window_ms = (matched_rule.fault.duration_seconds as u64) * 1000;
+                
+                if rule_age_ms > validity_window_ms {
+                    info!("Rule '{}' has expired (age: {}ms > validity: {}ms), skipping fault injection",
+                          matched_rule.name, rule_age_ms, validity_window_ms);
+                    return Action::Continue;
+                } else {
+                    debug!("Rule '{}' is still valid (age: {}ms <= validity: {}ms)",
+                           matched_rule.name, rule_age_ms, validity_window_ms);
+                }
+            }
+            
+            // Check percentage before proceeding
+            let random_value = executor::generate_random_percentage();
+            if random_value >= matched_rule.fault.percentage as u32 {
+                debug!("Fault not triggered due to percentage (random: {}, threshold: {})", 
+                       random_value, matched_rule.fault.percentage);
+                return Action::Continue;
+            }
+            
+            // Phase 7: Check start_delay_ms (per-request fault injection delay)
+            // start_delay_ms is a REQUEST-LEVEL delay - each request waits this duration
+            // before the fault is injected. This simulates "late-stage" failures.
+            if matched_rule.fault.start_delay_ms > 0 {
+                let start_delay_ms = matched_rule.fault.start_delay_ms as u64;
+                info!("Applying start_delay_ms: {}ms for rule '{}' context {}", 
+                      start_delay_ms, matched_rule.name, self.context_id);
+                
+                // Set up pending action to execute fault after delay
+                self.pending_action = Some(PendingAction::StartDelay {
+                    fault: matched_rule.fault.clone(),
+                    rule_name: matched_rule.name.clone(),
+                });
+                
+                let timeout = Duration::from_millis(start_delay_ms);
+                match self.dispatch_http_call(
+                    "hfi_delay_cluster",
+                    vec![
+                        (":method", "GET"),
+                        (":path", "/start-delay"),
+                        (":authority", "delay.local"),
+                    ],
+                    None,
+                    vec![],
+                    timeout,
+                ) {
+                    Ok(_) => {
+                        info!("Start delay initiated for context {} - {}ms", self.context_id, start_delay_ms);
+                        return Action::Pause;
+                    }
+                    Err(e) => {
+                        warn!("Failed to dispatch start_delay call: {:?}, executing fault immediately", e);
+                        self.pending_action = None;
+                        // Fall through to execute fault immediately
+                    }
+                }
+            }
+            
+            // Execute fault immediately (no start_delay or start_delay dispatch failed)
+            
+            // Check if this is a delay fault - we need special handling
+            if let Some(delay) = &matched_rule.fault.delay {
+                if let Some(duration_ms) = delay.parsed_duration_ms {
+                    info!("Executing delay fault: {}ms for context {}", duration_ms, self.context_id);
+                    
+                    // Set pending action for delay fault
+                    self.pending_action = Some(PendingAction::DelayFault);
+                    
+                    // Use dispatch_http_call with timeout to implement delay
+                    let timeout = Duration::from_millis(duration_ms);
+                    
+                    match self.dispatch_http_call(
+                        "hfi_delay_cluster",
+                        vec![
+                            (":method", "GET"),
+                            (":path", "/delay"),
+                            (":authority", "delay.local"),
+                        ],
+                        None,
+                        vec![],
+                        timeout,
+                    ) {
+                        Ok(_) => {
+                            info!("Delay fault triggered for context {} - {}ms", self.context_id, duration_ms);
+                            return Action::Pause;
+                        }
+                        Err(e) => {
+                            warn!("Failed to dispatch delay call: {:?}, continuing without delay", e);
+                            self.pending_action = None;
+                            return Action::Continue;
+                        }
+                    }
+                }
+            }
+            
+            // Execute other fault types (abort) using the executor module
             return executor::execute_fault(&matched_rule.fault, self, self.context_id, self.metrics);
         } else {
             debug!("No rules matched, allowing request to continue");

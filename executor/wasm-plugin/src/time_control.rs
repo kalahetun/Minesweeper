@@ -6,7 +6,7 @@
 /// 
 /// 使用毫秒级精度进行时间戳计算
 
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 
 /// 时间控制决策结果
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -45,10 +45,13 @@ pub struct RequestTiming {
 /// 
 /// 返回自 Unix epoch 起的毫秒数
 pub fn get_current_time_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
+    // 使用 proxy-wasm 的 hostcall 获取时间，而不是 std::time::SystemTime
+    // 因为 std::time::SystemTime::now() 在 wasm32 平台上会 panic
+    proxy_wasm::hostcalls::get_current_time()
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 /// 计算请求经过的时间（毫秒）

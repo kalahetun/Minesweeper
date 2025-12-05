@@ -1,5 +1,9 @@
+# Header 匹配故障注入策略
+# 功能：仅对包含特定 Header 的请求注入故障
+# 场景：针对特定用户或请求类型注入故障
+
 metadata:
-  name: "test-header-policy"
+  name: "header-policy"
 spec:
   rules:
     - match:
@@ -9,7 +13,7 @@ spec:
           exact: "/"
         headers:
           - name: "x-user-id"
-            exact: "test"
+            exact: "test"        # 仅匹配 x-user-id: test
       fault:
         percentage: 100
         delay:

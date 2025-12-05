@@ -1,5 +1,9 @@
+# Abort 故障注入策略
+# 功能：立即返回指定的 HTTP 错误状态码
+# 场景：测试服务对上游故障的处理能力
+
 metadata:
-  name: "test-abort-policy"
+  name: "abort-policy"
 spec:
   rules:
     - match:
@@ -8,9 +12,6 @@ spec:
         path:
           exact: "/"
       fault:
-        percentage: 100
-        start_delay_ms: 0        # [新增] 立即执行故障（可选）
-        duration_seconds: 0      # [新增] 无限期有效（可选）
+        percentage: 100          # 100% 触发
         abort:
-          httpStatus: 503
-
+          httpStatus: 503        # 返回 503 Service Unavailable

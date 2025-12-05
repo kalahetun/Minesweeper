@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 
 # 工作目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-EXECUTOR_DIR="${SCRIPT_DIR}"
+EXECUTOR_DIR="$(dirname "$SCRIPT_DIR")"
 
 echo -e "${BLUE}======================================${NC}"
 echo -e "${BLUE}Executor Phase 4 (US2) 测试套件${NC}"
@@ -158,7 +158,7 @@ echo -e "${BLUE}[5/6] 验证 Phase 3 向后兼容性...${NC}"
 
 # 运行快速测试（仅 Control Plane）
 cd "${EXECUTOR_DIR}"
-if bash test-us1.sh --fast 2>&1 | grep -q "✅"; then
+if bash scripts/test-us1.sh --fast 2>&1 | grep -q "✅"; then
     echo -e "${GREEN}  ✓ Phase 3 兼容性验证通过${NC}"
 else
     echo -e "${RED}  ✗ Phase 3 兼容性验证失败${NC}"

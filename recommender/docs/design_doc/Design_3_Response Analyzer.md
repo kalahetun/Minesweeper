@@ -171,7 +171,7 @@ Analyzer Service 必须对不完整或格式错误的输入数据具有鲁棒性
 错误分类与处理矩阵:
 
 | 模块/操作 | 潜在异常/错误 | 严重性 | 处理策略 | 上层 `Worker` 的处理策略 |
-| : | : | : | : | : |
+|:--| :--| :--| :--| :--|
 | `calculate_severity` (主函数) | 传入的 `RawObservation` 为 `None` 或格式错误。 | 高 (Programming Error) | 在函数入口进行检查，如果输入无效，抛出 `ValueError`。 | 致命错误。表明 `Executor Client` 或 `Worker` 的代码有 bug。应中断会话并进入 `FAILED` 状态。 |
 | `BugScorer` | `RawObservation` 中缺少 `status_code` 字段。 | 中 (Data Error) | 1. 记录警告日志。<br>2. 安全地回退 (Fail-safe): 返回该分项的默认值 0.0。 | 可恢复。本次评分可能不准，但优化循环可以继续。 |
 | `PerformanceScorer` | `RawObservation` 中缺少 `latency_ms` 字段。 | 中 (Data Error) | 同上，返回分项的默认值 0.0。 | 可恢复。 |
@@ -214,7 +214,7 @@ $$
 评分规则 (优先级从高到低):
 
 | 触发条件 | 分数 | 说明 |
-|:|::|:|
+|:--|:--|:--|
 | HTTP 5xx (>=500, <600) | 10.0 | 服务器错误，严重故障 |
 | HTTP 4xx (>=400, <500) | 8.0 | 客户端错误，可能表示请求失败 |
 | 日志中有 "ERROR" | 6.0 | 应用日志显示错误，但响应正常 |
@@ -233,30 +233,6 @@ class BugScorer(IScorer):
         Returns:
             分数 ∈ [0, 10]
         """
-        try:
-            # 1. 检查 HTTP 状态码
-            if observation.status_code is not None:
-                if observation.status_code >= 500:
-                    return 10.0
-                elif observation.status_code >= 400:
-                    return 8.0
-            
-            # 2. 检查日志中的错误
-            if observation.logs:
-                for log_line in observation.logs:
-                    if "ERROR" in log_line.upper():
-                        return 6.0
-            
-            # 3. 检查错误率
-            if observation.error_rate is not None and observation.error_rate > 0:
-                return 3.0
-            
-            # 4. 无 Bug 迹象
-            return 0.0
-        
-        except Exception as e:
-            logger.warning(f"BugScorer failed: {e}")
-            return 0.0  # Fail-Safe: 返回默认值
 ```
 
 示例计算:
@@ -299,7 +275,7 @@ $$
 性能影响等级:
 
 | actual 值 | 说明 | Score |
-|:|:|::|
+|:--|:--|:--|
 | actual < 200ms | 比基线还快（不应发生） | 0.0 |
 | actual = 200ms | 无损伤（基线） | 0.0 |
 | actual = 600ms | 中等性能降低 | 4.5 |
@@ -315,28 +291,6 @@ class PerformanceScorer(IScorer):
             observation: 包含 latency_ms
             config: 包含 baseline_latency_ms, threshold_latency_ms
         """
-        try:
-            if observation.latency_ms is None:
-                logger.warning("PerformanceScorer: missing latency_ms")
-                return 0.0
-            
-            baseline = config.baseline_latency_ms  # 如 200
-            threshold = config.threshold_latency_ms  # 如 1000
-            actual = observation.latency_ms
-            
-            if actual > threshold:
-                return 10.0
-            elif actual < baseline:
-                return 0.0
-            else:
-                # actual 在 [baseline, threshold] 之间
-                ratio = (actual - baseline) / (threshold - baseline)
-                score = ratio * 9.0
-                return min(10.0, max(0.0, score))
-        
-        except Exception as e:
-            logger.warning(f"PerformanceScorer failed: {e}")
-            return 0.0
 ```
 
 示例计算 (baseline=200ms, threshold=1000ms):
@@ -365,7 +319,7 @@ class PerformanceScorer(IScorer):
 评分规则 (基于 Trace 分析):
 
 | 观测到的现象 | 子分数 | 说明 |
-|:|::|:|
+|:--|:--|:--|
 | Span 数量增加 > 50% | 3.0 | 可能发生重试或级联调用 |
 | 操作序列编辑距离 > 2 | 5.0 | 执行流程显著改变（如某个调用被跳过或插入） |
 | 存在状态为 ERROR 的 Span | 2.0 | 分布式链路中有错误 Span |
@@ -380,94 +334,21 @@ def analyze_trace_structure(current_trace: List[Span], baseline_trace: List[Span
     """
     比对当前 Trace 与基线 Trace，检测结构变化
     """
-    
-    # 1. 检查 Span 数量变化
-    span_increase_ratio = (len(current_trace) - len(baseline_trace)) / len(baseline_trace)
-    if span_increase_ratio > 0.5:
-        score = max(score, 3.0)
-    
-    # 2. 检查操作序列变化 (编辑距离)
-    current_ops = [span.operation_name for span in current_trace]
-    baseline_ops = [span.operation_name for span in baseline_trace]
-    edit_dist = levenshtein_distance(current_ops, baseline_ops)
-    if edit_dist > 2:
-        score = max(score, 5.0)
-    
-    # 3. 检查错误 Span
-    error_spans = [s for s in current_trace if s.error_tag]
-    if len(error_spans) > 0:
-        score = max(score, 2.0)
-    
-    # 4. 检查单个 Span 的延迟增长
-    for baseline_span in baseline_trace:
-        current_span = find_matching_span(baseline_span, current_trace)
-        if current_span:
-            latency_ratio = current_span.duration / baseline_span.duration
-            if latency_ratio > 5.0:
-                score = max(score, 2.0)
-                break
-    
-    return score
 ```
 
-实现 (Python):
 ```python
 class StructureScorer(IScorer):
     def score(self, observation: RawObservation, config: AnalyzerConfig) -> float:
         """
         分析 Trace 结构变化
         """
-        try:
-            if not observation.trace_data:
-                logger.warning("StructureScorer: missing trace_data")
-                return 0.0
-            
-            current_trace = parse_trace(observation.trace_data)
-            baseline_trace = config.baseline_trace  # 预先记录的基线
-            
-            score = 0.0
-            
-            # 检查 1: Span 数量增加
-            span_ratio = (len(current_trace) - len(baseline_trace)) / len(baseline_trace)
-            if span_ratio > 0.5:
-                score = max(score, 3.0)
-            
-            # 检查 2: 操作序列编辑距离
-            current_ops = [s.operation_name for s in current_trace]
-            baseline_ops = [s.operation_name for s in baseline_trace]
-            edit_dist = self._levenshtein_distance(current_ops, baseline_ops)
-            if edit_dist > 2:
-                score = max(score, 5.0)
-            
-            # 检查 3: 错误 Span
-            error_spans = [s for s in current_trace if s.status == "ERROR"]
-            if len(error_spans) > 0:
-                score = max(score, 2.0)
-            
-            # 检查 4: Span 延迟激增
-            for cs in current_trace:
-                bs = self._find_baseline_span(cs, baseline_trace)
-                if bs and (cs.duration / bs.duration) > 5.0:
-                    score = max(score, 2.0)
-                    break
-            
-            return min(10.0, score)
-        
-        except Exception as e:
-            logger.warning(f"StructureScorer failed: {e}")
-            return 0.0  # Fail-Safe
     
     def _levenshtein_distance(self, s1: List[str], s2: List[str]) -> int:
         """计算编辑距离"""
         # 实现标准的编辑距离算法
-        ...
     
     def _find_baseline_span(self, span, baseline_spans):
         """在基线 Trace 中找到匹配的 Span"""
-        for bs in baseline_spans:
-            if bs.operation_name == span.operation_name:
-                return bs
-        return None
 ```
 
 示例计算:
@@ -567,7 +448,7 @@ weights:
 调整场景:
 
 | 场景 | 推荐调整 | 理由 |
-|:|:|:|
+|:--|:--|:--|
 | 关注 正确性 多于性能 | 增加 bug 权重 (15.0) | 避免返回错误结果 |
 | 关注 性能 多于正确性 | 增加 perf 权重 (5.0) | 尽量保持低延迟 |
 | 关注 系统稳定性 | 增加 struct 权重 (8.0) | 避免级联失败和重试 |
@@ -594,49 +475,7 @@ class AnalyzerService:
         """
         安全的评分计算，即使某个 Scorer 失败也能继续
         """
-        
-        breakdown = ScoringBreakdown()
-        
-        # 评分维度 1: Bug
-        try:
-            breakdown.bug_score = self.bug_scorer.score(observation, self.config)
-        except Exception as e:
-            logger.warning(f"BugScorer failed: {e}, using default")
-            breakdown.bug_score = 0.0
-        
-        # 评分维度 2: Performance
-        try:
-            breakdown.perf_score = self.perf_scorer.score(observation, self.config)
-        except Exception as e:
-            logger.warning(f"PerfScorer failed: {e}, using default")
-            breakdown.perf_score = 0.0
-        
-        # 评分维度 3: Structure
-        try:
-            breakdown.struct_score = self.struct_scorer.score(observation, self.config)
-        except Exception as e:
-            logger.warning(f"StructScorer failed: {e}, using default")
-            breakdown.struct_score = 0.0
-        
-        # 加权求和
-        w_bug = self.config.weights['bug']
-        w_perf = self.config.weights['perf']
-        w_struct = self.config.weights['struct']
-        
-        total_weight = w_bug + w_perf + w_struct
-        total_score = (
-            w_bug * breakdown.bug_score +
-            w_perf * breakdown.perf_score +
-            w_struct * breakdown.struct_score
-        ) / total_weight
-        
-        # 返回规范化的分数
-        final_score = min(10.0, max(0.0, total_score))
-        
-        return final_score, breakdown
 ```
-
----
 
 ## **Trace 分析方法详解**
 
@@ -726,7 +565,7 @@ class AnalyzerService:
 #### **关键字段说明**
 
 | 字段 | 类型 | 说明 |
-|:---|:---:|:---|
+|:--|:--|:---|
 | **traceId** | string | 全局唯一的追踪 ID，同一请求的所有 Span 共享 |
 | **spanId** | string | Span 的唯一 ID（在 trace 内唯一） |
 | **parentSpanId** | string | 父 Span 的 ID（null 表示根 Span） |
@@ -890,80 +729,6 @@ class StructureScorer(IScorer):
         Returns:
             评分 ∈ [0, 10]
         """
-        try:
-            # 1. 解析当前 Trace
-            current_trace = observation.trace_data
-            if not current_trace:
-                return 0.0
-            
-            current_spans = {
-                span['spanId']: Span.from_otel_json(span)
-                for span in current_trace.get('spans', [])
-            }
-            
-            # 2. 设置基线（如果尚未设置）
-            if not self.baseline_spans:
-                self.set_baseline(current_trace)
-                return 0.0  # 第一次观测，无比对基线
-            
-            score = 0.0
-            
-            # 检查 1: Span 数量变化
-            baseline_count = len(self.baseline_spans)
-            current_count = len(current_spans)
-            
-            if baseline_count > 0:
-                span_increase_ratio = (current_count - baseline_count) / baseline_count
-                if span_increase_ratio > 0.5:
-                    logger.info(
-                        f"Span count increased by {span_increase_ratio*100:.1f}% "
-                        f"({current_count} vs {baseline_count})"
-                    )
-                    score = max(score, 3.0)
-            
-            # 检查 2: 操作序列的编辑距离
-            current_ops = self._get_operation_sequence(current_spans)
-            baseline_ops = self._get_operation_sequence(self.baseline_spans)
-            
-            edit_dist = self._levenshtein_distance(baseline_ops, current_ops)
-            if edit_dist > 2:
-                logger.info(
-                    f"Operation sequence changed (edit distance: {edit_dist}). "
-                    f"Baseline: {baseline_ops}, Current: {current_ops}"
-                )
-                score = max(score, 5.0)
-            
-            # 检查 3: 错误 Span 的检测
-            error_spans = [
-                s for s in current_spans.values()
-                if s.status_code == 'STATUS_CODE_ERROR' or 
-                   any('exception' in e.get('name', '').lower() for e in s.events)
-            ]
-            
-            if error_spans:
-                logger.info(f"Found {len(error_spans)} error spans")
-                score = max(score, 2.0)
-            
-            # 检查 4: 单个 Span 的延迟激增
-            for span_id, baseline_span in self.baseline_spans.items():
-                current_span = current_spans.get(span_id)
-                
-                if current_span and baseline_span.duration_ms > 0:
-                    latency_ratio = current_span.duration_ms / baseline_span.duration_ms
-                    
-                    if latency_ratio > 5.0:
-                        logger.warning(
-                            f"Span '{baseline_span.name}' latency increased {latency_ratio:.1f}x "
-                            f"({current_span.duration_ms:.1f}ms vs {baseline_span.duration_ms:.1f}ms)"
-                        )
-                        score = max(score, 2.0)
-                        break
-            
-            return min(10.0, score)
-        
-        except Exception as e:
-            logger.error(f"StructureScorer failed: {e}", exc_info=True)
-            return 0.0  # Fail-Safe
     
     def _get_operation_sequence(self, spans: Dict[str, Span]) -> List[str]:
         """
@@ -975,17 +740,6 @@ class StructureScorer(IScorer):
         Returns:
             操作名列表，按调用时间顺序
         """
-        if not spans:
-            return []
-        
-        # 按 startTime 排序（这里假设已从 OTel JSON 中提取）
-        # 对于生产环境，应该从 OTel JSON 中直接读取 startTimeUnixNano
-        ordered_spans = sorted(
-            spans.values(),
-            key=lambda s: s.attributes.get('start_time', 0)
-        )
-        
-        return [span.name for span in ordered_spans]
     
     def _levenshtein_distance(self, s1: List[str], s2: List[str]) -> int:
         """
@@ -1006,34 +760,6 @@ class StructureScorer(IScorer):
         s2 = ['A', 'X', 'C']  (替换 'B' 为 'X')
         distance = 1
         """
-        m, n = len(s1), len(s2)
-        
-        # 初始化 DP 表
-        dp = [[0] * (n + 1) for _ in range(m + 1)]
-        
-        # 第一行：从空字符串插入 s2 的字符
-        for j in range(n + 1):
-            dp[0][j] = j
-        
-        # 第一列：从 s1 删除所有字符
-        for i in range(m + 1):
-            dp[i][0] = i
-        
-        # 填充 DP 表
-        for i in range(1, m + 1):
-            for j in range(1, n + 1):
-                if s1[i-1] == s2[j-1]:
-                    # 字符相同，不需要编辑
-                    dp[i][j] = dp[i-1][j-1]
-                else:
-                    # 字符不同，取三种操作的最小值
-                    dp[i][j] = 1 + min(
-                        dp[i-1][j],      # 删除 s1[i-1]
-                        dp[i][j-1],      # 插入 s2[j-1]
-                        dp[i-1][j-1]     # 替换 s1[i-1] 为 s2[j-1]
-                    )
-        
-        return dp[m][n]
     
     def _find_matching_baseline_span(self, current_span: Span) -> Span:
         """
@@ -1041,10 +767,6 @@ class StructureScorer(IScorer):
         
         匹配策略：按 Span 名称匹配（大多数情况下足够）
         """
-        for baseline_span in self.baseline_spans.values():
-            if baseline_span.name == current_span.name:
-                return baseline_span
-        return None
 ```
 
 #### **使用示例**
