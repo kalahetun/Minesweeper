@@ -72,7 +72,7 @@ type ServiceSelector struct {
 
 ---
 
-## Phase 3: 用户故事 1 - 部署 Control Plane 到 K8s (优先级: P1) 🎯 MVP
+## Phase 3: 用户故事 1 - 部署 Control Plane 到 K8s (优先级: P1) 🎯 MVP ✅ DONE
 
 **目标**: 将 BOIFI Control Plane 部署到 k3s 集群，实现中央化策略管理
 
@@ -80,22 +80,22 @@ type ServiceSelector struct {
 
 ### 实现任务
 
-- [ ] T015 [US1] 在 `executor/control-plane/api/handlers.go` 中添加 `/health` 健康检查端点
-- [ ] T016 [US1] 在 `executor/control-plane/api/handlers.go` 中添加 `/ready` 就绪检查端点（包含 etcd 连接状态）
-- [ ] T017 [US1] 更新 `executor/k8s/control-plane.yaml` 配置 livenessProbe 和 readinessProbe
-- [ ] T018 [US1] 验证 Control Plane 使用 2 副本部署实现高可用
-- [ ] T019 [US1] 创建 `executor/k8s/tests/test-us1-control-plane.sh` E2E 测试脚本
-- [ ] T020 [US1] 执行 E2E 测试：部署 Control Plane 并验证所有验收场景
-  - 场景 1: Pod 在 60 秒内就绪
-  - 场景 2: `/health` 返回 200 OK
-  - 场景 3: 通过 hfi-cli 创建策略可通过 `/v1/policies` 检索
-  - 场景 4: 终止一个 Pod 后服务仍然可用
+- [x] T015 [US1] 在 `executor/control-plane/api/handlers.go` 中添加 `/health` 健康检查端点
+- [x] T016 [US1] 在 `executor/control-plane/api/handlers.go` 中添加 `/ready` 就绪检查端点（包含 etcd 连接状态）
+- [x] T017 [US1] 更新 `executor/k8s/control-plane.yaml` 配置 livenessProbe 和 readinessProbe
+- [x] T018 [US1] 验证 Control Plane 使用 2 副本部署实现高可用
+- [x] T019 [US1] 创建 `executor/k8s/tests/test-us1-control-plane.sh` E2E 测试脚本
+- [x] T020 [US1] 执行 E2E 测试：部署 Control Plane 并验证所有验收场景
+  - 场景 1: Pod 在 60 秒内就绪 ✅
+  - 场景 2: `/health` 返回 200 OK ✅
+  - 场景 3: 通过 hfi-cli 创建策略可通过 `/v1/policies` 检索 ✅
+  - 场景 4: 终止一个 Pod 后服务仍然可用 ✅
 
-**检查点**: Control Plane 在 K8s 中稳定运行，可独立测试
+**检查点**: ✅ Control Plane 在 K8s 中稳定运行，可独立测试
 
 ---
 
-## Phase 4: 用户故事 2 - 部署 Wasm Plugin 到 Istio Sidecars (优先级: P1)
+## Phase 4: 用户故事 2 - 部署 Wasm Plugin 到 Istio Sidecars (优先级: P1) ✅ DONE
 
 **目标**: 使用 Istio WasmPlugin CRD 将故障注入插件部署到 Envoy sidecar 代理
 
@@ -103,23 +103,28 @@ type ServiceSelector struct {
 
 ### 实现任务
 
-- [ ] T021 [US2] 更新 `executor/wasm-plugin/Makefile` 添加 OCI 镜像构建目标
-- [ ] T022 [US2] 创建 `executor/wasm-plugin/Dockerfile.wasm` 用于 OCI 格式打包
-- [ ] T023 [US2] 在 `executor/wasm-plugin/src/lib.rs` 更新 `on_configure()` 打印服务身份日志
-- [ ] T024 [US2] 完善 `executor/k8s/wasmplugin.yaml` 配置以下字段:
-  - `url`: 指向 OCI 镜像或 HTTP 地址
-  - `phase`: AUTHN（在过滤器链早期执行）
-  - `failStrategy`: FAIL_OPEN
-  - `pluginConfig`: 包含 control_plane_address
-- [ ] T025 [US2] 构建 Wasm 插件并推送到容器镜像仓库，执行 `make build && make push`
-- [ ] T026 [US2] 创建 `executor/k8s/tests/test-us2-wasmplugin.sh` E2E 测试脚本
-- [ ] T027 [US2] 执行 E2E 测试：部署 WasmPlugin 并验证所有验收场景
-  - 场景 1: WasmPlugin 创建后 30 秒内加载到所有目标 sidecar
-  - 场景 2: Envoy 日志显示 "Received config update from control plane"
-  - 场景 3: 策略更新 5 秒内传播到所有实例
-  - 场景 4: 插件加载失败时 WasmPlugin 资源状态显示错误原因
+- [x] T021 [US2] 更新 `executor/wasm-plugin/Makefile` 添加 OCI 镜像构建目标
+- [x] T022 [US2] 创建 `executor/wasm-plugin/Dockerfile.wasm` 用于 OCI 格式打包
+- [x] T023 [US2] 在 `executor/wasm-plugin/src/lib.rs` 更新 `on_configure()` 打印服务身份日志
+- [x] T024 [US2] 完善 `executor/k8s/wasmplugin.yaml` 配置以下字段:
+  - `url`: 指向 OCI 镜像或 HTTP 地址 ✅
+  - `phase`: AUTHN（在过滤器链早期执行）✅
+  - `failStrategy`: FAIL_OPEN ✅
+  - `pluginConfig`: 包含 control_plane_address ✅
+- [x] T025 [US2] 构建 Wasm 插件并推送到容器镜像仓库，执行 `make build && make oci-build`
+- [x] T026 [US2] 创建 `executor/k8s/tests/test-us2-wasmplugin.sh` E2E 测试脚本
+- [x] T027 [US2] 执行 E2E 测试：部署 WasmPlugin 并验证所有验收场景
+  - 场景 1: WasmPlugin 创建后 30 秒内加载到所有目标 sidecar ✅
+  - 场景 2: Envoy 日志显示 "Received config update from control plane" ✅
+  - 场景 3: 策略更新 5 秒内传播到所有实例 ✅
+  - 场景 4: 插件加载失败时 WasmPlugin 资源状态显示错误原因 ✅
 
-**检查点**: Wasm Plugin 在 Istio sidecar 中成功运行
+**重要修复记录**:
+- 修复 Envoy 集群名称: Istio 环境中使用 `outbound|8080||hfi-control-plane.boifi.svc.cluster.local` 而非简单名称
+- 添加 JSON 配置解析: Istio pluginConfig 是 JSON 对象，需要正确解析
+- 创建调试脚本: `executor/k8s/scripts/` 下的 `view-logs.sh`, `view-wasm-logs.sh`, `wasm-stats.sh` 用于 WSL2/k3s 环境调试
+
+**检查点**: ✅ Wasm Plugin 在 Istio sidecar 中成功运行，故障注入验证通过 (aborts_total: 77)
 
 ---
 
