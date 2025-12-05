@@ -211,15 +211,17 @@ impl Context for PluginRootContext {
         }
 
         // 安全地处理响应体
+        let identity_ref = self.envoy_identity.as_ref();
         let result = safe_execute("process_config_response", || {
             if let Some(body) = self.get_http_call_response_body(0, body_size) {
                 if let Ok(body_str) = std::str::from_utf8(&body) {
                     info!("Received config update from control plane: {}", body_str.trim());
                     
                     // Try to parse the received configuration from policies API
-                    match CompiledRuleSet::from_policies_response(&body) {
+                    // Pass identity to filter policies that don't apply to this service
+                    match CompiledRuleSet::from_policies_response(&body, identity_ref) {
                         Ok(ruleset) => {
-                            info!("Successfully parsed {} rules from control plane", ruleset.rules.len());
+                            info!("Successfully parsed {} rules from control plane (after filtering)", ruleset.rules.len());
                             
                             // Update rules with mutex lock
                             if let Ok(mut rules) = self.current_rules.lock() {

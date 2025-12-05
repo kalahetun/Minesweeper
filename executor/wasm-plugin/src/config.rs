@@ -248,14 +248,45 @@ impl CompiledRuleSet {
     }
 
     /// Create CompiledRuleSet from Control Plane API response
-    pub fn from_policies_response(bytes: &[u8]) -> Result<Self, serde_json::Error> {
+    /// Filters policies based on the provided service identity.
+    pub fn from_policies_response(bytes: &[u8], identity: Option<&crate::identity::EnvoyIdentity>) -> Result<Self, serde_json::Error> {
         let response: PoliciesResponse = serde_json::from_slice(bytes)?;
         
         // 获取当前时间戳用于记录规则创建时间
         let current_time_ms = crate::time_control::get_current_time_ms();
         
         let mut rules = Vec::new();
+        let mut filtered_count = 0;
+        let mut total_count = 0;
+        
         for policy in response.policies {
+            total_count += 1;
+            
+            // Check if this policy applies to the current service
+            let selector = policy.spec.effective_selector();
+            let matches = match identity {
+                Some(id) => id.matches_selector(&selector),
+                None => true, // No identity = accept all policies (testing/fallback)
+            };
+            
+            if !matches {
+                log::debug!(
+                    "Policy '{}' filtered out: selector {}.{} doesn't match identity",
+                    policy.metadata.name,
+                    selector.service,
+                    selector.namespace
+                );
+                filtered_count += 1;
+                continue;
+            }
+            
+            log::debug!(
+                "Policy '{}' matches: selector {}.{} applies to this service",
+                policy.metadata.name,
+                selector.service,
+                selector.namespace
+            );
+            
             for rule_spec in policy.spec.rules {
                 let compiled_rule = CompiledRule {
                     name: policy.metadata.name.clone(),
@@ -266,6 +297,13 @@ impl CompiledRuleSet {
                 rules.push(compiled_rule);
             }
         }
+        
+        log::info!(
+            "Policy filtering: {} total, {} filtered out, {} applicable",
+            total_count,
+            filtered_count,
+            total_count - filtered_count
+        );
         
         let mut ruleset = CompiledRuleSet {
             version: "1.0".to_string(),

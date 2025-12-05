@@ -1,0 +1,71 @@
+# 服务定向故障注入策略
+# 功能：仅将故障注入应用到特定服务/命名空间
+# 场景：在多服务环境中精确控制故障注入目标
+
+# 示例 1: 仅针对 frontend 服务的延迟注入
+metadata:
+  name: "frontend-delay"
+spec:
+  selector:
+    service: frontend          # 仅应用到 frontend 服务
+    namespace: demo            # 在 demo 命名空间中
+  rules:
+    - match:
+        method:
+          exact: "GET"
+        path:
+          prefix: "/"          # 所有 GET 请求
+      fault:
+        percentage: 50         # 50% 触发
+        delay:
+          fixed_delay: "500ms" # 添加 500ms 延迟
+---
+# 示例 2: 通配符策略 - 应用到所有服务
+metadata:
+  name: "global-abort"
+spec:
+  selector:
+    service: "*"               # 匹配所有服务
+    namespace: "*"             # 匹配所有命名空间
+  rules:
+    - match:
+        method:
+          exact: "POST"
+        path:
+          prefix: "/api/"
+      fault:
+        percentage: 10         # 10% 触发
+        abort:
+          httpStatus: 500      # 返回 500 Internal Server Error
+---
+# 示例 3: 命名空间级别策略
+metadata:
+  name: "production-delay"
+spec:
+  selector:
+    service: "*"               # 匹配该命名空间的所有服务
+    namespace: production      # 仅 production 命名空间
+  rules:
+    - match:
+        path:
+          prefix: "/"
+      fault:
+        percentage: 5          # 5% 触发
+        delay:
+          fixed_delay: "1s"    # 添加 1s 延迟
+---
+# 示例 4: 无 selector - 默认为通配符 (向后兼容)
+metadata:
+  name: "legacy-policy"
+spec:
+  # 没有 selector 字段，默认匹配所有服务
+  rules:
+    - match:
+        method:
+          exact: "GET"
+        path:
+          exact: "/health"
+      fault:
+        percentage: 0          # 0% 触发 (禁用)
+        delay:
+          fixed_delay: "100ms"
