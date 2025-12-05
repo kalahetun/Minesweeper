@@ -1,3 +1,26 @@
+# BOIFI Control Plane Kubernetes Deployment
+#
+# This manifest deploys the BOIFI fault injection control plane to Kubernetes.
+# The control plane manages fault injection policies and distributes them to Wasm plugins.
+#
+# Prerequisites:
+#   - boifi namespace created (see namespace.yaml)
+#   - etcd deployed (included below)
+#
+# Configuration:
+#   - STORAGE_BACKEND: Storage backend type (etcd recommended for HA)
+#   - ETCD_ENDPOINTS: etcd cluster endpoints
+#   - LOG_LEVEL: Logging level (debug, info, warn, error)
+#
+# Health Endpoints:
+#   - /v1/health: Liveness probe - returns 200 if service is alive
+#   - /v1/health: Readiness probe - returns 200 if ready to serve traffic
+#
+# Usage:
+#   kubectl apply -f namespace.yaml
+#   kubectl apply -f control-plane.yaml
+#   kubectl wait --for=condition=ready pod -l app=control-plane -n boifi --timeout=120s
+#
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,7 +30,7 @@ metadata:
     app: control-plane
     component: control-plane
 spec:
-  replicas: 2
+  replicas: 2  # High availability with 2 replicas
   selector:
     matchLabels:
       app: control-plane
@@ -37,18 +60,24 @@ spec:
           limits:
             memory: "128Mi"
             cpu: "200m"
+        # Liveness probe: restarts container if it's not responding
         livenessProbe:
           httpGet:
             path: /v1/health
             port: 8080
           initialDelaySeconds: 10
           periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        # Readiness probe: removes from service if not ready
         readinessProbe:
           httpGet:
             path: /v1/health
             port: 8080
           initialDelaySeconds: 5
           periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 2
       restartPolicy: Always
 
 ---

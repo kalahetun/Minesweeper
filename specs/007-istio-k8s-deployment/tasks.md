@@ -27,10 +27,10 @@
 
 **目标**: 搭建 Kubernetes 部署所需的基础设施和配置
 
-- [ ] T001 验证 k3s 集群状态和 Istio 安装，运行 `kubectl cluster-info && istioctl version`
-- [ ] T002 创建 `boifi` 命名空间并配置标签，执行 `kubectl create namespace boifi`
-- [ ] T003 [P] 验证 `demo` 命名空间已启用 Istio 注入，检查 `istio-injection=enabled` 标签
-- [ ] T004 [P] 验证网络策略允许 `boifi` 与 `demo` 命名空间间通信
+- [x] T001 验证 k3s 集群状态和 Istio 安装，运行 `kubectl cluster-info && istioctl version`
+- [x] T002 创建 `boifi` 命名空间并配置标签，执行 `kubectl create namespace boifi`
+- [x] T003 [P] 验证 `demo` 命名空间已启用 Istio 注入，检查 `istio-injection=enabled` 标签
+- [x] T004 [P] 验证网络策略允许 `boifi` 与 `demo` 命名空间间通信
 
 ---
 
@@ -42,33 +42,33 @@
 
 ### 2.1 Control Plane 类型定义更新
 
-- [ ] T005 在 `executor/control-plane/api/types.go` 中添加 `ServiceSelector` 结构体
+- [x] T005 在 `executor/control-plane/storage/types.go` 中添加 `ServiceSelector` 结构体
 ```go
 type ServiceSelector struct {
     Service   string `json:"service" yaml:"service"`
     Namespace string `json:"namespace" yaml:"namespace"`
 }
 ```
-- [ ] T006 更新 `executor/control-plane/api/types.go` 中的 `PolicySpec`，添加 `Selector` 字段
+- [x] T006 更新 `executor/control-plane/storage/types.go` 中的 `PolicySpec`，添加 `Selector` 字段
 
 ### 2.2 Wasm Plugin 服务身份提取
 
-- [ ] T007 在 `executor/wasm-plugin/src/` 创建 `identity.rs` 模块，实现 `EnvoyIdentity` 结构体
-- [ ] T008 在 `identity.rs` 中实现 `from_envoy_metadata()` 方法，从 Envoy 节点元数据提取 `WORKLOAD_NAME` 和 `NAMESPACE`
-- [ ] T009 在 `identity.rs` 中实现 `matches_selector()` 方法，用于策略匹配
+- [x] T007 在 `executor/wasm-plugin/src/` 创建 `identity.rs` 模块，实现 `EnvoyIdentity` 结构体
+- [x] T008 在 `identity.rs` 中实现 `from_envoy_metadata()` 方法，从 Envoy 节点元数据提取 `WORKLOAD_NAME` 和 `NAMESPACE`
+- [x] T009 在 `identity.rs` 中实现 `matches_selector()` 方法，用于策略匹配
 
 ### 2.3 Wasm Plugin 配置解析更新
 
-- [ ] T010 更新 `executor/wasm-plugin/src/config.rs`，添加 `ServiceSelector` 结构体解析
-- [ ] T011 更新 `executor/wasm-plugin/src/config.rs`，确保空 selector 默认为通配符 `*`
+- [x] T010 更新 `executor/wasm-plugin/src/config.rs`，添加 `ServiceSelector` 结构体解析
+- [x] T011 更新 `executor/wasm-plugin/src/config.rs`，确保空 selector 默认为通配符 `*`
 
 ### 2.4 Kubernetes 清单模板
 
-- [ ] T012 [P] 创建 `executor/k8s/wasmplugin.yaml` Istio WasmPlugin CRD 模板
-- [ ] T013 [P] 更新 `executor/k8s/control-plane.yaml` 添加健康检查探针 (`/health`, `/ready`)
-- [ ] T014 [P] 创建 `executor/k8s/namespace.yaml` 包含 boifi 命名空间定义
+- [x] T012 [P] 创建 `executor/k8s/wasmplugin.yaml` Istio WasmPlugin CRD 模板
+- [x] T013 [P] 更新 `executor/k8s/control-plane.yaml` 添加健康检查探针 (`/health`, `/ready`)
+- [x] T014 [P] 创建 `executor/k8s/namespace.yaml` 包含 boifi 命名空间定义
 
-**检查点**: 基础设施就绪 - 可以开始并行实现各用户故事
+**检查点**: ✅ 基础设施就绪 - 可以开始并行实现各用户故事
 
 ---
 

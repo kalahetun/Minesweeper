@@ -11,12 +11,14 @@ mod reconnect;
 mod panic_safety;
 mod time_control;
 mod metrics;
+mod identity;
 
 use config::{CompiledRuleSet, Fault};
 use matcher::{RequestInfo, find_first_match};
 use executor::{FaultExecutorContext, DelayManager};
 use reconnect::ReconnectManager;
 use panic_safety::{setup_panic_hook, safe_execute};
+use identity::EnvoyIdentity;
 
 const CONTROL_PLANE_CLUSTER: &str = "hfi_control_plane";
 
@@ -38,6 +40,7 @@ pub fn _start() {
             aborts_total_metric: None,
             delays_total_metric: None,
             delay_duration_histogram: None,
+            envoy_identity: None,
         })
     });
 }
@@ -55,6 +58,8 @@ struct PluginRootContext {
     aborts_total_metric: Option<u32>,
     delays_total_metric: Option<u32>,
     delay_duration_histogram: Option<u32>,
+    // Service identity for policy filtering (NEW for multi-pod deployment)
+    envoy_identity: Option<EnvoyIdentity>,
 }
 
 impl FaultExecutorContext for PluginRootContext {
@@ -278,6 +283,12 @@ impl Context for PluginRootContext {
 impl RootContext for PluginRootContext {
     fn on_configure(&mut self, _plugin_configuration_size: usize) -> bool {
         info!("Plugin configured...");
+        
+        // Extract Envoy identity for service-level policy filtering (NEW for multi-pod deployment)
+        self.envoy_identity = Some(EnvoyIdentity::from_envoy_metadata());
+        if let Some(ref identity) = self.envoy_identity {
+            info!("Service identity: {}", identity.display());
+        }
         
         // Define metrics
         self.define_metrics();

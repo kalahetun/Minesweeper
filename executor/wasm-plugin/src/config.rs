@@ -1,6 +1,9 @@
 use serde::{Deserialize, Deserializer};
 use regex::Regex;
 
+// Re-export ServiceSelector from identity module for convenience
+pub use crate::identity::ServiceSelector;
+
 // API 响应结构 - 用于解析 Control Plane 的 /v1/policies 响应
 #[derive(Debug, Clone, Deserialize)]
 pub struct PoliciesResponse {
@@ -20,7 +23,18 @@ pub struct PolicyMetadata {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct PolicySpec {
+    /// Service selector for policy targeting (NEW for multi-pod deployment)
+    /// If None or contains wildcards, applies to all services
+    #[serde(default)]
+    pub selector: Option<ServiceSelector>,
     pub rules: Vec<RuleSpec>,
+}
+
+impl PolicySpec {
+    /// Returns the effective selector, defaulting to wildcard if not specified.
+    pub fn effective_selector(&self) -> ServiceSelector {
+        self.selector.clone().unwrap_or_else(ServiceSelector::wildcard)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

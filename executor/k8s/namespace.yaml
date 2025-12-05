@@ -1,0 +1,21 @@
+# BOIFI Namespace Definition
+#
+# Creates the 'boifi' namespace for BOIFI control plane and related resources.
+# This namespace should be created before deploying other BOIFI components.
+#
+# Usage:
+#   kubectl apply -f namespace.yaml
+#
+# Note: The boifi namespace does NOT have Istio injection enabled by default
+# since the control plane doesn't need an Envoy sidecar.
+#
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: boifi
+  labels:
+    name: boifi
+    app.kubernetes.io/name: boifi
+    app.kubernetes.io/component: control-plane
+    # Uncomment to enable Istio injection for control plane (not recommended)
+    # istio-injection: enabled

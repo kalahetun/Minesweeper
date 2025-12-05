@@ -6,6 +6,13 @@ type Metadata struct {
 	Version string `json:"version"`
 }
 
+// ServiceSelector specifies which services a policy applies to.
+// Empty or "*" values match all services/namespaces.
+type ServiceSelector struct {
+	Service   string `json:"service,omitempty" yaml:"service"`     // Service/workload name, "*" matches all
+	Namespace string `json:"namespace,omitempty" yaml:"namespace"` // Kubernetes namespace, "*" matches all
+}
+
 // FaultInjectionPolicy defines the structure for a fault injection policy.
 type FaultInjectionPolicy struct {
 	Metadata Metadata   `json:"metadata"`
@@ -14,7 +21,8 @@ type FaultInjectionPolicy struct {
 
 // PolicySpec defines the specification for a fault injection policy.
 type PolicySpec struct {
-	Rules []Rule `json:"rules"`
+	Selector *ServiceSelector `json:"selector,omitempty"` // NEW: Service targeting selector
+	Rules    []Rule           `json:"rules"`
 }
 
 // Rule defines a single fault injection rule.

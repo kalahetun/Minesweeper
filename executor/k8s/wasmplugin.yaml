@@ -1,0 +1,72 @@
+# Istio WasmPlugin CRD for BOIFI Fault Injection
+# 
+# This resource deploys the fault injection Wasm plugin to Envoy sidecars
+# in the target namespace using Istio's WasmPlugin API.
+#
+# Usage:
+#   kubectl apply -f wasmplugin.yaml
+#
+# Prerequisites:
+#   - Istio 1.20+ installed
+#   - Target namespace has istio-injection=enabled
+#   - Control plane deployed to boifi namespace
+#
+apiVersion: extensions.istio.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: boifi-fault-injection
+  namespace: demo  # Deploy to target namespace (sidecars in this namespace will load the plugin)
+  labels:
+    app: boifi
+    component: wasm-plugin
+spec:
+  # Selector: which workloads to apply the plugin to
+  # Comment out to apply to all workloads in the namespace
+  selector:
+    matchLabels: {}
+    # Uncomment to target specific workloads:
+    # app: frontend
+  
+  # Plugin source: OCI image or HTTP URL
+  # Option 1: OCI image (recommended for production)
+  url: oci://docker.io/boifi/wasm-plugin:latest
+  # Option 2: HTTP URL (for development)
+  # url: http://hfi-control-plane.boifi.svc.cluster.local:8080/plugin.wasm
+  
+  # Plugin execution phase in the filter chain
+  # AUTHN: Run early, before authentication
+  # AUTHZ: Run after authentication
+  # STATS: Run after authorization
+  phase: AUTHN
+  
+  # Fail strategy: what to do if the plugin fails to load or crashes
+  # FAIL_OPEN: Allow traffic to pass (recommended for fault injection)
+  # FAIL_CLOSE: Block traffic if plugin fails
+  failStrategy: FAIL_OPEN
+  
+  # Plugin configuration passed to on_configure()
+  # The control plane address is used for policy polling
+  pluginConfig:
+    control_plane_address: "hfi-control-plane.boifi.svc.cluster.local:8080"
+    poll_interval_ms: 5000
+  
+  # Image pull policy (for OCI images)
+  imagePullPolicy: IfNotPresent
+  
+  # Priority: higher priority plugins run first (default: 0)
+  # priority: 0
+
+---
+# Alternative: Namespace-wide deployment without selector
+# Uncomment this and comment the above to deploy to all sidecars in namespace
+# apiVersion: extensions.istio.io/v1alpha1
+# kind: WasmPlugin
+# metadata:
+#   name: boifi-fault-injection-all
+#   namespace: demo
+# spec:
+#   url: oci://docker.io/boifi/wasm-plugin:latest
+#   phase: AUTHN
+#   failStrategy: FAIL_OPEN
+#   pluginConfig:
+#     control_plane_address: "hfi-control-plane.boifi.svc.cluster.local:8080"
