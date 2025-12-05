@@ -14,22 +14,13 @@ pub struct MetricsIds {
 }
 
 /// Execute fault injection logic
+/// Note: Probability check is done by caller (lib.rs), this function executes unconditionally
 pub fn execute_fault(
     fault: &Fault,
     http_context: &dyn HttpContext,
     context_id: u32,
     metrics: MetricsIds,
 ) -> Action {
-    // Probability check
-    let random_value = generate_random_percentage();
-    
-    debug!("Fault execution - random: {}, threshold: {}", random_value, fault.percentage);
-    
-    if random_value >= fault.percentage {
-        debug!("Random value {} >= threshold {}, continuing normally", random_value, fault.percentage);
-        return Action::Continue;
-    }
-    
     info!("Triggering fault injection for context {}", context_id);
     
     // Execute fault based on type
@@ -255,31 +246,33 @@ fn execute_delay(delay: &DelayAction, context_id: u32, metrics: MetricsIds) -> A
 pub fn generate_random_percentage() -> u32 {
     thread_local! {
         static SEED: std::cell::RefCell<u64> = {
-            // Initialize seed with current time
+            // Initialize seed with current time nanoseconds
             let initial_seed = proxy_wasm::hostcalls::get_current_time()
                 .ok()
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| d.as_nanos() as u64)
-                .unwrap_or(1);
-            std::cell::RefCell::new(initial_seed)
+                .unwrap_or(88172645463325252);  // Non-zero default
+            std::cell::RefCell::new(if initial_seed == 0 { 1 } else { initial_seed })
         };
     }
 
     SEED.with(|seed| {
         let mut s = seed.borrow_mut();
-        // Update seed using a linear congruential generator
-        *s = s.wrapping_mul(1103515245).wrapping_add(12345);
         
-        // Add some entropy from current time if available
-        if let Ok(time) = proxy_wasm::hostcalls::get_current_time() {
-            if let Ok(duration) = time.duration_since(std::time::UNIX_EPOCH) {
-                let nanos = duration.as_nanos() as u64;
-                *s = s.wrapping_add(nanos);
+        loop {
+            // Xorshift64* algorithm - better statistical properties than LCG
+            *s ^= *s >> 12;
+            *s ^= *s << 25;
+            *s ^= *s >> 27;
+            let random64 = s.wrapping_mul(0x2545F4914F6CDD1D);
+            
+            // Extract 7 bits (0-127 range) and reject if >= 101 for unbiased distribution
+            let bits7 = ((random64 >> 32) & 0x7F) as u32;
+            if bits7 <= 100 {
+                return bits7;
             }
+            // If rejected, loop and generate new random value
         }
-        
-        // Return value between 0-100
-        (*s % 101) as u32
     })
 }
 

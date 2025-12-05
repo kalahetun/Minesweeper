@@ -579,10 +579,15 @@ impl HttpContext for PluginHttpContext {
             }
             
             // Check percentage before proceeding
+            // Each request independently decides whether to inject fault based on configured percentage
+            // This is per-request decision - no coordination between pods needed
             let random_value = executor::generate_random_percentage();
-            if random_value >= matched_rule.fault.percentage as u32 {
-                debug!("Fault not triggered due to percentage (random: {}, threshold: {})", 
-                       random_value, matched_rule.fault.percentage);
+            let should_inject = random_value < matched_rule.fault.percentage as u32;
+            
+            info!("Fault decision: rule='{}', random={}, threshold={}%, inject={}",
+                   matched_rule.name, random_value, matched_rule.fault.percentage, should_inject);
+            
+            if !should_inject {
                 return Action::Continue;
             }
             
