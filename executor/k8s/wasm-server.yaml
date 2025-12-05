@@ -1,0 +1,47 @@
+# Simple HTTP server to serve the Wasm plugin binary
+# This is used for local development/testing when OCI registry is not available
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wasm-server
+  namespace: boifi
+  labels:
+    app: wasm-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wasm-server
+  template:
+    metadata:
+      labels:
+        app: wasm-server
+      annotations:
+        sidecar.istio.io/inject: "false"  # No sidecar needed for wasm server
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: wasm-binary
+          mountPath: /usr/share/nginx/html
+          readOnly: true
+      volumes:
+      - name: wasm-binary
+        hostPath:
+          path: /tmp/wasm-plugin
+          type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wasm-server
+  namespace: boifi
+spec:
+  selector:
+    app: wasm-server
+  ports:
+  - port: 80
+    targetPort: 80

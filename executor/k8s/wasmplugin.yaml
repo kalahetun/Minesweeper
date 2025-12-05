@@ -29,9 +29,9 @@ spec:
   
   # Plugin source: OCI image or HTTP URL
   # Option 1: OCI image (recommended for production)
-  url: oci://docker.io/boifi/wasm-plugin:latest
-  # Option 2: HTTP URL (for development)
-  # url: http://hfi-control-plane.boifi.svc.cluster.local:8080/plugin.wasm
+  # url: oci://docker.io/boifi/wasm-plugin:latest
+  # Option 2: HTTP URL (for development/local testing)
+  url: http://wasm-server.boifi.svc.cluster.local/plugin.wasm
   
   # Plugin execution phase in the filter chain
   # AUTHN: Run early, before authentication

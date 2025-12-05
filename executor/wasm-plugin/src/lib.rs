@@ -20,7 +20,7 @@ use reconnect::ReconnectManager;
 use panic_safety::{setup_panic_hook, safe_execute};
 use identity::EnvoyIdentity;
 
-const CONTROL_PLANE_CLUSTER: &str = "hfi_control_plane";
+const CONTROL_PLANE_CLUSTER: &str = "outbound|8080||hfi-control-plane.boifi.svc.cluster.local";
 
 #[cfg(not(test))]
 #[no_mangle]
@@ -300,8 +300,20 @@ impl RootContext for PluginRootContext {
                     info!("Plugin configuration is empty, using default control plane address");
                     self.control_plane_address = "control-plane:8080".to_string();
                 } else {
-                    info!("Control plane address from config: {}", config_str);
-                    self.control_plane_address = config_str.to_string();
+                    // Try to parse as JSON first (Istio passes pluginConfig as JSON)
+                    if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(config_str) {
+                        if let Some(addr) = json_value.get("control_plane_address").and_then(|v| v.as_str()) {
+                            info!("Control plane address from JSON config: {}", addr);
+                            self.control_plane_address = addr.to_string();
+                        } else {
+                            info!("No control_plane_address in JSON config, using default");
+                            self.control_plane_address = "control-plane:8080".to_string();
+                        }
+                    } else {
+                        // Fallback: treat as plain string address
+                        info!("Control plane address from config: {}", config_str);
+                        self.control_plane_address = config_str.to_string();
+                    }
                 }
             } else {
                 warn!("Configuration is not valid UTF-8: {:?}", config_bytes);
