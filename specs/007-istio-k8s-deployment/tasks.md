@@ -258,10 +258,10 @@ spec:
 
 **目标**: 代码清理、文档更新和最终验证
 
-- [ ] T048 [P] 更新 `executor/k8s/README.md` 添加 Istio 部署说明
-- [ ] T049 [P] 更新 `executor/cli/examples/README.md` 说明新的 selector 字段用法
-- [ ] T050 在 `executor/wasm-plugin/` 运行 `cargo clippy` 并修复所有警告
-- [ ] T051 在 `executor/control-plane/` 运行 `go vet` 并修复所有问题
+- [x] T048 [P] 更新 `executor/k8s/README.md` 添加 Istio 部署说明
+- [x] T049 [P] 更新 `executor/cli/examples/README.md` 说明新的 selector 字段用法
+- [x] T050 在 `executor/wasm-plugin/` 运行 `cargo clippy` 并修复所有警告
+- [x] T051 在 `executor/control-plane/` 运行 `go vet` 并修复所有问题
 - [ ] T052 执行 `specs/007-istio-k8s-deployment/quickstart.md` 完整流程验证
 - [ ] T053 创建 `executor/k8s/tests/run-all-tests.sh` 整合所有 E2E 测试
 - [ ] T054 运行全部 E2E 测试套件，确保所有测试通过

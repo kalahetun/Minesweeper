@@ -14,6 +14,7 @@ pub enum ErrorType {
 
 impl ErrorType {
     /// Classify HTTP status code into error type
+    #[allow(dead_code)]
     pub fn from_status_code(status: u32) -> Self {
         match status {
             // 5xx server errors and timeouts are retryable

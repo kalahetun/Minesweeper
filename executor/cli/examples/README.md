@@ -94,6 +94,9 @@ for i in {1..10}; do curl -s -o /dev/null -w "%{http_code}\n" http://localhost:1
 metadata:
   name: "policy-name"           # Required: unique policy name
 spec:
+  selector:                     # Optional: service targeting (Istio/K8s only)
+    service: "frontend"         # Target specific service ("*" for all)
+    namespace: "demo"           # Target specific namespace ("*" for all)
   rules:
     - match:
         method:
@@ -113,10 +116,64 @@ spec:
           fixed_delay: "1000ms"
 ```
 
+## Service Selector (Istio/K8s Deployments)
+
+### Target Specific Services
+
+```yaml
+metadata:
+  name: checkout-abort
+spec:
+  selector:
+    service: checkoutservice    # Only affects this service
+    namespace: demo
+  rules:
+    - match:
+        path:
+          prefix: /hipstershop.CheckoutService/
+      fault:
+        percentage: 25
+        abort:
+          httpStatus: 503
+```
+
+### Apply to All Services (Wildcard)
+
+```yaml
+metadata:
+  name: global-delay
+spec:
+  # Omit selector entirely, OR use wildcards:
+  selector:
+    service: "*"          # All services
+    namespace: "*"        # All namespaces
+  rules:
+    - match:
+        path:
+          prefix: /
+      fault:
+        percentage: 10
+        delay:
+          fixed_delay: "200ms"
+```
+
+### Selector Behavior
+
+| Selector | Behavior |
+|----------|----------|
+| Omitted | Applies to ALL services (backward compatible) |
+| `service: "frontend"` | Only applies to pods with `app=frontend` label |
+| `namespace: "demo"` | Only applies to pods in `demo` namespace |
+| Both specified | Must match BOTH service AND namespace |
+| Wildcards (`*`) | Explicit "apply to all" (same as omitting) |
+
+**Note**: Service selector uses Kubernetes workload labels (`app`, `version`) extracted from Envoy node metadata. Only works with Istio-injected pods.
+
 ## Best Practices
 
 1. **Start small**: Begin with low percentages (10-20%) in production
 2. **Use expiration**: Set `duration_seconds` for experimental policies
-3. **Test locally**: Validate in Docker Compose before Kubernetes
-4. **Monitor**: Check Envoy logs for fault injection confirmations
-5. **Clean up**: Remove test policies after experiments
+3. **Target carefully**: Use `selector` to avoid affecting unintended services
+4. **Test locally**: Validate in Docker Compose before Kubernetes
+5. **Monitor**: Check Envoy logs for fault injection confirmations
+6. **Clean up**: Remove test policies after experiments

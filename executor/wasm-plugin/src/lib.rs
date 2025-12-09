@@ -51,6 +51,7 @@ pub fn _start() {
 struct PluginRootContext {
     control_plane_address: String,
     current_rules: Arc<Mutex<Option<CompiledRuleSet>>>,
+    #[allow(dead_code)]
     delay_manager: DelayManager,
     reconnect_manager: Arc<Mutex<ReconnectManager>>,
     config_call_id: Option<u32>,
@@ -204,7 +205,7 @@ impl Context for PluginRootContext {
         info!("Received HTTP response - Status: {}, Body size: {}", response_status, body_size);
 
         // 检查是否是成功的响应
-        if response_status < 200 || response_status >= 300 {
+        if !(200..300).contains(&response_status) {
             warn!("Received non-success status code: {}", response_status);
             self.handle_config_failure();
             return;
@@ -582,7 +583,7 @@ impl HttpContext for PluginHttpContext {
             // Each request independently decides whether to inject fault based on configured percentage
             // This is per-request decision - no coordination between pods needed
             let random_value = executor::generate_random_percentage();
-            let should_inject = random_value < matched_rule.fault.percentage as u32;
+            let should_inject = random_value < matched_rule.fault.percentage;
             
             info!("Fault decision: rule='{}', random={}, threshold={}%, inject={}",
                    matched_rule.name, random_value, matched_rule.fault.percentage, should_inject);

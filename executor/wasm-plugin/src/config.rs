@@ -46,6 +46,7 @@ pub struct RuleSpec {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CompiledRuleSet {
+    #[allow(dead_code)]
     pub version: String,
     pub rules: Vec<CompiledRule>,
 }
@@ -228,6 +229,7 @@ impl<'de> Deserialize<'de> for HeaderMatcher {
 
 impl CompiledRuleSet {
     /// Parse configuration from bytes and precompile all regular expressions and durations
+    #[allow(dead_code)]
     pub fn from_slice(bytes: &[u8]) -> Result<Self, serde_json::Error> {
         let mut ruleset: CompiledRuleSet = serde_json::from_slice(bytes)?;
         

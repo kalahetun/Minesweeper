@@ -146,11 +146,11 @@ pub fn execute_fault_with_metrics(
             metrics_collector.record_fault_injected();
             
             // Execute fault and record metrics
-            if let Some(ref abort) = fault.abort {
+            if let Some(ref _abort) = fault.abort {
                 metrics_collector.record_abort_fault();
             } else if let Some(ref delay) = fault.delay {
                 if let Some(duration_ms) = delay.parsed_duration_ms {
-                    metrics_collector.record_delay_fault(duration_ms as u64);
+                    metrics_collector.record_delay_fault(duration_ms);
                 }
             }
             

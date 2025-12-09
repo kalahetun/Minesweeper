@@ -5,7 +5,6 @@
 /// - 阻断计数 (faults injected)
 /// - 延迟统计 (delay durations)
 /// - 错误率统计 (error types)
-
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 

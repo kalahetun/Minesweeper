@@ -28,6 +28,60 @@ This directory contains Kubernetes manifests for deploying the complete HTTP Fau
 - Init Container: Copies Wasm plugin to shared volume
 - Services: ClusterIP and NodePort for external access
 
+## 🔧 Istio Integration
+
+### Prerequisites for Istio Deployment
+- **Istio 1.24+** installed in your cluster
+- Namespace with Istio injection enabled: `kubectl label namespace <namespace> istio-injection=enabled`
+- `kubectl` and `istioctl` CLI tools configured
+
+### WasmPlugin CRD Deployment (Recommended)
+
+The WasmPlugin CRD is the **recommended approach** for Istio-based deployments:
+
+```bash
+# 1. Deploy Control Plane to boifi namespace
+kubectl apply -f control-plane.yaml
+
+# 2. Deploy WasmPlugin CRD to inject plugin into Istio sidecars
+kubectl apply -f plugin-multi-instance.yaml
+
+# 3. Verify WasmPlugin is active
+kubectl get wasmplugins.extensions.istio.io -n demo
+```
+
+**WasmPlugin Benefits:**
+- ✅ Automatic injection into all Envoy sidecars
+- ✅ No manual Envoy configuration needed
+- ✅ Istio manages plugin lifecycle
+- ✅ Works with any Istio-injected pod
+
+### Service-Targeted Policies
+
+Use the `selector` field to target specific services:
+
+```yaml
+metadata:
+  name: frontend-policy
+spec:
+  selector:
+    service: frontend      # Target specific service
+    namespace: demo        # In specific namespace
+  rules:
+    - match:
+        path:
+          prefix: /
+      fault:
+        percentage: 30
+        abort:
+          httpStatus: 503
+```
+
+**Selector Wildcards:**
+- Omit `selector` field → applies to ALL services
+- `service: "*"` → applies to all services
+- `namespace: "*"` → applies to all namespaces
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -111,11 +165,30 @@ kubectl get nodes -o wide
 ### 1. Apply a Fault Injection Policy
 ```bash
 # Port forward to Control Plane (if needed)
-kubectl port-forward svc/hfi-control-plane 8080:8080 &
+kubectl port-forward -n boifi svc/hfi-control-plane 8080:8080 &
 
 # Use the CLI tool to apply a policy
 cd ../cli
-./hficli policy apply -f ../examples/delay-policy.yaml
+./hfi-cli policy apply -f examples/abort-policy.yaml
+
+# For Istio: Apply service-targeted policy
+./hfi-cli policy apply -f examples/service-targeted-policy.yaml
+```
+
+### Istio-Specific Testing
+```bash
+# Check WasmPlugin status
+kubectl get wasmplugins -n demo -o wide
+
+# View policy status
+curl http://localhost:8080/v1/policies/status | jq .
+
+# Test fault injection on specific service
+kubectl run curl-test -n demo --image=curlimages/curl --rm -i --restart=Never -- \
+  curl -v http://frontend.demo.svc.cluster.local/
+
+# Check Envoy sidecar logs for fault decisions
+kubectl logs -n demo <pod-name> -c istio-proxy | grep -i "fault\|hfi"
 ```
 
 ### 2. Test Fault Injection
