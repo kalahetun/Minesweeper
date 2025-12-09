@@ -169,8 +169,8 @@
 
 #### Git 和发布
 
-- [ ] T039 提交所有代码和文档更改 - 使用描述性 commit 消息提交所有修改的文件
-- [ ] T040 更新 spec.md 添加实施摘要 - 在 spec.md 末尾添加"Implementation Summary"部分，记录完成的工作
+- [x] T039 提交所有代码和文档更改 - 使用描述性 commit 消息提交所有修改的文件
+- [x] T040 更新 spec.md 添加实施摘要 - 在 spec.md 末尾添加"Implementation Summary"部分，记录完成的工作
 - [ ] T041 将 feature 分支合并到主分支 - 创建 PR 从 `008-wasm-metrics-exposure` 到主分支，通过审查后合并
 
 ---
