@@ -95,17 +95,17 @@
 
 #### EnvoyFilter 部署
 
-- [ ] T014 [US2] 验证 EnvoyFilter YAML 配置 - 检查 `executor/k8s/envoyfilter-wasm-stats.yaml` 内容正确（namespace-scoped, workload selector）
-- [ ] T015 [US2] 应用 EnvoyFilter 到 demo namespace - 运行 `kubectl apply -f executor/k8s/envoyfilter-wasm-stats.yaml`
-- [ ] T016 [US2] 验证 EnvoyFilter 已创建 - 运行 `kubectl get envoyfilter -n demo` 确认资源存在
-- [ ] T017 [US2] 重启 pod 应用 BOOTSTRAP 配置 - 运行 `kubectl rollout restart deployment -n demo` 并等待 pod ready
+- [x] T014 [US2] 验证 EnvoyFilter YAML 配置 - 检查 `executor/k8s/envoyfilter-wasm-stats.yaml` 内容正确（namespace-scoped, workload selector）
+- [x] T015 [US2] 应用 EnvoyFilter 到 demo namespace - 运行 `kubectl apply -f executor/k8s/envoyfilter-wasm-stats.yaml`
+- [x] T016 [US2] 验证 EnvoyFilter 已创建 - 运行 `kubectl get envoyfilter -n demo` 确认资源存在
+- [x] T017 [US2] 重启 pod 应用 BOOTSTRAP 配置 - 运行 `kubectl rollout restart deployment -n demo` 并等待 pod ready
 
 #### 配置验证
 
-- [ ] T018 [US2] 检查 Envoy config_dump - 使用 `kubectl exec` 调用 `/config_dump` 端点，验证 stats_matcher 配置存在
-- [ ] T019 [US2] 验证有 EnvoyFilter 时指标可见 - 按 quickstart.md 步骤验证指标在 `/stats/prometheus` 中
-- [ ] T020 [US2] 测试无 EnvoyFilter 场景 - 删除 EnvoyFilter，重启 pod，验证指标仍可见（wasmcustom 前缀机制）
-- [ ] T021 [US2] 重新应用 EnvoyFilter（恢复推荐配置） - 再次应用 EnvoyFilter 作为防御性配置
+- [x] T018 [US2] 检查 Envoy config_dump - 使用 `kubectl exec` 调用 `/config_dump` 端点，验证 stats_matcher 配置存在
+- [x] T019 [US2] 验证有 EnvoyFilter 时指标可见 - 按 quickstart.md 步骤验证指标在 `/stats/prometheus` 中
+- [x] T020 [US2] 测试无 EnvoyFilter 场景 - 删除 EnvoyFilter，重启 pod，验证指标仍可见（wasmcustom 前缀机制）
+- [x] T021 [US2] 重新应用 EnvoyFilter（恢复推荐配置） - 再次应用 EnvoyFilter 作为防御性配置
 
 **检查点**: 此时，用户故事 1 和 2 都应该独立工作
 

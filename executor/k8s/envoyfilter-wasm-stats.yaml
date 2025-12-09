@@ -1,0 +1,71 @@
+# Istio EnvoyFilter for Wasm Custom Metrics Exposure
+#
+# This EnvoyFilter configures Envoy's stats_matcher to explicitly include
+# Wasm custom metrics with the wasmcustom.hfi_faults prefix.
+#
+# Usage:
+#   kubectl apply -f envoyfilter-wasm-stats.yaml
+#   kubectl rollout restart deployment -n demo  # Required for BOOTSTRAP patch
+#
+# Prerequisites:
+#   - Istio 1.20+ installed
+#   - Target namespace has istio-injection=enabled
+#   - Wasm plugin deployed and defining metrics with wasmcustom.* prefix
+#
+# Note: This EnvoyFilter is a defensive configuration. The wasmcustom.* prefix
+# naming convention should make metrics visible by default, but this ensures
+# they are always included in Envoy stats output.
+#
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: hfi-wasm-metrics
+  namespace: demo  # Apply to demo namespace where HFI is deployed
+  labels:
+    app: boifi
+    component: envoyfilter
+    feature: metrics-exposure
+spec:
+  # Apply to all workloads in the namespace
+  # Comment out workloadSelector to apply to all pods
+  # Uncomment to target specific workloads:
+  # workloadSelector:
+  #   labels:
+  #     hfi-enabled: "true"
+  
+  configPatches:
+  - applyTo: BOOTSTRAP
+    patch:
+      operation: MERGE
+      value:
+        stats_config:
+          stats_matcher:
+            inclusion_list:
+              patterns:
+              # Include all HFI fault injection metrics
+              - prefix: "wasmcustom.hfi_faults"
+              # Optionally include other wasmcustom metrics
+              # - prefix: "wasmcustom."
+
+---
+# Alternative: Workload-specific deployment
+# Uncomment this and comment the above to target only labeled workloads
+# apiVersion: networking.istio.io/v1alpha3
+# kind: EnvoyFilter
+# metadata:
+#   name: hfi-wasm-metrics-labeled
+#   namespace: demo
+# spec:
+#   workloadSelector:
+#     labels:
+#       hfi-enabled: "true"
+#   configPatches:
+#   - applyTo: BOOTSTRAP
+#     patch:
+#       operation: MERGE
+#       value:
+#         stats_config:
+#           stats_matcher:
+#             inclusion_list:
+#               patterns:
+#               - prefix: "wasmcustom.hfi_faults"
