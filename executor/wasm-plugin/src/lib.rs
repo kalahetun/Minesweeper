@@ -74,7 +74,7 @@ impl PluginRootContext {
         // Define abort counter metric
         match proxy_wasm::hostcalls::define_metric(
             proxy_wasm::types::MetricType::Counter,
-            "hfi.faults.aborts_total"
+            "wasmcustom.hfi_faults_aborts_total"
         ) {
             Ok(metric_id) => {
                 debug!("Defined aborts_total metric with ID: {}", metric_id);
@@ -88,7 +88,7 @@ impl PluginRootContext {
         // Define delay counter metric
         match proxy_wasm::hostcalls::define_metric(
             proxy_wasm::types::MetricType::Counter,
-            "hfi.faults.delays_total"
+            "wasmcustom.hfi_faults_delays_total"
         ) {
             Ok(metric_id) => {
                 debug!("Defined delays_total metric with ID: {}", metric_id);
@@ -102,7 +102,7 @@ impl PluginRootContext {
         // Define delay duration histogram metric
         match proxy_wasm::hostcalls::define_metric(
             proxy_wasm::types::MetricType::Histogram,
-            "hfi.faults.delay_duration_milliseconds"
+            "wasmcustom.hfi_faults_delay_duration_milliseconds"
         ) {
             Ok(metric_id) => {
                 debug!("Defined delay_duration_milliseconds metric with ID: {}", metric_id);
@@ -450,7 +450,7 @@ impl Context for PluginHttpContext {
                             if let Err(e) = proxy_wasm::hostcalls::increment_metric(metric_id, 1) {
                                 warn!("Failed to increment delay counter: {:?}", e);
                             } else {
-                                debug!("Incremented hfi.faults.delays_total counter (after start_delay)");
+                                debug!("Incremented wasmcustom.hfi_faults_delays_total counter (after start_delay)");
                             }
                         }
                         
@@ -500,7 +500,7 @@ impl Context for PluginHttpContext {
                         if let Err(e) = proxy_wasm::hostcalls::increment_metric(metric_id, 1) {
                             warn!("Failed to increment abort counter: {:?}", e);
                         } else {
-                            debug!("Incremented hfi.faults.aborts_total counter (after start_delay)");
+                            debug!("Incremented wasmcustom.hfi_faults_aborts_total counter (after start_delay)");
                         }
                     }
                     

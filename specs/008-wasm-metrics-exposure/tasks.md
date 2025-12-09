@@ -53,18 +53,18 @@
 
 #### 代码修改
 
-- [ ] T001 [P] [US1] 更新 abort 指标名称 - 在 `executor/wasm-plugin/src/lib.rs` 第 77 行将 `"hfi.faults.aborts_total"` 改为 `"wasmcustom.hfi_faults_aborts_total"`
-- [ ] T002 [P] [US1] 更新 delay 指标名称 - 在 `executor/wasm-plugin/src/lib.rs` 第 91 行将 `"hfi.faults.delays_total"` 改为 `"wasmcustom.hfi_faults_delays_total"`
-- [ ] T003 [P] [US1] 更新 histogram 指标名称 - 在 `executor/wasm-plugin/src/lib.rs` 第 105 行将 `"hfi.faults.delay_duration_milliseconds"` 改为 `"wasmcustom.hfi_faults_delay_duration_milliseconds"`
+- [x] T001 [P] [US1] 更新 abort 指标名称 - 在 `executor/wasm-plugin/src/lib.rs` 第 77 行将 `"hfi.faults.aborts_total"` 改为 `"wasmcustom.hfi_faults_aborts_total"`
+- [x] T002 [P] [US1] 更新 delay 指标名称 - 在 `executor/wasm-plugin/src/lib.rs` 第 91 行将 `"hfi.faults.delays_total"` 改为 `"wasmcustom.hfi_faults_delays_total"`
+- [x] T003 [P] [US1] 更新 histogram 指标名称 - 在 `executor/wasm-plugin/src/lib.rs` 第 105 行将 `"hfi.faults.delay_duration_milliseconds"` 改为 `"wasmcustom.hfi_faults_delay_duration_milliseconds"`
 
 #### 可选日志更新（保持一致性）
 
-- [ ] T004 [P] [US1] 更新 lib.rs 中的日志消息 - 在第 453、503 行将指标名称更新为新格式
-- [ ] T005 [P] [US1] 更新 executor.rs 中的日志消息 - 在 `executor/wasm-plugin/src/executor.rs` 第 187、220 行将指标名称更新为新格式
+- [x] T004 [P] [US1] 更新 lib.rs 中的日志消息 - 在第 453、503 行将指标名称更新为新格式
+- [x] T005 [P] [US1] 更新 executor.rs 中的日志消息 - 在 `executor/wasm-plugin/src/executor.rs` 第 187、220 行将指标名称更新为新格式
 
 #### 构建和部署
 
-- [ ] T006 [US1] 编译 Wasm 插件 - 在 `executor/wasm-plugin/` 目录运行 `make build` 构建更新的插件
+- [x] T006 [US1] 编译 Wasm 插件 - 在 `executor/wasm-plugin/` 目录运行 `make build` 构建更新的插件
 - [ ] T007 [US1] 构建 Docker 镜像 - 使用 `docker build` 创建包含新插件的镜像（如果使用容器部署）
 - [ ] T008 [US1] 更新 WasmPlugin CRD - 应用 `executor/k8s/plugin-multi-instance.yaml` 部署新版本插件
 - [ ] T009 [US1] 重启 demo namespace 的 pod - 运行 `kubectl rollout restart deployment -n demo` 使新插件生效

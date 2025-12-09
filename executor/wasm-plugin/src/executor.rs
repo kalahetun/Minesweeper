@@ -184,7 +184,7 @@ fn execute_abort(abort: &AbortAction, http_context: &dyn HttpContext, metrics: M
         if let Err(e) = increment_counter(metric_id, 1) {
             warn!("Failed to increment abort counter: {:?}", e);
         } else {
-            debug!("Incremented hfi.faults.aborts_total counter");
+            debug!("Incremented wasmcustom.hfi_faults_aborts_total counter");
         }
     }
     
@@ -217,7 +217,7 @@ fn execute_delay(delay: &DelayAction, context_id: u32, metrics: MetricsIds) -> A
             if let Err(e) = increment_counter(metric_id, 1) {
                 warn!("Failed to increment delay counter: {:?}", e);
             } else {
-                debug!("Incremented hfi.faults.delays_total counter");
+                debug!("Incremented wasmcustom.hfi_faults_delays_total counter");
             }
         }
         
