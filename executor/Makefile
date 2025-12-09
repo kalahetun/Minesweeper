@@ -4,20 +4,55 @@
 
 # 默认目标
 help:
-	@echo "HFI 项目构建工具"
+	@echo "BOIFI Fault Injection System - Makefile 帮助"
 	@echo ""
-	@echo "可用目标:"
-	@echo "  build-all           构建所有组件"
-	@echo "  build-control-plane 构建控制平面"
-	@echo "  build-wasm-plugin   构建 WASM 插件"
-	@echo "  build-cli          构建 CLI 工具"
-	@echo "  clean              清理构建产物"
-	@echo "  test               运行所有测试"
-	@echo "  test-go            运行 Go 测试"
-	@echo "  test-rust          运行 Rust 测试"
-	@echo "  run-local          启动本地开发环境"
-	@echo "  stop-local         停止本地开发环境"
-	@echo "  verify             验证构建和测试"
+	@echo "🏗️  构建目标:"
+	@echo "  make build-all              - 构建所有组件 (控制平面 + CLI + Wasm插件)"
+	@echo "  make build-control-plane    - 构建控制平面"
+	@echo "  make build-wasm-plugin      - 构建 Wasm 插件"
+	@echo "  make build-cli              - 构建 CLI 工具"
+	@echo ""
+	@echo "🧪 测试目标:"
+	@echo "  make test                   - 运行所有测试"
+	@echo "  make test-go                - 运行 Go 测试"
+	@echo "  make test-rust              - 运行 Rust 测试"
+	@echo "  make integration-test       - 运行集成测试"
+	@echo "  make test-k8s               - 运行 K8s 端到端测试"
+	@echo "  make test-k8s-all           - 运行所有 K8s 测试"
+	@echo ""
+	@echo "☸️  Kubernetes 部署:"
+	@echo "  make deploy-all         - 完整 K8s 部署 (命名空间 + 所有组件)"
+	@echo "  make deploy-namespace   - 创建命名空间"
+	@echo "  make deploy-wasm-server - 部署 Wasm 插件服务器"
+	@echo "  make deploy-control-plane - 部署控制平面"
+	@echo "  make deploy-plugin      - 部署 WasmPlugin CRD"
+	@echo "  make deploy-envoyfilter - 部署 EnvoyFilter"
+	@echo "  make undeploy           - 卸载所有 K8s 资源"
+	@echo "  make redeploy           - 快速重新部署 (卸载 + 部署)"
+	@echo "  make status-k8s             - 检查 K8s 部署状态"
+	@echo "  make update-wasm-plugin     - 更新 Wasm 插件并重启"
+	@echo ""
+	@echo "📊 监控与调试:"
+	@echo "  make logs-wasm-plugin       - 查看 Wasm 插件日志"
+	@echo "  make logs-control-plane     - 查看控制平面日志"
+	@echo "  make port-forward-control-plane - 端口转发控制平面 (8080)"
+	@echo ""
+	@echo "🐳 Docker 目标:"
+	@echo "  make docker-build           - 构建 Docker 镜像"
+	@echo "  make run-local              - 本地 Docker 环境启动"
+	@echo "  make stop-local             - 本地 Docker 环境停止"
+	@echo ""
+	@echo "🔧 开发工具:"
+	@echo "  make fmt                    - 代码格式化"
+	@echo "  make lint                   - 代码检查"
+	@echo "  make deps                   - 更新依赖"
+	@echo "  make security               - 安全扫描"
+	@echo "  make coverage               - 测试覆盖率"
+	@echo "  make clean                  - 清理构建产物"
+	@echo ""
+	@echo "📚 文档:"
+	@echo "  make help                   - 显示此帮助信息"
+	@echo ""
 
 # 构建所有组件
 build-all: build-control-plane build-wasm-plugin build-cli
@@ -177,3 +212,141 @@ integration-test: run-local
 	@cd control-plane && go test -tags=integration ./integration_test.go
 	@make stop-local
 	@echo "✅ 集成测试完成"
+
+#==============================================================================
+# Kubernetes 部署目标
+#==============================================================================
+
+# 部署到 Kubernetes - 完整流程
+deploy-all: build-wasm-plugin deploy-namespace deploy-wasm-server deploy-control-plane deploy-plugin deploy-envoyfilter
+	@echo "✅ K8s 完整部署完成"
+	@echo ""
+	@echo "📊 部署状态:"
+	@make status-k8s
+
+# 创建命名空间
+deploy-namespace:
+	@echo "🔧 创建 K8s 命名空间..."
+	@kubectl apply -f k8s/namespace.yaml
+	@echo "✅ 命名空间创建完成"
+
+# 部署 Wasm 插件服务器
+deploy-wasm-server:
+	@echo "📦 部署 Wasm 插件服务器..."
+	@echo "  1. 复制 Wasm 插件到主机路径..."
+	@sudo mkdir -p /tmp/wasm-plugin
+	@sudo cp wasm-plugin/target/wasm32-unknown-unknown/release/hfi_wasm_plugin.wasm /tmp/wasm-plugin/plugin.wasm
+	@sudo chmod 644 /tmp/wasm-plugin/plugin.wasm
+	@echo "  2. 部署 wasm-server..."
+	@kubectl apply -f k8s/wasm-server.yaml
+	@echo "  3. 等待 wasm-server 就绪..."
+	@kubectl wait --for=condition=ready pod -l app=wasm-server -n boifi --timeout=120s || true
+	@echo "✅ Wasm 插件服务器部署完成"
+
+# 部署控制平面
+deploy-control-plane:
+	@echo "🎛️  部署控制平面..."
+	@kubectl apply -f k8s/control-plane.yaml
+	@echo "  等待控制平面就绪..."
+	@kubectl wait --for=condition=ready pod -l app=control-plane -n boifi --timeout=120s || true
+	@echo "✅ 控制平面部署完成"
+
+# 部署 WasmPlugin CRD
+deploy-plugin:
+	@echo "🔌 部署 WasmPlugin CRD..."
+	@kubectl apply -f k8s/wasmplugin.yaml
+	@echo "  等待 WasmPlugin 生效 (5秒)..."
+	@sleep 5
+	@echo "✅ WasmPlugin 部署完成"
+
+# 部署 EnvoyFilter (可选)
+deploy-envoyfilter:
+	@echo "🔧 部署 EnvoyFilter (统计匹配器)..."
+	@kubectl apply -f k8s/envoyfilter-wasm-stats.yaml
+	@echo "✅ EnvoyFilter 部署完成"
+
+# 卸载所有 K8s 资源
+undeploy:
+	@echo "🗑️  卸载 K8s 资源..."
+	@kubectl delete -f k8s/envoyfilter-wasm-stats.yaml --ignore-not-found=true
+	@kubectl delete -f k8s/wasmplugin.yaml --ignore-not-found=true
+	@kubectl delete -f k8s/control-plane.yaml --ignore-not-found=true
+	@kubectl delete -f k8s/wasm-server.yaml --ignore-not-found=true
+	@kubectl delete -f k8s/namespace.yaml --ignore-not-found=true
+	@echo "✅ K8s 资源卸载完成"
+
+# 检查 K8s 部署状态
+status-k8s:
+	@echo "📊 检查 K8s 部署状态..."
+	@echo ""
+	@echo "=== Namespaces ==="
+	@kubectl get ns boifi demo 2>/dev/null || echo "  ⚠️  命名空间不存在"
+	@echo ""
+	@echo "=== Pods in boifi namespace ==="
+	@kubectl get pods -n boifi 2>/dev/null || echo "  ⚠️  无 pods"
+	@echo ""
+	@echo "=== Services in boifi namespace ==="
+	@kubectl get svc -n boifi 2>/dev/null || echo "  ⚠️  无 services"
+	@echo ""
+	@echo "=== WasmPlugin ==="
+	@kubectl get wasmplugin -A 2>/dev/null || echo "  ⚠️  WasmPlugin CRD 未安装或无实例"
+	@echo ""
+	@echo "=== EnvoyFilter ==="
+	@kubectl get envoyfilter -A 2>/dev/null || echo "  ⚠️  无 EnvoyFilter"
+	@echo ""
+
+# 更新 Wasm 插件 (重新编译并更新)
+update-wasm-plugin: build-wasm-plugin
+	@echo "🔄 更新 Wasm 插件..."
+	@echo "  1. 复制新版本插件到主机路径..."
+	@sudo cp wasm-plugin/target/wasm32-unknown-unknown/release/hfi_wasm_plugin.wasm /tmp/wasm-plugin/plugin.wasm
+	@sudo chmod 644 /tmp/wasm-plugin/plugin.wasm
+	@echo "  2. 重启 wasm-server 使其生效..."
+	@kubectl rollout restart deployment/wasm-server -n boifi
+	@kubectl wait --for=condition=ready pod -l app=wasm-server -n boifi --timeout=120s || true
+	@echo "  3. 触发 Istio sidecar 重新加载插件..."
+	@kubectl get pods -n demo -l app --no-headers | awk '{print $$1}' | xargs -I {} kubectl exec {} -n demo -c istio-proxy -- curl -X POST http://localhost:15000/reset_counters 2>/dev/null || true
+	@echo "✅ Wasm 插件更新完成"
+
+# 查看 Wasm 插件日志
+logs-wasm-plugin:
+	@echo "📝 查看 Wasm 插件日志 (从 demo namespace 的第一个 pod)..."
+	@POD=$$(kubectl get pods -n demo -l app --no-headers | head -1 | awk '{print $$1}'); \
+	if [ -n "$$POD" ]; then \
+		echo "  Pod: $$POD"; \
+		kubectl logs -n demo $$POD -c istio-proxy --tail=50; \
+	else \
+		echo "  ⚠️  demo namespace 中没有找到应用 pod"; \
+	fi
+
+# 查看控制平面日志
+logs-control-plane:
+	@echo "📝 查看控制平面日志..."
+	@kubectl logs -n boifi -l app=control-plane --tail=50
+
+# 运行 K8s 端到端测试
+test-k8s:
+	@echo "🧪 运行 K8s 端到端测试..."
+	@bash k8s/tests/test-metrics.sh
+	@echo "✅ K8s 测试完成"
+
+# 运行所有 K8s 测试
+test-k8s-all:
+	@echo "🧪 运行所有 K8s 测试..."
+	@bash k8s/tests/run-all-tests.sh
+	@echo "✅ 所有 K8s 测试完成"
+
+# 端口转发 - 控制平面
+port-forward-control-plane:
+	@echo "🔌 端口转发控制平面 (8080 -> 8080)..."
+	@kubectl port-forward -n boifi svc/hfi-control-plane 8080:8080
+
+# 端口转发 - Wasm Server
+port-forward-wasm-server:
+	@echo "🔌 端口转发 Wasm Server (8081 -> 80)..."
+	@kubectl port-forward -n boifi svc/wasm-server 8081:80
+
+# K8s 快速重新部署 (卸载 + 部署)
+redeploy: undeploy deploy-all
+	@echo "✅ K8s 快速重新部署完成"
+

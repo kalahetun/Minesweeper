@@ -1,487 +1,201 @@
-# Kubernetes Deployment for HFI System
+# Kubernetes 部署指南
 
-This directory contains Kubernetes manifests for deploying the complete HTTP Fault Injection (HFI) system in a Kubernetes cluster.
+本目录包含 BOIFI 故障注入系统的 Kubernetes 部署清单。
 
-## 📦 Components
+## 🚀 快速开始
 
-### 1. Control Plane (`control-plane.yaml`)
-- Deployment: `hfi-control-plane` with 2 replicas
-- Service: ClusterIP service exposing port 8080
-- Storage: etcd deployment and service for persistent storage
-- Features:
-  - Health checks and readiness probes
-  - Resource limits and requests
-  - Environment variables for configuration
-
-### 2. Envoy Configuration (`envoy-config.yaml`)
-- ConfigMap: `hfi-envoy-config` containing Envoy configuration
-- Features:
-  - HTTP connection manager with Wasm filter
-  - Wasm plugin configuration pointing to Control Plane service
-  - Admin interface on port 9901
-
-### 3. Sample Application (`sample-app-with-proxy.yaml`)
-- Deployment: Sample application with Envoy sidecar
-- Containers:
-  - `httpbin`: Main application container
-  - `envoy-proxy`: Sidecar proxy container
-- Init Container: Copies Wasm plugin to shared volume
-- Services: ClusterIP and NodePort for external access
-
-## 🔧 Istio Integration
-
-### Prerequisites for Istio Deployment
-- **Istio 1.24+** installed in your cluster
-- Namespace with Istio injection enabled: `kubectl label namespace <namespace> istio-injection=enabled`
-- `kubectl` and `istioctl` CLI tools configured
-
-### WasmPlugin CRD Deployment (Recommended)
-
-The WasmPlugin CRD is the **recommended approach** for Istio-based deployments:
+### 使用 Makefile 一键部署（推荐）
 
 ```bash
-# 1. Deploy Control Plane to boifi namespace
-kubectl apply -f control-plane.yaml
-
-# 2. Deploy WasmPlugin CRD to inject plugin into Istio sidecars
-kubectl apply -f plugin-multi-instance.yaml
-
-# 3. Verify WasmPlugin is active
-kubectl get wasmplugins.extensions.istio.io -n demo
+cd executor
+make deploy-all
 ```
 
-**WasmPlugin Benefits:**
-- ✅ Automatic injection into all Envoy sidecars
-- ✅ No manual Envoy configuration needed
-- ✅ Istio manages plugin lifecycle
-- ✅ Works with any Istio-injected pod
+自动完成：
+- ✅ 编译 Wasm 插件
+- ✅ 创建命名空间 (boifi, demo)
+- ✅ 部署所有组件（控制平面、Wasm 服务器、WasmPlugin、EnvoyFilter）
+- ✅ 验证部署状态
 
-### Service-Targeted Policies
+### 常用命令
 
-Use the `selector` field to target specific services:
-
-```yaml
-metadata:
-  name: frontend-policy
-spec:
-  selector:
-    service: frontend      # Target specific service
-    namespace: demo        # In specific namespace
-  rules:
-    - match:
-        path:
-          prefix: /
-      fault:
-        percentage: 30
-        abort:
-          httpStatus: 503
-```
-
-**Selector Wildcards:**
-- Omit `selector` field → applies to ALL services
-- `service: "*"` → applies to all services
-- `namespace: "*"` → applies to all namespaces
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Kubernetes cluster (v1.20+)
-- `kubectl` configured to access your cluster
-- Container images built and available:
-  - `hfi/control-plane:latest`
-  - `hfi/wasm-plugin:latest`
-
-### Deploy the System
 ```bash
-# Navigate to k8s directory
-cd k8s/
-
-# Deploy all components
-./deploy.sh
+make help                    # 查看所有可用命令
+make deploy-all          # 完整部署
+make status-k8s              # 检查部署状态
+make test-k8s                # 运行端到端测试
+make undeploy            # 卸载所有组件
+make logs-wasm-plugin        # 查看 Wasm 插件日志
+make logs-control-plane      # 查看控制平面日志
+make update-wasm-plugin      # 更新 Wasm 插件
 ```
 
-### Manual Deployment
-```bash
-# 1. Deploy Control Plane and etcd
-kubectl apply -f control-plane.yaml
+---
 
-# 2. Deploy Envoy configuration
-kubectl apply -f envoy-config.yaml
+## 📦 组件说明
 
-# 3. Deploy sample application
-kubectl apply -f sample-app-with-proxy.yaml
+### 核心组件
+
+| 组件 | 文件 | 说明 |
+|------|------|------|
+| 控制平面 | `control-plane.yaml` | 故障策略管理服务（2 副本）+ etcd 存储 |
+| Wasm 服务器 | `wasm-server.yaml` | 通过 HTTP 分发 Wasm 插件（nginx + hostPath） |
+| WasmPlugin | `wasmplugin.yaml` | Istio WasmPlugin CRD，自动注入到 Envoy sidecar |
+| EnvoyFilter | `envoyfilter-wasm-stats.yaml` | 配置 Envoy 统计匹配器，暴露指标 |
+| 命名空间 | `namespace.yaml` | 创建 boifi 和 demo 命名空间 |
+
+### 前置条件
+
+- Kubernetes 1.24+（测试使用 k3s）
+- Istio 1.24+
+- kubectl 和 istioctl 已配置
+- demo 命名空间启用 Istio 注入：`kubectl label namespace demo istio-injection=enabled`
+
+## 🔧 架构说明
+
+```
+┌─────────────────┐
+│   控制平面       │  管理故障策略（API: 8080）
+│   + etcd        │
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    │ Wasm    │  通过 HTTP 分发插件
+    │ Server  │  (http://wasm-server.boifi.svc/plugin.wasm)
+    └────┬────┘
+         │
+┌────────▼────────┐
+│  WasmPlugin CRD │  Istio 自动注入到所有 sidecar
+└────────┬────────┘
+         │
+┌────────▼────────┐
+│  应用 Pod       │
+│  ├─ app         │  业务容器
+│  └─ istio-proxy │  Envoy sidecar（加载 Wasm 插件）
+└─────────────────┘
 ```
 
-### Cleanup
+## 🧪 测试验证
+
+### 应用故障策略
+
 ```bash
-# Remove all components
-./cleanup.sh
-```
-
-## 🔍 Verification
-
-### Check Deployment Status
-```bash
-# Check all pods
-kubectl get pods -l component in \(control-plane,storage,demo\)
-
-# Check services
-kubectl get svc -l app in \(hfi-control-plane,hfi-etcd,sample-app\)
-
-# Check config maps
-kubectl get configmap hfi-envoy-config
-```
-
-### View Logs
-```bash
-# Control Plane logs
-kubectl logs -l app=hfi-control-plane
-
-# Sample application logs
-kubectl logs -l app=sample-app -c httpbin
-
-# Envoy proxy logs
-kubectl logs -l app=sample-app -c envoy-proxy
-```
-
-## 🌐 Access Services
-
-### Internal Access (within cluster)
-- Control Plane API: `http://hfi-control-plane.default.svc.cluster.local:8080`
-- Sample App (via Envoy): `http://sample-app-service.default.svc.cluster.local:8000`
-- Envoy Admin: `http://sample-app-service.default.svc.cluster.local:9901`
-
-### External Access (NodePort)
-- Sample App: `http://<node-ip>:30080`
-- Envoy Admin: `http://<node-ip>:30901`
-
-Get node IP:
-```bash
-kubectl get nodes -o wide
-```
-
-## 🧪 Testing the System
-
-### 1. Apply a Fault Injection Policy
-```bash
-# Port forward to Control Plane (if needed)
+# 端口转发到控制平面
 kubectl port-forward -n boifi svc/hfi-control-plane 8080:8080 &
 
-# Use the CLI tool to apply a policy
-cd ../cli
+# 应用故障策略
+cd executor/cli
 ./hfi-cli policy apply -f examples/abort-policy.yaml
 
-# For Istio: Apply service-targeted policy
-./hfi-cli policy apply -f examples/service-targeted-policy.yaml
+# 查看策略列表
+./hfi-cli policy list
 ```
 
-### Istio-Specific Testing
-```bash
-# Check WasmPlugin status
-kubectl get wasmplugins -n demo -o wide
-
-# View policy status
-curl http://localhost:8080/v1/policies/status | jq .
-
-# Test fault injection on specific service
-kubectl run curl-test -n demo --image=curlimages/curl --rm -i --restart=Never -- \
-  curl -v http://frontend.demo.svc.cluster.local/
-
-# Check Envoy sidecar logs for fault decisions
-kubectl logs -n demo <pod-name> -c istio-proxy | grep -i "fault\|hfi"
-```
-
-### 2. Test Fault Injection
-```bash
-# Port forward to sample app
-kubectl port-forward svc/sample-app-service 8000:8000 &
-
-# Send test requests
-curl http://localhost:8000/get
-curl http://localhost:8000/status/200
-```
-
-### 3. Monitor Envoy Admin Interface
-```bash
-# Port forward to Envoy admin
-kubectl port-forward svc/sample-app-service 9901:9901 &
-
-# Open in browser or curl
-curl http://localhost:9901/stats | grep hfi
-```
-
-## 🔧 Configuration
-
-### Environment Variables (Control Plane)
-- `STORAGE_BACKEND`: Storage backend type (`etcd` or `memory`)
-- `ETCD_ENDPOINTS`: etcd server endpoints
-- `LOG_LEVEL`: Logging level
-
-### Envoy Configuration
-- Modify `envoy-config.yaml` to change Envoy behavior
-- Update Wasm plugin configuration in the ConfigMap
-- Adjust cluster configuration for your backend services
-
-### Resource Limits
-Adjust resource requests and limits in the deployments based on your cluster capacity:
-```yaml
-resources:
-  requests:
-    memory: "64Mi"
-    cpu: "50m"
-  limits:
-    memory: "128Mi"
-    cpu: "200m"
-```
-
-## 🏗️ Architecture
-
-```
-┌─────────────────┐    ┌─────────────────┐
-│   CLI Tool      │    │  Control Plane  │
-│                 │────│  (Deployment)   │
-│                 │    │                 │
-└─────────────────┘    └─────────────────┘
-                                │
-                                │ HTTP API
-                                │
-┌─────────────────┐    ┌─────────────────┐
-│   etcd          │────│  Sample App     │
-│  (Storage)      │    │  + Envoy Proxy  │
-│                 │    │  (Sidecar)      │
-└─────────────────┘    └─────────────────┘
-```
-
-## 📊 Metrics Verification
-
-### Check Wasm Plugin Metrics
-
-The Wasm plugin exposes three Prometheus metrics for monitoring fault injection:
+### 验证指标暴露
 
 ```bash
-# Get a pod name with Istio sidecar
+# 获取应用 Pod
 POD=$(kubectl get pod -n demo -l app=frontend -o jsonpath='{.items[0].metadata.name}')
 
-# Query Envoy stats endpoint for HFI metrics
+# 查询 Wasm 插件指标
 kubectl exec -n demo $POD -c istio-proxy -- \
-  curl -s http://localhost:15090/stats/prometheus | grep wasmcustom_hfi_faults
-
-# Expected output (metric names with current values):
-# wasmcustom_hfi_faults_aborts_total 42
-# wasmcustom_hfi_faults_delays_total 15
-# wasmcustom_hfi_faults_delay_duration_milliseconds_bucket{le="50"} 5
-# wasmcustom_hfi_faults_delay_duration_milliseconds_bucket{le="100"} 10
-# ...
-# wasmcustom_hfi_faults_delay_duration_milliseconds_sum 3500
-# wasmcustom_hfi_faults_delay_duration_milliseconds_count 15
+  curl -s http://localhost:15020/stats/prometheus | grep wasmcustom_hfi_faults
 ```
 
-### Available Metrics
+**暴露的指标：**
+- `wasmcustom_hfi_faults_aborts_total`: 中止故障计数
+- `wasmcustom_hfi_faults_delays_total`: 延迟故障计数
+- `wasmcustom_hfi_faults_delay_duration_milliseconds`: 延迟时长分布（Histogram）
 
-| Metric Name | Type | Description |
-|-------------|------|-------------|
-| `wasmcustom_hfi_faults_aborts_total` | Counter | Total number of abort faults injected (HTTP errors) |
-| `wasmcustom_hfi_faults_delays_total` | Counter | Total number of delay faults injected |
-| `wasmcustom_hfi_faults_delay_duration_milliseconds` | Histogram | Distribution of delay durations (buckets from 0.5ms to 3600s) |
-
-### Verify Metrics After Policy Application
+### 端到端测试
 
 ```bash
-# 1. Apply an abort policy
-cd ../cli
-./hfi-cli policy apply -f examples/abort-policy.yaml
+# 运行完整测试套件
+make test-k8s
 
-# 2. Generate some traffic
-for i in {1..20}; do
-  kubectl exec -n demo $POD -c server -- curl -s http://localhost:8080/ > /dev/null
-  sleep 0.5
-done
-
-# 3. Check aborts_total incremented
-kubectl exec -n demo $POD -c istio-proxy -- \
-  curl -s http://localhost:15090/stats/prometheus | grep "wasmcustom_hfi_faults_aborts_total"
-
-# Expected: counter should have increased (e.g., from 42 to 52)
+# 运行所有测试
+make test-k8s-all
 ```
 
-### Troubleshooting Missing Metrics
+## 🐛 故障排查
 
-**If metrics don't appear:**
+### 常见问题
 
-1. **Check Wasm plugin is loaded**
-   ```bash
-   kubectl logs -n demo $POD -c istio-proxy | grep -i wasm
-   # Look for: "wasm vm created" or similar
-   ```
-
-2. **Verify EnvoyFilter (if using)**
-   ```bash
-   kubectl get envoyfilter -n demo
-   kubectl describe envoyfilter hfi-wasm-metrics -n demo
-   ```
-
-3. **Check Envoy config_dump**
-   ```bash
-   kubectl exec -n demo $POD -c istio-proxy -- \
-     curl -s localhost:15000/config_dump | jq '.configs[] | 
-     select(.["@type"] == "type.googleapis.com/envoy.admin.v3.BootstrapConfigDump") | 
-     .bootstrap.stats_config.stats_matcher'
-   ```
-
-4. **Verify metric names are correct**
-   - Metrics must use `wasmcustom.` prefix to be exposed by Envoy
-   - Check plugin source code: `executor/wasm-plugin/src/lib.rs` lines 77, 91, 105
-
-**Common causes:**
-- Pod not restarted after EnvoyFilter deployment (BOOTSTRAP patch requires restart)
-- Old plugin version without `wasmcustom.*` prefix
-- Prometheus scrape config not targeting `/stats/prometheus` endpoint
-
-See [METRICS_SOLUTION.md](METRICS_SOLUTION.md) for detailed troubleshooting guide.
-
-## 📝 Quick Reference Commands
-
-### Metrics Verification
+**1. WasmPlugin 未加载**
 
 ```bash
-# Get a pod with Istio sidecar
-POD=$(kubectl get pod -n demo -l app=frontend -o jsonpath='{.items[0].metadata.name}')
+# 检查 wasm-server 是否运行
+kubectl get pods -n boifi -l app=wasm-server
 
-# Check all HFI metrics
-kubectl exec -n demo $POD -c istio-proxy -- \
-  curl -s http://localhost:15090/stats/prometheus | grep wasmcustom_hfi_faults
+# 检查插件是否可访问
+kubectl run -it --rm debug --image=curlimages/curl --restart=Never -- \
+  curl -I http://wasm-server.boifi.svc.cluster.local/plugin.wasm
 
-# Check specific metric
-kubectl exec -n demo $POD -c istio-proxy -- \
-  curl -s http://localhost:15090/stats/prometheus | grep "wasmcustom_hfi_faults_aborts_total"
-```
-
-### EnvoyFilter Management
-
-```bash
-# List EnvoyFilters in namespace
-kubectl get envoyfilter -n demo
-
-# Describe EnvoyFilter
-kubectl describe envoyfilter hfi-wasm-metrics -n demo
-
-# Apply EnvoyFilter
-kubectl apply -f envoyfilter-wasm-stats.yaml
-
-# Delete EnvoyFilter
-kubectl delete envoyfilter hfi-wasm-metrics -n demo
-```
-
-### Pod Restart (for BOOTSTRAP changes)
-
-```bash
-# Restart all deployments in namespace
-kubectl rollout restart deployment -n demo
-
-# Restart specific deployment
-kubectl rollout restart deployment frontend -n demo
-
-# Force pod restart by deletion
-kubectl delete pod -n demo $POD
-
-# Wait for pods to be ready
-kubectl wait --for=condition=ready pod -l app=frontend -n demo --timeout=90s
-```
-
-### Wasm Plugin Management
-
-```bash
-# List WasmPlugins in namespace
-kubectl get wasmplugin -n demo
-
-# Describe WasmPlugin
-kubectl describe wasmplugin boifi-fault-injection -n demo
-
-# Apply WasmPlugin
-kubectl apply -f wasmplugin.yaml
-
-# Check Wasm plugin logs
+# 查看 Wasm 插件日志
 kubectl logs -n demo $POD -c istio-proxy | grep -i wasm
 ```
 
-### Policy Management (via CLI)
+**2. 指标未显示**
 
 ```bash
-# Port forward to control plane (if needed)
-kubectl port-forward -n boifi svc/hfi-control-plane 8080:8080 &
+# 检查 EnvoyFilter 是否部署
+kubectl get envoyfilter -n demo hfi-wasm-metrics
 
-# List policies
-cd executor/cli
-./hfi-cli policy list --control-plane-addr http://localhost:8080
+# 手动查询指标端点
+kubectl exec -n demo $POD -c istio-proxy -- \
+  curl -s http://localhost:15020/stats/prometheus | grep wasmcustom
 
-# Apply policy
-./hfi-cli policy apply -f examples/abort-policy.yaml
-
-# Delete policy
-./hfi-cli policy delete <policy-id>
-
-# Describe policy
-./hfi-cli policy describe <policy-id>
+# 注意：BOOTSTRAP 类型的 EnvoyFilter 需要重启 Pod 生效
+kubectl rollout restart deployment -n demo
 ```
 
-### Troubleshooting Commands
+**3. 控制平面无法连接**
 
 ```bash
-# Check Envoy config_dump for stats_matcher
-kubectl exec -n demo $POD -c istio-proxy -- \
-  curl -s localhost:15000/config_dump | \
-  jq '.configs[] | select(.["@type"] == "type.googleapis.com/envoy.admin.v3.BootstrapConfigDump") | 
-      .bootstrap.stats_config.stats_matcher'
-
-# Check Envoy admin stats (raw format)
-kubectl exec -n demo $POD -c istio-proxy -- \
-  curl -s http://localhost:15000/stats | grep -E "(wasm|hfi)"
-
-# Check pod labels
-kubectl get pod -n demo $POD --show-labels
-
-# Check Istio proxy logs
-kubectl logs -n demo $POD -c istio-proxy --tail=100
-
-# Check control plane health
+# 检查控制平面状态
 kubectl get pods -n boifi -l app=hfi-control-plane
-kubectl logs -n boifi <control-plane-pod> --tail=50
+
+# 查看日志
+kubectl logs -n boifi -l app=hfi-control-plane --tail=50
+
+# 端口转发进行本地测试
+make port-forward-control-plane
 ```
 
-## 🐛 Troubleshooting
+详细故障排查：参见 [METRICS_SOLUTION.md](METRICS_SOLUTION.md)
 
-### Common Issues
+## 📝 常用命令速查
 
-1. Pods not starting
-   - Check container images are available
-   - Verify resource limits are appropriate
-   - Check node capacity
-
-2. Wasm plugin not loading
-   - Verify init container copied the plugin successfully
-   - Check Envoy logs for plugin errors
-   - Ensure volume mounts are correct
-
-3. Control Plane connectivity issues
-   - Verify service names and ports in Envoy config
-   - Check network policies if any
-   - Ensure DNS resolution works
-
-### Debug Commands
 ```bash
-# Describe resources for detailed info
-kubectl describe pod <pod-name>
-kubectl describe deployment <deployment-name>
+# 部署管理
+make deploy-all         # 完整部署
+make undeploy           # 完全卸载
+make redeploy           # 重新部署
+make status-k8s             # 检查状态
 
-# Get events
-kubectl get events --sort-by=.metadata.creationTimestamp
+# 组件管理
+make update-wasm-plugin     # 更新插件
+make logs-wasm-plugin       # 插件日志
+make logs-control-plane     # 控制平面日志
 
-# Port forward for direct access
-kubectl port-forward pod/<pod-name> <local-port>:<container-port>
+# 端口转发
+make port-forward-control-plane  # 转发控制平面（8080）
+make port-forward-wasm-server    # 转发 Wasm 服务器（8081）
+
+# 测试
+make test-k8s               # 运行端到端测试
+make test-k8s-all           # 运行所有测试
+
+# K8s 原生命令
+kubectl get wasmplugin -n demo              # 查看 WasmPlugin
+kubectl get envoyfilter -n demo             # 查看 EnvoyFilter
+kubectl get pods -n boifi                   # 查看 boifi 命名空间 Pod
+kubectl logs -n demo $POD -c istio-proxy    # 查看 sidecar 日志
 ```
 
-## 📚 Additional Resources
+## 📚 参考文档
 
-- [Envoy Proxy Documentation](https://www.envoyproxy.io/docs)
-- [Kubernetes Documentation](https://kubernetes.io/docs)
-- [Wasm in Envoy](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/wasm_filter)
+- [Istio WasmPlugin 文档](https://istio.io/latest/docs/reference/config/proxy_extensions/wasm-plugin/)
+- [Envoy Wasm 扩展](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/wasm_filter)
+- [Feature 008 规范](../../specs/008-wasm-metrics-exposure/spec.md)
+- [详细故障排查指南](METRICS_SOLUTION.md)
