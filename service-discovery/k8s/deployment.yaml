@@ -1,0 +1,205 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: boifi
+  labels:
+    app.kubernetes.io/name: boifi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: service-discovery-config
+  namespace: boifi
+data:
+  config.yaml: |
+    kubernetes:
+      kubeconfig: ""  # 使用 in-cluster 配置
+    
+    jaeger:
+      url: "http://jaeger-query.observability.svc.cluster.local:16686"
+      lookback: 1h
+      timeout: 30s
+    
+    redis:
+      address: "redis.boifi.svc.cluster.local:6379"
+      password: ""
+      db: 0
+      key: "boifi:service-map"
+      channel: "boifi:service-map:updates"
+    
+    discovery:
+      interval: 5m
+    
+    log:
+      level: info
+      format: json
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: service-discovery
+  namespace: boifi
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: service-discovery
+rules:
+  - apiGroups: ["networking.istio.io"]
+    resources: ["virtualservices"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["services", "endpoints"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: service-discovery
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: service-discovery
+subjects:
+  - kind: ServiceAccount
+    name: service-discovery
+    namespace: boifi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-discovery
+  namespace: boifi
+  labels:
+    app: service-discovery
+    app.kubernetes.io/name: service-discovery
+    app.kubernetes.io/component: discovery
+    app.kubernetes.io/part-of: boifi
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-discovery
+  template:
+    metadata:
+      labels:
+        app: service-discovery
+        app.kubernetes.io/name: service-discovery
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: service-discovery
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: service-discovery
+          image: boifi/service-discovery:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-c"
+            - "/etc/service-discovery/config.yaml"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: config
+              mountPath: /etc/service-discovery
+              readOnly: true
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+      volumes:
+        - name: config
+          configMap:
+            name: service-discovery-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-discovery
+  namespace: boifi
+  labels:
+    app: service-discovery
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app: service-discovery
+---
+# Redis 部署（如果需要独立 Redis 实例）
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: boifi
+  labels:
+    app: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: boifi
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: 6379
+  selector:
+    app: redis
