@@ -122,9 +122,10 @@ func main() {
 		// 策略管理端点
 		v1.POST("/policies", policyController.CreateOrUpdate) // 创建或更新策略 (原有行为)
 		v1.POST("/policies/create", policyController.Create)  // 仅创建策略 (新增)
-		v1.PUT("/policies/:id", policyController.Update)      // 仅更新策略 (新增)
-		v1.GET("/policies/:id", policyController.Get)
+		v1.GET("/policies/status", policyController.Status)   // 策略状态摘要 (新增) - 必须在 :id 之前
 		v1.GET("/policies", policyController.List)
+		v1.GET("/policies/:id", policyController.Get)
+		v1.PUT("/policies/:id", policyController.Update) // 仅更新策略 (新增)
 		v1.DELETE("/policies/:id", policyController.Delete)
 
 		// 将 SSE 端点处理器与分发器连接

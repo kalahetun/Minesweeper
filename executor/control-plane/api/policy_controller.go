@@ -198,3 +198,81 @@ func (pc *PolicyController) Delete(c *gin.Context) {
 	policyLog.Info("Policy deleted successfully")
 	c.JSON(http.StatusOK, gin.H{"message": "policy deleted successfully"})
 }
+
+// PolicyStatusItem represents the status of a single policy
+type PolicyStatusItem struct {
+	Name          string   `json:"name"`
+	Namespace     string   `json:"namespace,omitempty"`
+	TargetService string   `json:"target_service,omitempty"`
+	RulesCount    int      `json:"rules_count"`
+	FaultTypes    []string `json:"fault_types"`
+	Active        bool     `json:"active"`
+}
+
+// Status handles GET /v1/policies/status
+// Returns a summary of all active policies and their application status
+func (pc *PolicyController) Status(c *gin.Context) {
+	log := logger.WithComponent("api.policy")
+	policies := pc.policyService.ListPolicies()
+
+	var statusItems []PolicyStatusItem
+	totalAbortPolicies := 0
+	totalDelayPolicies := 0
+
+	for _, policy := range policies {
+		// Skip nil policies
+		if policy == nil {
+			log.Warn("Encountered nil policy in list, skipping")
+			continue
+		}
+
+		item := PolicyStatusItem{
+			Name:       policy.Metadata.Name,
+			RulesCount: len(policy.Spec.Rules),
+			Active:     true, // All policies in storage are active
+			FaultTypes: []string{},
+		}
+
+		// Extract selector info
+		if policy.Spec.Selector != nil {
+			item.TargetService = policy.Spec.Selector.Service
+			item.Namespace = policy.Spec.Selector.Namespace
+		} else {
+			item.TargetService = "*"
+			item.Namespace = "*"
+		}
+
+		// Analyze fault types in rules
+		hasAbort := false
+		hasDelay := false
+		for _, rule := range policy.Spec.Rules {
+			if rule.Fault.Abort != nil && !hasAbort {
+				item.FaultTypes = append(item.FaultTypes, "abort")
+				hasAbort = true
+				totalAbortPolicies++
+			}
+			if rule.Fault.Delay != nil && !hasDelay {
+				item.FaultTypes = append(item.FaultTypes, "delay")
+				hasDelay = true
+				totalDelayPolicies++
+			}
+		}
+
+		statusItems = append(statusItems, item)
+	}
+
+	log.Info("Policy status retrieved",
+		zap.Int("total_policies", len(policies)),
+		zap.Int("abort_policies", totalAbortPolicies),
+		zap.Int("delay_policies", totalDelayPolicies))
+
+	c.JSON(http.StatusOK, gin.H{
+		"summary": gin.H{
+			"total_policies":  len(policies),
+			"abort_policies":  totalAbortPolicies,
+			"delay_policies":  totalDelayPolicies,
+			"active_policies": len(policies), // All stored policies are active
+		},
+		"policies": statusItems,
+	})
+}
