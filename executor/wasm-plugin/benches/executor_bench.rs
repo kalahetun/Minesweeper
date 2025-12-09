@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::time::Duration;
 
 /// Fault execution types for benchmarking
@@ -59,36 +59,24 @@ pub struct ExecutionResult {
 fn benchmark_abort_execution(c: &mut Criterion) {
     let executor = SimpleExecutor::new(FaultType::Abort { status_code: 500 });
 
-    c.bench_function("abort_execution", |b| {
-        b.iter(|| {
-            executor.execute()
-        })
-    });
+    c.bench_function("abort_execution", |b| b.iter(|| executor.execute()));
 
     c.bench_function("abort_execution_atomic", |b| {
-        b.iter(|| {
-            executor.execute_atomic()
-        })
+        b.iter(|| executor.execute_atomic())
     });
 }
 
 fn benchmark_delay_execution(c: &mut Criterion) {
     let mut group = c.benchmark_group("delay_execution");
-    
+
     for delay_ms in [10, 50, 100, 500].iter() {
         let executor = SimpleExecutor::new(FaultType::Delay {
             milliseconds: *delay_ms,
         });
 
-        group.bench_with_input(
-            BenchmarkId::from_parameter(delay_ms),
-            delay_ms,
-            |b, _| {
-                b.iter(|| {
-                    executor.execute()
-                })
-            },
-        );
+        group.bench_with_input(BenchmarkId::from_parameter(delay_ms), delay_ms, |b, _| {
+            b.iter(|| executor.execute())
+        });
     }
     group.finish();
 }
@@ -149,9 +137,7 @@ fn benchmark_concurrent_execution(c: &mut Criterion) {
     c.bench_function("concurrent_execution_10", |b| {
         b.iter(|| {
             // Simulate 10 concurrent executions
-            let results: Vec<_> = (0..10)
-                .map(|_| executor.execute())
-                .collect();
+            let results: Vec<_> = (0..10).map(|_| executor.execute()).collect();
             black_box(results.len())
         })
     });
@@ -159,9 +145,7 @@ fn benchmark_concurrent_execution(c: &mut Criterion) {
     c.bench_function("concurrent_execution_100", |b| {
         b.iter(|| {
             // Simulate 100 concurrent executions
-            let results: Vec<_> = (0..100)
-                .map(|_| executor.execute())
-                .collect();
+            let results: Vec<_> = (0..100).map(|_| executor.execute()).collect();
             black_box(results.len())
         })
     });

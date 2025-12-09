@@ -305,8 +305,7 @@ mod matcher_tests {
 
     #[test]
     fn test_header_exact_value() {
-        let matcher = HeaderMatcher::new("X-Chaos-Test".to_string())
-            .with_exact("true".to_string());
+        let matcher = HeaderMatcher::new("X-Chaos-Test".to_string()).with_exact("true".to_string());
         assert!(matcher.matches("true"));
         assert!(!matcher.matches("True"));
         assert!(!matcher.matches("false"));
@@ -314,8 +313,8 @@ mod matcher_tests {
 
     #[test]
     fn test_header_prefix_match() {
-        let matcher = HeaderMatcher::new("User-Agent".to_string())
-            .with_prefix("Mozilla".to_string());
+        let matcher =
+            HeaderMatcher::new("User-Agent".to_string()).with_prefix("Mozilla".to_string());
         assert!(matcher.matches("Mozilla/5.0"));
         assert!(matcher.matches("Mozilla"));
         assert!(!matcher.matches("Safari"));
@@ -335,8 +334,8 @@ mod matcher_tests {
 
     #[test]
     fn test_header_authorization_bearer_token() {
-        let matcher = HeaderMatcher::new("Authorization".to_string())
-            .with_regex("^Bearer .+$".to_string());
+        let matcher =
+            HeaderMatcher::new("Authorization".to_string()).with_regex("^Bearer .+$".to_string());
         assert!(matcher.matches("Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"));
         assert!(matcher.matches("Bearer token123"));
         assert!(!matcher.matches("Bearer"));
@@ -380,12 +379,9 @@ mod matcher_tests {
 
     #[test]
     fn test_all_header_types_in_one_set() {
-        let h1 = HeaderMatcher::new("X-Exact".to_string())
-            .with_exact("value".to_string());
-        let h2 = HeaderMatcher::new("X-Prefix".to_string())
-            .with_prefix("pre".to_string());
-        let h3 = HeaderMatcher::new("X-Regex".to_string())
-            .with_regex("^[0-9]+$".to_string());
+        let h1 = HeaderMatcher::new("X-Exact".to_string()).with_exact("value".to_string());
+        let h2 = HeaderMatcher::new("X-Prefix".to_string()).with_prefix("pre".to_string());
+        let h3 = HeaderMatcher::new("X-Regex".to_string()).with_regex("^[0-9]+$".to_string());
 
         assert!(h1.matches("value"));
         assert!(h2.matches("prefix-value"));
@@ -396,8 +392,7 @@ mod matcher_tests {
 
     #[test]
     fn test_path_special_characters() {
-        let matcher = PathMatcher::new()
-            .with_exact("/api/users?id=123&name=test".to_string());
+        let matcher = PathMatcher::new().with_exact("/api/users?id=123&name=test".to_string());
         assert!(matcher.matches("/api/users?id=123&name=test"));
         assert!(!matcher.matches("/api/users?id=123"));
     }
@@ -411,8 +406,7 @@ mod matcher_tests {
 
     #[test]
     fn test_path_encoded_characters() {
-        let matcher = PathMatcher::new()
-            .with_exact("/search?q=hello%20world".to_string());
+        let matcher = PathMatcher::new().with_exact("/search?q=hello%20world".to_string());
         assert!(matcher.matches("/search?q=hello%20world"));
         assert!(!matcher.matches("/search?q=hello world"));
     }
@@ -437,8 +431,7 @@ mod matcher_tests {
 
     #[test]
     fn test_regex_special_characters_escaped() {
-        let matcher = PathMatcher::new()
-            .with_regex(r"^/api/v1\.0.*$".to_string());
+        let matcher = PathMatcher::new().with_regex(r"^/api/v1\.0.*$".to_string());
         assert!(matcher.matches("/api/v1.0"));
         assert!(matcher.matches("/api/v1.0/users"));
         assert!(!matcher.matches("/api/v1a0"));
@@ -454,8 +447,7 @@ mod matcher_tests {
 
     #[test]
     fn test_header_case_insensitive_name_but_sensitive_value() {
-        let matcher = HeaderMatcher::new("X-Custom".to_string())
-            .with_exact("Value".to_string());
+        let matcher = HeaderMatcher::new("X-Custom".to_string()).with_exact("Value".to_string());
         // Name is case-insensitive in HTTP, but our matcher stores it as-is
         assert_eq!(matcher.name, "X-Custom");
         // Value matching should be case-sensitive
@@ -469,8 +461,7 @@ mod matcher_tests {
         assert!(matcher.matches("/api/search"));
         assert!(!matcher.matches("/api/search?q=test"));
 
-        let matcher_with_query = PathMatcher::new()
-            .with_exact("/api/search?q=test".to_string());
+        let matcher_with_query = PathMatcher::new().with_exact("/api/search?q=test".to_string());
         assert!(matcher_with_query.matches("/api/search?q=test"));
     }
 

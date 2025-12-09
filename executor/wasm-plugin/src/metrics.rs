@@ -1,5 +1,5 @@
 /// 指标收集模块
-/// 
+///
 /// 实现 Wasm 中的故障注入指标收集，包括：
 /// - 匹配计数 (rules matched)
 /// - 阻断计数 (faults injected)
@@ -68,7 +68,8 @@ impl FaultInjectionMetrics {
     /// 记录延迟故障
     pub fn record_delay_fault(&self, delay_ms: u64) {
         self.delays_total.fetch_add(1, Ordering::Relaxed);
-        self.delay_duration_total_ms.fetch_add(delay_ms, Ordering::Relaxed);
+        self.delay_duration_total_ms
+            .fetch_add(delay_ms, Ordering::Relaxed);
         self.delay_count.fetch_add(1, Ordering::Relaxed);
     }
 
@@ -116,7 +117,7 @@ impl FaultInjectionMetrics {
     pub fn get_average_delay_ms(&self) -> f64 {
         let total = self.delay_duration_total_ms.load(Ordering::Relaxed);
         let count = self.delay_count.load(Ordering::Relaxed);
-        
+
         if count == 0 {
             0.0
         } else {
@@ -148,7 +149,7 @@ impl FaultInjectionMetrics {
     pub fn get_injection_rate(&self) -> f64 {
         let total = self.requests_total.load(Ordering::Relaxed);
         let injected = self.faults_injected_total.load(Ordering::Relaxed);
-        
+
         if total == 0 {
             0.0
         } else {
@@ -160,7 +161,7 @@ impl FaultInjectionMetrics {
     pub fn get_error_rate(&self) -> f64 {
         let total = self.requests_total.load(Ordering::Relaxed);
         let errors = self.injection_errors_total.load(Ordering::Relaxed);
-        
+
         if total == 0 {
             0.0
         } else {
@@ -260,7 +261,7 @@ mod tests {
     #[test]
     fn test_metrics_creation() {
         let metrics = FaultInjectionMetrics::new();
-        
+
         assert_eq!(metrics.get_rules_matched(), 0);
         assert_eq!(metrics.get_faults_injected(), 0);
         assert_eq!(metrics.get_requests_total(), 0);
@@ -269,43 +270,43 @@ mod tests {
     #[test]
     fn test_record_rule_matched() {
         let metrics = FaultInjectionMetrics::new();
-        
+
         metrics.record_rule_matched();
         metrics.record_rule_matched();
         metrics.record_rule_matched();
-        
+
         assert_eq!(metrics.get_rules_matched(), 3);
     }
 
     #[test]
     fn test_record_fault_injected() {
         let metrics = FaultInjectionMetrics::new();
-        
+
         metrics.record_fault_injected();
         metrics.record_fault_injected();
-        
+
         assert_eq!(metrics.get_faults_injected(), 2);
     }
 
     #[test]
     fn test_record_abort_fault() {
         let metrics = FaultInjectionMetrics::new();
-        
+
         metrics.record_abort_fault();
         metrics.record_abort_fault();
         metrics.record_abort_fault();
-        
+
         assert_eq!(metrics.get_aborts(), 3);
     }
 
     #[test]
     fn test_record_delay_fault() {
         let metrics = FaultInjectionMetrics::new();
-        
+
         metrics.record_delay_fault(100);
         metrics.record_delay_fault(200);
         metrics.record_delay_fault(300);
-        
+
         assert_eq!(metrics.get_delays(), 3);
         assert_eq!(metrics.delay_duration_total_ms.load(Ordering::Relaxed), 600);
         assert!((metrics.get_average_delay_ms() - 200.0).abs() < 0.01);
@@ -314,22 +315,22 @@ mod tests {
     #[test]
     fn test_get_average_delay_ms_no_delays() {
         let metrics = FaultInjectionMetrics::new();
-        
+
         assert_eq!(metrics.get_average_delay_ms(), 0.0);
     }
 
     #[test]
     fn test_get_injection_rate() {
         let metrics = FaultInjectionMetrics::new();
-        
+
         metrics.record_request();
         metrics.record_request();
         metrics.record_request();
         metrics.record_request();
-        
+
         metrics.record_fault_injected();
         metrics.record_fault_injected();
-        
+
         let rate = metrics.get_injection_rate();
         assert!((rate - 50.0).abs() < 0.01); // 2/4 = 50%
     }
@@ -337,15 +338,15 @@ mod tests {
     #[test]
     fn test_get_error_rate() {
         let metrics = FaultInjectionMetrics::new();
-        
+
         metrics.record_request();
         metrics.record_request();
         metrics.record_request();
         metrics.record_request();
         metrics.record_request();
-        
+
         metrics.record_injection_error();
-        
+
         let rate = metrics.get_error_rate();
         assert!((rate - 20.0).abs() < 0.01); // 1/5 = 20%
     }
@@ -353,55 +354,55 @@ mod tests {
     #[test]
     fn test_record_request() {
         let metrics = FaultInjectionMetrics::new();
-        
+
         metrics.record_request();
         metrics.record_request();
         metrics.record_request();
-        
+
         assert_eq!(metrics.get_requests_total(), 3);
     }
 
     #[test]
     fn test_record_injection_error() {
         let metrics = FaultInjectionMetrics::new();
-        
+
         metrics.record_injection_error();
-        
+
         assert_eq!(metrics.get_injection_errors(), 1);
     }
 
     #[test]
     fn test_record_time_control_wait() {
         let metrics = FaultInjectionMetrics::new();
-        
+
         metrics.record_time_control_wait();
         metrics.record_time_control_wait();
-        
+
         assert_eq!(metrics.get_time_control_wait_count(), 2);
     }
 
     #[test]
     fn test_record_rule_expired() {
         let metrics = FaultInjectionMetrics::new();
-        
+
         metrics.record_rule_expired();
-        
+
         assert_eq!(metrics.get_rule_expired_count(), 1);
     }
 
     #[test]
     fn test_reset_metrics() {
         let metrics = FaultInjectionMetrics::new();
-        
+
         metrics.record_rule_matched();
         metrics.record_fault_injected();
         metrics.record_abort_fault();
         metrics.record_request();
-        
+
         assert!(metrics.get_rules_matched() > 0);
-        
+
         metrics.reset();
-        
+
         assert_eq!(metrics.get_rules_matched(), 0);
         assert_eq!(metrics.get_faults_injected(), 0);
         assert_eq!(metrics.get_aborts(), 0);
@@ -411,16 +412,16 @@ mod tests {
     #[test]
     fn test_metrics_snapshot() {
         let metrics = FaultInjectionMetrics::new();
-        
+
         metrics.record_request();
         metrics.record_request();
         metrics.record_request();
         metrics.record_fault_injected();
         metrics.record_abort_fault();
         metrics.record_delay_fault(100);
-        
+
         let snapshot = metrics.snapshot();
-        
+
         assert_eq!(snapshot.requests_total, 3);
         assert_eq!(snapshot.faults_injected, 1);
         assert_eq!(snapshot.aborts, 1);
@@ -454,16 +455,16 @@ mod tests {
             time_control_wait_count: Arc::clone(&metrics.time_control_wait_count),
             rule_expired_count: Arc::clone(&metrics.rule_expired_count),
         };
-        
+
         // 模拟并发操作
         metrics.record_request();
         metrics_clone1.record_request();
         metrics_clone2.record_request();
-        
+
         metrics.record_fault_injected();
         metrics_clone1.record_abort_fault();
         metrics_clone2.record_delay_fault(50);
-        
+
         // 验证结果（因为使用了原子操作，结果应该是准确的）
         assert_eq!(metrics.get_requests_total(), 3);
         assert_eq!(metrics.get_faults_injected(), 1);
@@ -474,7 +475,7 @@ mod tests {
     #[test]
     fn test_metrics_snapshot_report() {
         let metrics = FaultInjectionMetrics::new();
-        
+
         metrics.record_request();
         metrics.record_request();
         metrics.record_request();
@@ -484,10 +485,10 @@ mod tests {
         metrics.record_abort_fault();
         metrics.record_delay_fault(100);
         metrics.record_delay_fault(200);
-        
+
         let snapshot = metrics.snapshot();
         let report = snapshot.report();
-        
+
         // 验证报告包含关键信息
         assert!(report.contains("Fault Injection Metrics Report"));
         assert!(report.contains("Requests"));
@@ -498,10 +499,10 @@ mod tests {
     #[test]
     fn test_zero_injection_rate() {
         let metrics = FaultInjectionMetrics::new();
-        
+
         metrics.record_request();
         metrics.record_request();
-        
+
         // 没有故障注入
         let rate = metrics.get_injection_rate();
         assert_eq!(rate, 0.0);
@@ -510,15 +511,15 @@ mod tests {
     #[test]
     fn test_full_injection_rate() {
         let metrics = FaultInjectionMetrics::new();
-        
+
         metrics.record_request();
         metrics.record_request();
         metrics.record_request();
-        
+
         metrics.record_fault_injected();
         metrics.record_fault_injected();
         metrics.record_fault_injected();
-        
+
         let rate = metrics.get_injection_rate();
         assert!((rate - 100.0).abs() < 0.01); // 3/3 = 100%
     }
@@ -526,11 +527,11 @@ mod tests {
     #[test]
     fn test_large_delay_values() {
         let metrics = FaultInjectionMetrics::new();
-        
+
         metrics.record_delay_fault(1000);
         metrics.record_delay_fault(2000);
         metrics.record_delay_fault(3000);
-        
+
         assert_eq!(metrics.get_delays(), 3);
         assert!((metrics.get_average_delay_ms() - 2000.0).abs() < 0.01);
     }

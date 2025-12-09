@@ -62,7 +62,10 @@ mod temporal_tests {
         ctx.set_activation_delay(0);
 
         let elapsed = Duration::from_millis(0);
-        assert!(ctx.should_apply_fault(elapsed), "Fault should apply at t=0ms");
+        assert!(
+            ctx.should_apply_fault(elapsed),
+            "Fault should apply at t=0ms"
+        );
 
         ctx.simulate_fault_application();
         assert!(ctx.fault_applied);
@@ -76,36 +79,44 @@ mod temporal_tests {
 
         // Check at 50ms
         let elapsed_50ms = Duration::from_millis(50);
-        assert!(!ctx.should_apply_fault(elapsed_50ms), 
-                "Fault should NOT apply at t=50ms when delay=100ms");
+        assert!(
+            !ctx.should_apply_fault(elapsed_50ms),
+            "Fault should NOT apply at t=50ms when delay=100ms"
+        );
 
         // Check at 99ms
         let elapsed_99ms = Duration::from_millis(99);
-        assert!(!ctx.should_apply_fault(elapsed_99ms), 
-                "Fault should NOT apply at t=99ms when delay=100ms");
+        assert!(
+            !ctx.should_apply_fault(elapsed_99ms),
+            "Fault should NOT apply at t=99ms when delay=100ms"
+        );
 
         // Check at 100ms
         let elapsed_100ms = Duration::from_millis(100);
-        assert!(ctx.should_apply_fault(elapsed_100ms), 
-                "Fault should apply at t=100ms when delay=100ms");
+        assert!(
+            ctx.should_apply_fault(elapsed_100ms),
+            "Fault should apply at t=100ms when delay=100ms"
+        );
 
         // Check at 101ms
         let elapsed_101ms = Duration::from_millis(101);
-        assert!(ctx.should_apply_fault(elapsed_101ms), 
-                "Fault should apply at t=101ms when delay=100ms");
+        assert!(
+            ctx.should_apply_fault(elapsed_101ms),
+            "Fault should apply at t=101ms when delay=100ms"
+        );
     }
 
     #[test]
     fn test_start_delay_various_values() {
         // Test with different delay values
         let test_cases = vec![
-            (10, 5, false),    // delay=10ms, check at 5ms → should not apply
-            (10, 10, true),    // delay=10ms, check at 10ms → should apply
-            (500, 250, false), // delay=500ms, check at 250ms → should not apply
-            (500, 500, true),  // delay=500ms, check at 500ms → should apply
-            (1000, 999, false),// delay=1000ms, check at 999ms → should not apply
-            (1000, 1000, true),// delay=1000ms, check at 1000ms → should apply
-            (5000, 5000, true),// delay=5000ms, check at 5000ms → should apply
+            (10, 5, false),     // delay=10ms, check at 5ms → should not apply
+            (10, 10, true),     // delay=10ms, check at 10ms → should apply
+            (500, 250, false),  // delay=500ms, check at 250ms → should not apply
+            (500, 500, true),   // delay=500ms, check at 500ms → should apply
+            (1000, 999, false), // delay=1000ms, check at 999ms → should not apply
+            (1000, 1000, true), // delay=1000ms, check at 1000ms → should apply
+            (5000, 5000, true), // delay=5000ms, check at 5000ms → should apply
         ];
 
         for (delay_ms, check_at_ms, expected) in test_cases {
@@ -115,7 +126,9 @@ mod temporal_tests {
             assert_eq!(
                 ctx.should_apply_fault(elapsed),
                 expected,
-                "Failed for delay_ms={}, check_at_ms={}", delay_ms, check_at_ms
+                "Failed for delay_ms={}, check_at_ms={}",
+                delay_ms,
+                check_at_ms
             );
         }
     }
@@ -154,12 +167,12 @@ mod temporal_tests {
     fn test_duration_seconds_various_values() {
         // Test with different duration values
         let test_cases = vec![
-            (10, 5, true),     // duration=10s, check at 5s → should apply
-            (10, 10, false),   // duration=10s, check at 10s → should NOT apply
-            (60, 59, true),    // duration=60s, check at 59s → should apply
-            (60, 60, false),   // duration=60s, check at 60s → should NOT apply
-            (3600, 1800, true),// duration=1h, check at 30m → should apply
-            (3600, 3600, false),// duration=1h, check at 1h → should NOT apply
+            (10, 5, true),       // duration=10s, check at 5s → should apply
+            (10, 10, false),     // duration=10s, check at 10s → should NOT apply
+            (60, 59, true),      // duration=60s, check at 59s → should apply
+            (60, 60, false),     // duration=60s, check at 60s → should NOT apply
+            (3600, 1800, true),  // duration=1h, check at 30m → should apply
+            (3600, 3600, false), // duration=1h, check at 1h → should NOT apply
         ];
 
         for (duration_sec, check_at_sec, expected) in test_cases {
@@ -169,7 +182,9 @@ mod temporal_tests {
             assert_eq!(
                 ctx.should_apply_fault(elapsed),
                 expected,
-                "Failed for duration_sec={}, check_at_sec={}", duration_sec, check_at_sec
+                "Failed for duration_sec={}, check_at_sec={}",
+                duration_sec,
+                check_at_sec
             );
         }
     }
@@ -179,8 +194,8 @@ mod temporal_tests {
         // Test start_delay_ms and duration_seconds together
         // Should NOT apply before activation, and should expire after duration
         let mut ctx = MockTemporalContext::new();
-        ctx.set_activation_delay(100);    // 100ms delay
-        ctx.set_expiry(500);               // 500s duration (5 minutes)
+        ctx.set_activation_delay(100); // 100ms delay
+        ctx.set_expiry(500); // 500s duration (5 minutes)
 
         // Before activation (< 100ms) → should not apply
         assert!(!ctx.should_apply_fault(Duration::from_millis(50)));
@@ -223,8 +238,10 @@ mod temporal_tests {
 
         // Request finishes at 100ms, which is before 500ms activation
         let request_finish_time = Duration::from_millis(100);
-        assert!(!ctx.should_apply_fault(request_finish_time),
-                "Fault should not apply when request finishes before activation delay");
+        assert!(
+            !ctx.should_apply_fault(request_finish_time),
+            "Fault should not apply when request finishes before activation delay"
+        );
     }
 
     #[test]
@@ -235,12 +252,16 @@ mod temporal_tests {
 
         // Request runs for 500ms, which includes the activation window
         let check_at_activation = Duration::from_millis(100);
-        assert!(ctx.should_apply_fault(check_at_activation),
-                "Fault should apply when request duration >= activation delay");
+        assert!(
+            ctx.should_apply_fault(check_at_activation),
+            "Fault should apply when request duration >= activation delay"
+        );
 
         let check_at_end = Duration::from_millis(500);
-        assert!(ctx.should_apply_fault(check_at_end),
-                "Fault should still apply at request end");
+        assert!(
+            ctx.should_apply_fault(check_at_end),
+            "Fault should still apply at request end"
+        );
     }
 
     #[test]
@@ -281,8 +302,11 @@ mod temporal_tests {
         // Simulate a long-running request
         for hours in 0..24 {
             let elapsed = Duration::from_secs(hours * 3600);
-            assert!(ctx.should_apply_fault(elapsed),
-                    "Fault should apply throughout long-running request (hour {})", hours);
+            assert!(
+                ctx.should_apply_fault(elapsed),
+                "Fault should apply throughout long-running request (hour {})",
+                hours
+            );
         }
     }
 
@@ -290,17 +314,17 @@ mod temporal_tests {
     fn test_boundary_conditions() {
         // Test precise boundary conditions for activation and expiry
         let mut ctx = MockTemporalContext::new();
-        ctx.set_activation_delay(100);  // 100ms activation delay
-        ctx.set_expiry(1);              // 1 second (1000ms) expiry
+        ctx.set_activation_delay(100); // 100ms activation delay
+        ctx.set_expiry(1); // 1 second (1000ms) expiry
 
         // Millisecond-level boundary testing
-        assert!(!ctx.should_apply_fault(Duration::from_millis(99)));   // Before activation
-        assert!(ctx.should_apply_fault(Duration::from_millis(100)));  // At activation boundary
-        assert!(ctx.should_apply_fault(Duration::from_millis(101)));  // After activation
+        assert!(!ctx.should_apply_fault(Duration::from_millis(99))); // Before activation
+        assert!(ctx.should_apply_fault(Duration::from_millis(100))); // At activation boundary
+        assert!(ctx.should_apply_fault(Duration::from_millis(101))); // After activation
         assert!(ctx.should_apply_fault(Duration::from_millis(500))); // Within active window
         assert!(ctx.should_apply_fault(Duration::from_millis(999))); // Just before expiry
-        assert!(!ctx.should_apply_fault(Duration::from_secs(1)));    // At expiry boundary
-        assert!(!ctx.should_apply_fault(Duration::from_secs(2)));    // After expiry
+        assert!(!ctx.should_apply_fault(Duration::from_secs(1))); // At expiry boundary
+        assert!(!ctx.should_apply_fault(Duration::from_secs(2))); // After expiry
     }
 
     #[test]
@@ -313,7 +337,10 @@ mod temporal_tests {
         // Rapid checks should be consistent
         for _ in 0..1000 {
             let elapsed = Duration::from_millis(75);
-            assert!(ctx.should_apply_fault(elapsed), "Rapid checks should be consistent");
+            assert!(
+                ctx.should_apply_fault(elapsed),
+                "Rapid checks should be consistent"
+            );
         }
     }
 
@@ -330,7 +357,8 @@ mod temporal_tests {
             assert_eq!(
                 ctx.should_apply_fault(elapsed),
                 expected,
-                "Precision check failed at {}ms", ms
+                "Precision check failed at {}ms",
+                ms
             );
         }
     }
@@ -348,7 +376,8 @@ mod temporal_tests {
             assert_eq!(
                 ctx.should_apply_fault(elapsed),
                 expected,
-                "Duration precision check failed at {}s", sec
+                "Duration precision check failed at {}s",
+                sec
             );
         }
     }

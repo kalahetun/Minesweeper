@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use regex::Regex;
 
 /// Simulate rule compilation
@@ -30,21 +30,20 @@ impl CompiledRule {
 fn benchmark_compile_single_rule(c: &mut Criterion) {
     let patterns = vec![
         ("simple", "^/api/.*"),
-        ("complex", "^/api/v[0-9]+/(users|products|orders)/[a-zA-Z0-9]+(/.*)?$"),
+        (
+            "complex",
+            "^/api/v[0-9]+/(users|products|orders)/[a-zA-Z0-9]+(/.*)?$",
+        ),
         ("with_lookahead", "^/api/(?!admin).*"),
     ];
 
     let mut group = c.benchmark_group("compile_single_rule");
-    
+
     for (name, pattern) in patterns {
         group.bench_with_input(
             BenchmarkId::from_parameter(name),
             &(name, pattern),
-            |b, (_, pattern)| {
-                b.iter(|| {
-                    RuleCompiler::compile_rule(black_box(pattern))
-                })
-            },
+            |b, (_, pattern)| b.iter(|| RuleCompiler::compile_rule(black_box(pattern))),
         );
     }
     group.finish();
@@ -52,22 +51,18 @@ fn benchmark_compile_single_rule(c: &mut Criterion) {
 
 fn benchmark_compile_multiple_rules(c: &mut Criterion) {
     let mut group = c.benchmark_group("compile_multiple_rules");
-    
+
     for rule_count in [10, 50, 100].iter() {
         let patterns: Vec<String> = (0..*rule_count)
             .map(|i| format!("^/api/resource{}/.*", i))
             .collect();
-        
+
         let pattern_refs: Vec<&str> = patterns.iter().map(|s| s.as_str()).collect();
 
         group.bench_with_input(
             BenchmarkId::from_parameter(*rule_count),
             rule_count,
-            |b, _| {
-                b.iter(|| {
-                    RuleCompiler::compile_rules(black_box(&pattern_refs))
-                })
-            },
+            |b, _| b.iter(|| RuleCompiler::compile_rules(black_box(&pattern_refs))),
         );
     }
     group.finish();
@@ -83,8 +78,7 @@ fn benchmark_rule_matching_after_compile(c: &mut Criterion) {
         "^/api/reports/.*",
     ];
 
-    let compiled = RuleCompiler::compile_rules(&patterns)
-        .expect("Failed to compile rules");
+    let compiled = RuleCompiler::compile_rules(&patterns).expect("Failed to compile rules");
 
     c.bench_function("match_after_compile_10_rules", |b| {
         b.iter(|| {
@@ -118,7 +112,7 @@ fn benchmark_incremental_compilation(c: &mut Criterion) {
                 .map(|i| format!("^/api/resource{}/.*", i))
                 .collect();
             let pattern_refs: Vec<&str> = patterns.iter().map(|s| s.as_str()).collect();
-            
+
             let rules = RuleCompiler::compile_rules(&pattern_refs);
             black_box(rules.unwrap().len())
         })

@@ -33,26 +33,26 @@ impl EnvoyIdentity {
     /// If metadata is unavailable, defaults to "*" (wildcard) for required fields.
     pub fn from_envoy_metadata() -> Self {
         log::debug!("Extracting Envoy identity from node metadata...");
-        
+
         // Try to extract workload name
         let workload_result = get_property(vec!["node", "metadata", "WORKLOAD_NAME"]);
         let workload_name = workload_result
             .ok()
             .flatten()
             .and_then(|v| String::from_utf8(v).ok());
-        
+
         let has_workload = workload_name.is_some();
         if !has_workload {
             log::warn!("Failed to extract WORKLOAD_NAME from Envoy metadata, using wildcard");
         }
-        
+
         // Try to extract namespace
         let namespace_result = get_property(vec!["node", "metadata", "NAMESPACE"]);
         let namespace = namespace_result
             .ok()
             .flatten()
             .and_then(|v| String::from_utf8(v).ok());
-        
+
         let has_namespace = namespace.is_some();
         if !has_namespace {
             log::warn!("Failed to extract NAMESPACE from Envoy metadata, using wildcard");
@@ -71,7 +71,7 @@ impl EnvoyIdentity {
             .and_then(|v| String::from_utf8(v).ok());
 
         let is_valid = has_workload && has_namespace;
-        
+
         let identity = Self {
             workload_name: workload_name.unwrap_or_else(|| "*".to_string()),
             namespace: namespace.unwrap_or_else(|| "*".to_string()),
@@ -124,7 +124,7 @@ impl EnvoyIdentity {
             || selector.namespace == self.namespace;
 
         let result = service_matches && namespace_matches;
-        
+
         log::debug!(
             "Selector match check: identity={}.{} vs selector={}.{} => {}",
             self.workload_name,
@@ -133,19 +133,15 @@ impl EnvoyIdentity {
             selector.namespace,
             if result { "MATCH" } else { "NO MATCH" }
         );
-        
+
         result
     }
 
     /// Returns a display string for logging purposes.
     pub fn display(&self) -> String {
-        format!(
-            "{}.{}",
-            self.workload_name,
-            self.namespace
-        )
+        format!("{}.{}", self.workload_name, self.namespace)
     }
-    
+
     /// Returns detailed display string including pod name and validity.
     pub fn display_detailed(&self) -> String {
         format!(

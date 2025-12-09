@@ -1,9 +1,9 @@
 /// 时间控制模块
-/// 
+///
 /// 实现 Wasm 中的故障注入时间控制逻辑，包括：
 /// - 请求延迟启动 (start_delay_ms)
 /// - 规则有效期检查 (duration_seconds)
-/// 
+///
 /// 使用毫秒级精度进行时间戳计算
 use std::time::UNIX_EPOCH;
 
@@ -39,9 +39,9 @@ pub struct RequestTiming {
 }
 
 /// 获取当前时间戳（毫秒精度）
-/// 
+///
 /// # Returns
-/// 
+///
 /// 返回自 Unix epoch 起的毫秒数
 pub fn get_current_time_ms() -> u64 {
     // 使用 proxy-wasm 的 hostcall 获取时间，而不是 std::time::SystemTime
@@ -54,53 +54,56 @@ pub fn get_current_time_ms() -> u64 {
 }
 
 /// 计算请求经过的时间（毫秒）
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `arrival_time_ms` - 请求到达的时间戳
-/// 
+///
 /// # Returns
-/// 
+///
 /// 从请求到达至现在的毫秒数
 pub fn get_elapsed_time_ms(arrival_time_ms: u64) -> u64 {
     get_current_time_ms().saturating_sub(arrival_time_ms)
 }
 
 /// 判断是否应该注入故障
-/// 
+///
 /// 检查规则的时间约束，确定是否应该执行故障注入。
-/// 
+///
 /// # Logic
-/// 
+///
 /// 1. 首先检查规则有效期 (duration_seconds)
 ///    - 如果 duration_seconds > 0，检查规则是否已过期
 ///    - 如果规则已过期，返回 Expired
-/// 
+///
 /// 2. 然后检查请求延迟启动 (start_delay_ms)
 ///    - 如果 start_delay_ms > 0，检查请求是否经过足够时间
 ///    - 如果请求还在延迟期内，返回 WaitForDelay
-/// 
+///
 /// 3. 如果所有条件都满足，返回 Inject
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `rule_timing` - 规则的时间信息
 /// * `request_timing` - 请求的时间信息
-/// 
+///
 /// # Returns
-/// 
+///
 /// 时间控制决策
-pub fn should_inject_fault(rule_timing: &RuleTiming, request_timing: &RequestTiming) -> TimeControlDecision {
+pub fn should_inject_fault(
+    rule_timing: &RuleTiming,
+    request_timing: &RequestTiming,
+) -> TimeControlDecision {
     // 第一步：检查规则有效期
     if rule_timing.duration_seconds > 0 {
         let age_ms = get_current_time_ms().saturating_sub(rule_timing.creation_time_ms);
         let validity_window_ms = (rule_timing.duration_seconds as u64).saturating_mul(1000);
-        
+
         if age_ms > validity_window_ms {
             return TimeControlDecision::Expired;
         }
     }
-    
+
     // 第二步：检查请求延迟启动
     if rule_timing.start_delay_ms > 0 {
         let delay_ms = rule_timing.start_delay_ms as u64;
@@ -108,7 +111,7 @@ pub fn should_inject_fault(rule_timing: &RuleTiming, request_timing: &RequestTim
             return TimeControlDecision::WaitForDelay;
         }
     }
-    
+
     // 第三步：所有条件都满足，可以注入
     TimeControlDecision::Inject
 }
@@ -139,10 +142,10 @@ pub fn get_time_constraint_details(
     let rule_age_ms = current_time.saturating_sub(rule_timing.creation_time_ms);
     let validity_window_ms = (rule_timing.duration_seconds as u64).saturating_mul(1000);
     let is_expired = rule_timing.duration_seconds > 0 && rule_age_ms > validity_window_ms;
-    
+
     let required_delay_ms = rule_timing.start_delay_ms as u64;
     let is_in_delay_period = request_timing.elapsed_since_arrival_ms < required_delay_ms;
-    
+
     TimeConstraintDetails {
         rule_age_ms,
         validity_window_ms,
@@ -169,8 +172,11 @@ mod tests {
             arrival_time_ms: 0,
             elapsed_since_arrival_ms: 0,
         };
-        
-        assert_eq!(should_inject_fault(&rule_timing, &request_timing), TimeControlDecision::Inject);
+
+        assert_eq!(
+            should_inject_fault(&rule_timing, &request_timing),
+            TimeControlDecision::Inject
+        );
     }
 
     #[test]
@@ -183,10 +189,13 @@ mod tests {
         };
         let request_timing = RequestTiming {
             arrival_time_ms: 0,
-            elapsed_since_arrival_ms: 150,  // 150ms < 200ms
+            elapsed_since_arrival_ms: 150, // 150ms < 200ms
         };
-        
-        assert_eq!(should_inject_fault(&rule_timing, &request_timing), TimeControlDecision::WaitForDelay);
+
+        assert_eq!(
+            should_inject_fault(&rule_timing, &request_timing),
+            TimeControlDecision::WaitForDelay
+        );
     }
 
     #[test]
@@ -199,10 +208,13 @@ mod tests {
         };
         let request_timing = RequestTiming {
             arrival_time_ms: 0,
-            elapsed_since_arrival_ms: 250,  // 250ms > 200ms
+            elapsed_since_arrival_ms: 250, // 250ms > 200ms
         };
-        
-        assert_eq!(should_inject_fault(&rule_timing, &request_timing), TimeControlDecision::Inject);
+
+        assert_eq!(
+            should_inject_fault(&rule_timing, &request_timing),
+            TimeControlDecision::Inject
+        );
     }
 
     #[test]
@@ -211,15 +223,18 @@ mod tests {
         let current_time = get_current_time_ms();
         let rule_timing = RuleTiming {
             start_delay_ms: 0,
-            duration_seconds: 1,  // 1 秒有效期
-            creation_time_ms: current_time.saturating_sub(2000),  // 创建于 2 秒前
+            duration_seconds: 1,                                 // 1 秒有效期
+            creation_time_ms: current_time.saturating_sub(2000), // 创建于 2 秒前
         };
         let request_timing = RequestTiming {
             arrival_time_ms: 0,
             elapsed_since_arrival_ms: 0,
         };
-        
-        assert_eq!(should_inject_fault(&rule_timing, &request_timing), TimeControlDecision::Expired);
+
+        assert_eq!(
+            should_inject_fault(&rule_timing, &request_timing),
+            TimeControlDecision::Expired
+        );
     }
 
     #[test]
@@ -228,15 +243,18 @@ mod tests {
         let current_time = get_current_time_ms();
         let rule_timing = RuleTiming {
             start_delay_ms: 0,
-            duration_seconds: 10,  // 10 秒有效期
-            creation_time_ms: current_time.saturating_sub(5000),  // 创建于 5 秒前
+            duration_seconds: 10,                                // 10 秒有效期
+            creation_time_ms: current_time.saturating_sub(5000), // 创建于 5 秒前
         };
         let request_timing = RequestTiming {
             arrival_time_ms: 0,
             elapsed_since_arrival_ms: 0,
         };
-        
-        assert_eq!(should_inject_fault(&rule_timing, &request_timing), TimeControlDecision::Inject);
+
+        assert_eq!(
+            should_inject_fault(&rule_timing, &request_timing),
+            TimeControlDecision::Inject
+        );
     }
 
     #[test]
@@ -246,15 +264,18 @@ mod tests {
         let rule_timing = RuleTiming {
             start_delay_ms: 200,
             duration_seconds: 5,
-            creation_time_ms: current_time.saturating_sub(2000),  // 创建于 2 秒前
+            creation_time_ms: current_time.saturating_sub(2000), // 创建于 2 秒前
         };
         let request_timing = RequestTiming {
             arrival_time_ms: 0,
-            elapsed_since_arrival_ms: 250,  // 250ms > 200ms，在延迟期后
+            elapsed_since_arrival_ms: 250, // 250ms > 200ms，在延迟期后
         };
-        
+
         // 规则还有效，请求已过延迟期
-        assert_eq!(should_inject_fault(&rule_timing, &request_timing), TimeControlDecision::Inject);
+        assert_eq!(
+            should_inject_fault(&rule_timing, &request_timing),
+            TimeControlDecision::Inject
+        );
     }
 
     #[test]
@@ -264,15 +285,18 @@ mod tests {
         let rule_timing = RuleTiming {
             start_delay_ms: 500,
             duration_seconds: 1,
-            creation_time_ms: current_time.saturating_sub(2000),  // 创建于 2 秒前，已过期
+            creation_time_ms: current_time.saturating_sub(2000), // 创建于 2 秒前，已过期
         };
         let request_timing = RequestTiming {
             arrival_time_ms: 0,
-            elapsed_since_arrival_ms: 150,  // 150ms < 500ms，仍在延迟期内
+            elapsed_since_arrival_ms: 150, // 150ms < 500ms，仍在延迟期内
         };
-        
+
         // 规则已过期，优先返回 Expired
-        assert_eq!(should_inject_fault(&rule_timing, &request_timing), TimeControlDecision::Expired);
+        assert_eq!(
+            should_inject_fault(&rule_timing, &request_timing),
+            TimeControlDecision::Expired
+        );
     }
 
     #[test]
@@ -285,11 +309,14 @@ mod tests {
         };
         let request_timing = RequestTiming {
             arrival_time_ms: 0,
-            elapsed_since_arrival_ms: 200,  // 200ms == 200ms
+            elapsed_since_arrival_ms: 200, // 200ms == 200ms
         };
-        
+
         // 当相等时，应该注入（延迟期已过）
-        assert_eq!(should_inject_fault(&rule_timing, &request_timing), TimeControlDecision::Inject);
+        assert_eq!(
+            should_inject_fault(&rule_timing, &request_timing),
+            TimeControlDecision::Inject
+        );
     }
 
     #[test]
@@ -299,15 +326,18 @@ mod tests {
         let rule_timing = RuleTiming {
             start_delay_ms: 0,
             duration_seconds: 1,
-            creation_time_ms: current_time.saturating_sub(1000),  // 创建于 1 秒前
+            creation_time_ms: current_time.saturating_sub(1000), // 创建于 1 秒前
         };
         let request_timing = RequestTiming {
             arrival_time_ms: 0,
             elapsed_since_arrival_ms: 0,
         };
-        
+
         // 当年龄不超过有效期时，应该注入
-        assert_eq!(should_inject_fault(&rule_timing, &request_timing), TimeControlDecision::Inject);
+        assert_eq!(
+            should_inject_fault(&rule_timing, &request_timing),
+            TimeControlDecision::Inject
+        );
     }
 
     #[test]
@@ -322,7 +352,7 @@ mod tests {
             arrival_time_ms: 0,
             elapsed_since_arrival_ms: 1000,
         };
-        
+
         // 应该处理大数值而不崩溃
         let result = should_inject_fault(&rule_timing, &request_timing);
         // 由于 start_delay_ms 远大于 elapsed_since_arrival_ms，应该在延迟期内
@@ -341,9 +371,9 @@ mod tests {
             arrival_time_ms: 0,
             elapsed_since_arrival_ms: 250,
         };
-        
+
         let details = get_time_constraint_details(&rule_timing, &request_timing);
-        
+
         assert!(!details.is_expired);
         assert!(!details.is_in_delay_period);
         assert_eq!(details.required_delay_ms, 200);

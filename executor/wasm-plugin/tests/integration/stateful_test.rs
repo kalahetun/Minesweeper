@@ -1,12 +1,11 @@
+use std::collections::HashMap;
 /// Wasm Plugin 请求隔离集成测试
-/// 
+///
 /// 验证:
 /// 1. 并发请求处理 - 多个请求可以同时处理
 /// 2. 无状态污染 - 一个请求的故障不影响其他请求
 /// 3. 规则应用一致性 - 同一规则对不同请求的应用是一致的
-
-use std::sync::{Arc, Mutex, Barrier};
-use std::collections::HashMap;
+use std::sync::{Arc, Barrier, Mutex};
 
 /// 模拟请求上下文
 #[derive(Clone)]
@@ -89,7 +88,7 @@ mod stateful_tests {
     use super::*;
 
     /// 测试请求状态隔离
-    /// 
+    ///
     /// 验证两个并发请求的状态完全独立
     #[test]
     fn test_request_isolation() {
@@ -114,7 +113,7 @@ mod stateful_tests {
     }
 
     /// 测试并发请求处理
-    /// 
+    ///
     /// 多个请求在同一时刻处理，验证没有竞态条件
     #[test]
     fn test_concurrent_request_handling() {
@@ -157,7 +156,7 @@ mod stateful_tests {
     }
 
     /// 测试规则一致性应用
-    /// 
+    ///
     /// 同一规则对不同请求的应用结果应该一致
     #[test]
     fn test_rule_consistency() {
@@ -193,7 +192,7 @@ mod stateful_tests {
     }
 
     /// 测试多规则处理
-    /// 
+    ///
     /// 多个规则对同一请求的处理 - 第一个匹配的规则应该执行
     #[test]
     fn test_multiple_rules_ordering() {
@@ -203,11 +202,7 @@ mod stateful_tests {
             Box::new(|ctx| ctx.path.starts_with("/api/users")),
         );
 
-        let rule2 = RuleApplier::new(
-            "rule2-delay",
-            "delay",
-            Box::new(|ctx| ctx.method == "GET"),
-        );
+        let rule2 = RuleApplier::new("rule2-delay", "delay", Box::new(|ctx| ctx.method == "GET"));
 
         let ctx = RequestContext::new(1, "/api/users/1", "GET");
 
@@ -230,7 +225,7 @@ mod stateful_tests {
     }
 
     /// 测试头部隔离
-    /// 
+    ///
     /// 请求的头部应该不会相互影响
     #[test]
     fn test_header_isolation() {
@@ -256,11 +251,14 @@ mod stateful_tests {
         // 添加不同的头部到 req1
         req1.add_header("X-Custom", "value1");
         // req2 不应该有这个头部
-        assert!(req2.get_header("X-Custom").is_none(), "req2不应该有req1的头部");
+        assert!(
+            req2.get_header("X-Custom").is_none(),
+            "req2不应该有req1的头部"
+        );
     }
 
     /// 测试状态一致性
-    /// 
+    ///
     /// 一旦请求的状态被设置，后续读取应该返回相同的值
     #[test]
     fn test_state_consistency() {
@@ -279,7 +277,7 @@ mod stateful_tests {
     }
 
     /// 测试并发规则应用
-    /// 
+    ///
     /// 多个规则可以并发应用到不同的请求上
     #[test]
     fn test_concurrent_rule_application() {
@@ -320,7 +318,7 @@ mod stateful_tests {
     }
 
     /// 测试规则条件评估的一致性
-    /// 
+    ///
     /// 对于相同的请求，规则条件应该总是返回相同的结果
     #[test]
     fn test_rule_condition_consistency() {
@@ -352,7 +350,7 @@ mod advanced_isolation_tests {
     use super::*;
 
     /// 测试请求清理
-    /// 
+    ///
     /// 验证请求的状态可以被正确清理
     #[test]
     fn test_request_cleanup() {
@@ -366,7 +364,7 @@ mod advanced_isolation_tests {
     }
 
     /// 测试无泄露验证
-    /// 
+    ///
     /// 使用多个请求实例，验证没有全局状态泄露
     #[test]
     fn test_no_global_state_leakage() {
@@ -390,4 +388,3 @@ mod advanced_isolation_tests {
         }
     }
 }
-

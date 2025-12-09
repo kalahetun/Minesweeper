@@ -1,5 +1,5 @@
-use serde::{Deserialize, Deserializer};
 use regex::Regex;
+use serde::{Deserialize, Deserializer};
 
 // Re-export ServiceSelector from identity module for convenience
 pub use crate::identity::ServiceSelector;
@@ -33,7 +33,9 @@ pub struct PolicySpec {
 impl PolicySpec {
     /// Returns the effective selector, defaulting to wildcard if not specified.
     pub fn effective_selector(&self) -> ServiceSelector {
-        self.selector.clone().unwrap_or_else(ServiceSelector::wildcard)
+        self.selector
+            .clone()
+            .unwrap_or_else(ServiceSelector::wildcard)
     }
 }
 
@@ -134,7 +136,7 @@ impl<'de> Deserialize<'de> for PathMatcher {
             exact: Option<String>,
             regex: Option<String>,
         }
-        
+
         let helper = PathMatcherHelper::deserialize(deserializer)?;
         let compiled_regex = if let Some(ref regex_str) = helper.regex {
             match Regex::new(regex_str) {
@@ -147,7 +149,7 @@ impl<'de> Deserialize<'de> for PathMatcher {
         } else {
             None
         };
-        
+
         Ok(PathMatcher {
             prefix: helper.prefix,
             exact: helper.exact,
@@ -168,7 +170,7 @@ impl<'de> Deserialize<'de> for StringMatcher {
             prefix: Option<String>,
             regex: Option<String>,
         }
-        
+
         let helper = StringMatcherHelper::deserialize(deserializer)?;
         let compiled_regex = if let Some(ref regex_str) = helper.regex {
             match Regex::new(regex_str) {
@@ -181,7 +183,7 @@ impl<'de> Deserialize<'de> for StringMatcher {
         } else {
             None
         };
-        
+
         Ok(StringMatcher {
             exact: helper.exact,
             prefix: helper.prefix,
@@ -203,7 +205,7 @@ impl<'de> Deserialize<'de> for HeaderMatcher {
             prefix: Option<String>,
             regex: Option<String>,
         }
-        
+
         let helper = HeaderMatcherHelper::deserialize(deserializer)?;
         let compiled_regex = if let Some(ref regex_str) = helper.regex {
             match Regex::new(regex_str) {
@@ -216,7 +218,7 @@ impl<'de> Deserialize<'de> for HeaderMatcher {
         } else {
             None
         };
-        
+
         Ok(HeaderMatcher {
             name: helper.name,
             exact: helper.exact,
@@ -232,63 +234,68 @@ impl CompiledRuleSet {
     #[allow(dead_code)]
     pub fn from_slice(bytes: &[u8]) -> Result<Self, serde_json::Error> {
         let mut ruleset: CompiledRuleSet = serde_json::from_slice(bytes)?;
-        
+
         // Pre-process delay durations for each rule
         for rule in &mut ruleset.rules {
             if let Some(ref mut delay) = rule.fault.delay {
                 delay.parsed_duration_ms = parse_duration(&delay.fixed_delay);
                 if delay.parsed_duration_ms.is_some() {
-                    log::debug!("Parsed delay '{}' to {}ms for rule '{}'", 
-                               delay.fixed_delay, 
-                               delay.parsed_duration_ms.unwrap(), 
-                               rule.name);
+                    log::debug!(
+                        "Parsed delay '{}' to {}ms for rule '{}'",
+                        delay.fixed_delay,
+                        delay.parsed_duration_ms.unwrap(),
+                        rule.name
+                    );
                 }
             }
         }
-        
+
         Ok(ruleset)
     }
 
     /// Create CompiledRuleSet from Control Plane API response
     /// Filters policies based on the provided service identity.
-    /// 
+    ///
     /// Fail-open behavior:
     /// - If identity is None or invalid, only wildcard policies are applied
     /// - If filtering fails for any reason, policies are still loaded
-    pub fn from_policies_response(bytes: &[u8], identity: Option<&crate::identity::EnvoyIdentity>) -> Result<Self, serde_json::Error> {
+    pub fn from_policies_response(
+        bytes: &[u8],
+        identity: Option<&crate::identity::EnvoyIdentity>,
+    ) -> Result<Self, serde_json::Error> {
         let response: PoliciesResponse = serde_json::from_slice(bytes)?;
-        
+
         // 获取当前时间戳用于记录规则创建时间
         let current_time_ms = crate::time_control::get_current_time_ms();
-        
+
         let mut rules = Vec::new();
         let mut filtered_count = 0;
         let mut total_count = 0;
         let mut wildcard_count = 0;
-        
+
         // Determine if we're in fail-open mode (no valid identity)
         let fail_open_mode = match identity {
             Some(id) => !id.is_valid(),
             None => true,
         };
-        
+
         if fail_open_mode {
             log::warn!(
                 "Policy filtering in fail-open mode: only wildcard policies will be applied"
             );
         }
-        
+
         for policy in response.policies {
             total_count += 1;
-            
+
             // Check if this policy applies to the current service
             let selector = policy.spec.effective_selector();
             let is_wildcard = selector.service == "*" && selector.namespace == "*";
-            
+
             if is_wildcard {
                 wildcard_count += 1;
             }
-            
+
             // In fail-open mode, only apply wildcard policies
             let matches = if fail_open_mode {
                 is_wildcard
@@ -298,26 +305,30 @@ impl CompiledRuleSet {
                     None => true,
                 }
             };
-            
+
             if !matches {
                 log::debug!(
                     "Policy '{}' filtered out: selector {}.{} doesn't match identity{}",
                     policy.metadata.name,
                     selector.service,
                     selector.namespace,
-                    if fail_open_mode { " (fail-open mode)" } else { "" }
+                    if fail_open_mode {
+                        " (fail-open mode)"
+                    } else {
+                        ""
+                    }
                 );
                 filtered_count += 1;
                 continue;
             }
-            
+
             log::debug!(
                 "Policy '{}' matches: selector {}.{} applies to this service",
                 policy.metadata.name,
                 selector.service,
                 selector.namespace
             );
-            
+
             for rule_spec in policy.spec.rules {
                 let compiled_rule = CompiledRule {
                     name: policy.metadata.name.clone(),
@@ -328,7 +339,7 @@ impl CompiledRuleSet {
                 rules.push(compiled_rule);
             }
         }
-        
+
         if fail_open_mode {
             log::info!(
                 "Policy filtering (fail-open): {} total, {} wildcard, {} applicable (non-wildcard policies ignored)",
@@ -344,25 +355,27 @@ impl CompiledRuleSet {
                 total_count - filtered_count
             );
         }
-        
+
         let mut ruleset = CompiledRuleSet {
             version: "1.0".to_string(),
             rules,
         };
-        
+
         // Pre-process delay durations for each rule
         for rule in &mut ruleset.rules {
             if let Some(ref mut delay) = rule.fault.delay {
                 delay.parsed_duration_ms = parse_duration(&delay.fixed_delay);
                 if delay.parsed_duration_ms.is_some() {
-                    log::debug!("Parsed delay '{}' to {}ms for rule '{}'", 
-                               delay.fixed_delay, 
-                               delay.parsed_duration_ms.unwrap(), 
-                               rule.name);
+                    log::debug!(
+                        "Parsed delay '{}' to {}ms for rule '{}'",
+                        delay.fixed_delay,
+                        delay.parsed_duration_ms.unwrap(),
+                        rule.name
+                    );
                 }
             }
         }
-        
+
         Ok(ruleset)
     }
 }
@@ -370,7 +383,7 @@ impl CompiledRuleSet {
 /// Parse duration string (e.g., "2s", "100ms") to milliseconds
 fn parse_duration(duration_str: &str) -> Option<u64> {
     let duration_str = duration_str.trim().to_lowercase();
-    
+
     if duration_str.ends_with("ms") {
         if let Ok(ms) = duration_str[..duration_str.len() - 2].parse::<u64>() {
             return Some(ms);
@@ -384,12 +397,12 @@ fn parse_duration(duration_str: &str) -> Option<u64> {
             return Some(m * 60 * 1000);
         }
     }
-    
+
     // Try parsing as plain number (assume milliseconds)
     if let Ok(ms) = duration_str.parse::<u64>() {
         return Some(ms);
     }
-    
+
     log::warn!("Failed to parse duration: {}", duration_str);
     None
 }
@@ -434,18 +447,18 @@ mod tests {
             ]
         }
         "#;
-        
+
         let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
         assert_eq!(ruleset.version, "1.0");
         assert_eq!(ruleset.rules.len(), 1);
-        
+
         let rule = &ruleset.rules[0];
         assert_eq!(rule.name, "test-rule");
-        
+
         // Verify regex was compiled
         let path_matcher = rule.match_condition.path.as_ref().unwrap();
         assert!(path_matcher.compiled_regex.is_some());
-        
+
         // Verify method matcher
         let method_matcher = rule.match_condition.method.as_ref().unwrap();
         assert_eq!(method_matcher.exact.as_ref().unwrap(), "GET");
@@ -474,12 +487,15 @@ mod tests {
             ]
         }
         "#;
-        
+
         let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
         let rule = &ruleset.rules[0];
-        
+
         assert_eq!(rule.fault.delay.as_ref().unwrap().fixed_delay, "2s");
-        assert_eq!(rule.fault.delay.as_ref().unwrap().parsed_duration_ms, Some(2000));
+        assert_eq!(
+            rule.fault.delay.as_ref().unwrap().parsed_duration_ms,
+            Some(2000)
+        );
     }
 
     #[test]
@@ -505,11 +521,11 @@ mod tests {
             ]
         }
         "#;
-        
+
         let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
         let rule = &ruleset.rules[0];
         let path_matcher = rule.match_condition.path.as_ref().unwrap();
-        
+
         assert_eq!(path_matcher.prefix.as_ref().unwrap(), "/api/v1");
         assert!(path_matcher.exact.is_none());
     }
@@ -537,11 +553,20 @@ mod tests {
             ]
         }
         "#;
-        
+
         let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
         let rule = &ruleset.rules[0];
-        
-        assert_eq!(rule.match_condition.method.as_ref().unwrap().exact.as_ref().unwrap(), "POST");
+
+        assert_eq!(
+            rule.match_condition
+                .method
+                .as_ref()
+                .unwrap()
+                .exact
+                .as_ref()
+                .unwrap(),
+            "POST"
+        );
     }
 
     #[test]
@@ -574,10 +599,10 @@ mod tests {
             ]
         }
         "#;
-        
+
         let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
         let rule = &ruleset.rules[0];
-        
+
         let headers = rule.match_condition.headers.as_ref().unwrap();
         assert_eq!(headers.len(), 2);
         assert_eq!(headers[0].name, "Authorization");
@@ -621,11 +646,11 @@ mod tests {
             ]
         }
         "#;
-        
+
         let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
         assert_eq!(ruleset.rules.len(), 2);
         assert_eq!(ruleset.version, "2.0");
-        
+
         assert_eq!(ruleset.rules[0].name, "rule-1");
         assert_eq!(ruleset.rules[1].name, "rule-2");
     }
@@ -654,7 +679,7 @@ mod tests {
             ]
         }
         "#;
-        
+
         let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
         assert_eq!(ruleset.rules[0].fault.percentage, 0);
         assert_eq!(ruleset.rules[1].fault.percentage, 50);
@@ -686,10 +711,10 @@ mod tests {
             ]
         }
         "#;
-        
+
         let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
         let rule = &ruleset.rules[0];
-        
+
         assert_eq!(rule.fault.start_delay_ms, 1000);
         assert_eq!(rule.fault.duration_seconds, 300);
     }
@@ -702,7 +727,7 @@ mod tests {
             "rules": []
         }
         "#;
-        
+
         let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
         assert_eq!(ruleset.rules.len(), 0);
         assert_eq!(ruleset.version, "1.0");
@@ -711,7 +736,7 @@ mod tests {
     #[test]
     fn test_parse_invalid_json() {
         let json = r#"{ invalid json "#;
-        
+
         let result = CompiledRuleSet::from_slice(json.as_bytes());
         assert!(result.is_err());
     }
@@ -739,11 +764,11 @@ mod tests {
             ]
         }
         "#;
-        
+
         let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
         let rule = &ruleset.rules[0];
         let path_matcher = rule.match_condition.path.as_ref().unwrap();
-        
+
         assert!(path_matcher.compiled_regex.is_some());
         assert_eq!(path_matcher.regex.as_ref().unwrap(), "^/api/v[0-9]+/.*");
     }
@@ -783,10 +808,10 @@ mod tests {
             ]
         }
         "#;
-        
+
         let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
         let rule = &ruleset.rules[0];
-        
+
         // Verify all components parsed
         assert_eq!(rule.name, "complex-rule");
         assert!(rule.match_condition.path.is_some());

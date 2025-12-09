@@ -1,4 +1,4 @@
-use crate::config::{CompiledRule, MatchCondition, PathMatcher, StringMatcher, HeaderMatcher};
+use crate::config::{CompiledRule, HeaderMatcher, MatchCondition, PathMatcher, StringMatcher};
 use proxy_wasm::traits::HttpContext;
 use std::collections::HashMap;
 
@@ -12,7 +12,7 @@ pub struct RequestInfo {
 
 impl RequestInfo {
     /// Extract request information from HttpContext
-    /// 
+    ///
     /// Improvements (M3):
     /// - Better error handling with fallback values
     /// - Extracts both standard and custom headers
@@ -26,7 +26,7 @@ impl RequestInfo {
                 log::debug!("Path header missing or empty, using default '/'");
                 "/".to_string()
             });
-        
+
         // Extract method with fallback to GET
         let method = http_context
             .get_http_request_header(":method")
@@ -35,28 +35,51 @@ impl RequestInfo {
                 log::debug!("Method header missing or empty, using default 'GET'");
                 "GET".to_string()
             });
-        
+
         // Extract all headers for matching with comprehensive fallback
         let mut headers = HashMap::new();
-        
+
         // Standard HTTP headers (pseudo-headers and common headers)
         let standard_headers = [
-            ":authority", ":scheme", ":method", ":path",  // pseudo-headers
-            "host", "user-agent", "accept", "accept-language", "accept-encoding",
-            "authorization", "content-type", "content-length", 
-            "x-forwarded-for", "x-real-ip", 
-            "x-forwarded-proto", "x-forwarded-host",
-            "connection", "upgrade", "cache-control", "pragma",
+            ":authority",
+            ":scheme",
+            ":method",
+            ":path", // pseudo-headers
+            "host",
+            "user-agent",
+            "accept",
+            "accept-language",
+            "accept-encoding",
+            "authorization",
+            "content-type",
+            "content-length",
+            "x-forwarded-for",
+            "x-real-ip",
+            "x-forwarded-proto",
+            "x-forwarded-host",
+            "connection",
+            "upgrade",
+            "cache-control",
+            "pragma",
         ];
-        
+
         // Custom headers commonly used for matching (tenant, service, version info)
         let custom_headers = [
-            "x-user-id", "x-tenant-id", "x-service", "x-version",
-            "x-request-id", "x-correlation-id", "x-trace-id",
-            "x-api-key", "x-client-id", "x-device-id",
-            "x-region", "x-environment", "x-feature-flags",
+            "x-user-id",
+            "x-tenant-id",
+            "x-service",
+            "x-version",
+            "x-request-id",
+            "x-correlation-id",
+            "x-trace-id",
+            "x-api-key",
+            "x-client-id",
+            "x-device-id",
+            "x-region",
+            "x-environment",
+            "x-feature-flags",
         ];
-        
+
         // Extract standard headers
         for header_name in &standard_headers {
             if let Some(value) = http_context.get_http_request_header(header_name) {
@@ -65,7 +88,7 @@ impl RequestInfo {
                 }
             }
         }
-        
+
         // Extract custom headers
         for header_name in &custom_headers {
             if let Some(value) = http_context.get_http_request_header(header_name) {
@@ -74,11 +97,15 @@ impl RequestInfo {
                 }
             }
         }
-        
+
         // Log extraction summary
-        log::debug!("Extracted request headers: path={}, method={}, header_count={}", 
-                   path, method, headers.len());
-        
+        log::debug!(
+            "Extracted request headers: path={}, method={}, header_count={}",
+            path,
+            method,
+            headers.len()
+        );
+
         RequestInfo {
             path,
             method,
@@ -109,14 +136,14 @@ fn is_match(request_info: &RequestInfo, condition: &MatchCondition) -> bool {
             return false;
         }
     }
-    
+
     // Method matching (if specified)
     if let Some(ref method_matcher) = condition.method {
         if !match_string(&request_info.method, method_matcher) {
             return false;
         }
     }
-    
+
     // Header matching (all headers must match if specified)
     if let Some(ref header_matchers) = condition.headers {
         for header_matcher in header_matchers {
@@ -125,7 +152,7 @@ fn is_match(request_info: &RequestInfo, condition: &MatchCondition) -> bool {
             }
         }
     }
-    
+
     true
 }
 
@@ -135,17 +162,17 @@ fn match_path(path: &str, matcher: &PathMatcher) -> bool {
     if let Some(ref exact) = matcher.exact {
         return path == exact;
     }
-    
+
     // Check prefix match
     if let Some(ref prefix) = matcher.prefix {
         return path.starts_with(prefix);
     }
-    
+
     // Check regex match
     if let Some(ref regex) = matcher.compiled_regex {
         return regex.is_match(path);
     }
-    
+
     // If no conditions specified, match everything
     true
 }
@@ -156,17 +183,17 @@ fn match_string(value: &str, matcher: &StringMatcher) -> bool {
     if let Some(ref exact) = matcher.exact {
         return value == exact;
     }
-    
+
     // Check prefix match
     if let Some(ref prefix) = matcher.prefix {
         return value.starts_with(prefix);
     }
-    
+
     // Check regex match
     if let Some(ref regex) = matcher.compiled_regex {
         return regex.is_match(value);
     }
-    
+
     // If no conditions specified, match everything
     true
 }
@@ -178,27 +205,27 @@ fn match_header(headers: &HashMap<String, String>, matcher: &HeaderMatcher) -> b
         .iter()
         .find(|(k, _)| k.to_lowercase() == matcher.name.to_lowercase())
         .map(|(_, v)| v.as_str());
-    
+
     let Some(value) = header_value else {
         // Header not present - this is a non-match
         return false;
     };
-    
+
     // Check exact match
     if let Some(ref exact) = matcher.exact {
         return value == exact;
     }
-    
+
     // Check prefix match
     if let Some(ref prefix) = matcher.prefix {
         return value.starts_with(prefix);
     }
-    
+
     // Check regex match
     if let Some(ref regex) = matcher.compiled_regex {
         return regex.is_match(value);
     }
-    
+
     // If no conditions specified but header exists, match
     true
 }
@@ -206,7 +233,7 @@ fn match_header(headers: &HashMap<String, String>, matcher: &HeaderMatcher) -> b
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{Fault, AbortAction};
+    use crate::config::{AbortAction, Fault};
     use std::collections::HashMap;
 
     // Simple test helper that doesn't depend on proxy-wasm
@@ -215,7 +242,7 @@ mod tests {
         for (k, v) in headers {
             header_map.insert(k.to_string(), v.to_string());
         }
-        
+
         RequestInfo {
             path: path.to_string(),
             method: method.to_string(),
@@ -244,7 +271,7 @@ mod tests {
     #[test]
     fn test_exact_path_match() {
         let request_info = create_request_info("/api/users", "GET", vec![]);
-        
+
         let condition = MatchCondition {
             path: Some(PathMatcher {
                 exact: Some("/api/users".to_string()),
@@ -255,12 +282,12 @@ mod tests {
             method: None,
             headers: None,
         };
-        
+
         let rule = create_test_rule("exact-path", condition);
         let rules = vec![rule];
-        
+
         assert!(find_first_match(&request_info, &rules).is_some());
-        
+
         // Test non-matching path
         let request_info = create_request_info("/api/posts", "GET", vec![]);
         assert!(find_first_match(&request_info, &rules).is_none());
@@ -269,7 +296,7 @@ mod tests {
     #[test]
     fn test_prefix_path_match() {
         let request_info = create_request_info("/api/users/123", "GET", vec![]);
-        
+
         let condition = MatchCondition {
             path: Some(PathMatcher {
                 exact: None,
@@ -280,12 +307,12 @@ mod tests {
             method: None,
             headers: None,
         };
-        
+
         let rule = create_test_rule("prefix-path", condition);
         let rules = vec![rule];
-        
+
         assert!(find_first_match(&request_info, &rules).is_some());
-        
+
         // Test non-matching path
         let request_info = create_request_info("/api/posts", "GET", vec![]);
         assert!(find_first_match(&request_info, &rules).is_none());
@@ -294,9 +321,9 @@ mod tests {
     #[test]
     fn test_regex_path_match() {
         use regex::Regex;
-        
+
         let request_info = create_request_info("/api/users/123", "GET", vec![]);
-        
+
         let condition = MatchCondition {
             path: Some(PathMatcher {
                 exact: None,
@@ -307,12 +334,12 @@ mod tests {
             method: None,
             headers: None,
         };
-        
+
         let rule = create_test_rule("regex-path", condition);
         let rules = vec![rule];
-        
+
         assert!(find_first_match(&request_info, &rules).is_some());
-        
+
         // Test non-matching path
         let request_info = create_request_info("/api/users/abc", "GET", vec![]);
         assert!(find_first_match(&request_info, &rules).is_none());
@@ -321,7 +348,7 @@ mod tests {
     #[test]
     fn test_method_match() {
         let request_info = create_request_info("/api/users", "POST", vec![]);
-        
+
         let condition = MatchCondition {
             path: None,
             method: Some(StringMatcher {
@@ -332,12 +359,12 @@ mod tests {
             }),
             headers: None,
         };
-        
+
         let rule = create_test_rule("method-match", condition);
         let rules = vec![rule];
-        
+
         assert!(find_first_match(&request_info, &rules).is_some());
-        
+
         // Test non-matching method
         let request_info = create_request_info("/api/users", "GET", vec![]);
         assert!(find_first_match(&request_info, &rules).is_none());
@@ -346,7 +373,7 @@ mod tests {
     #[test]
     fn test_header_match() {
         let request_info = create_request_info("/api/users", "GET", vec![("x-user-id", "12345")]);
-        
+
         let condition = MatchCondition {
             path: None,
             method: None,
@@ -358,12 +385,12 @@ mod tests {
                 compiled_regex: None,
             }]),
         };
-        
+
         let rule = create_test_rule("header-match", condition);
         let rules = vec![rule];
-        
+
         assert!(find_first_match(&request_info, &rules).is_some());
-        
+
         // Test non-matching header value
         let request_info = create_request_info("/api/users", "GET", vec![("x-user-id", "67890")]);
         assert!(find_first_match(&request_info, &rules).is_none());
@@ -371,12 +398,9 @@ mod tests {
 
     #[test]
     fn test_combined_match() {
-        let request_info = create_request_info(
-            "/api/users/123", 
-            "GET", 
-            vec![("x-user-id", "12345")]
-        );
-        
+        let request_info =
+            create_request_info("/api/users/123", "GET", vec![("x-user-id", "12345")]);
+
         let condition = MatchCondition {
             path: Some(PathMatcher {
                 exact: None,
@@ -398,17 +422,17 @@ mod tests {
                 compiled_regex: None,
             }]),
         };
-        
+
         let rule = create_test_rule("combined-match", condition);
         let rules = vec![rule];
-        
+
         assert!(find_first_match(&request_info, &rules).is_some());
-        
+
         // Test failure when one condition doesn't match
         let request_info = create_request_info(
-            "/api/posts",  // Different path
-            "GET", 
-            vec![("x-user-id", "12345")]
+            "/api/posts", // Different path
+            "GET",
+            vec![("x-user-id", "12345")],
         );
         assert!(find_first_match(&request_info, &rules).is_none());
     }
@@ -416,42 +440,51 @@ mod tests {
     #[test]
     fn test_multiple_rules_first_match() {
         let request_info = create_request_info("/api/users", "GET", vec![]);
-        
-        let rule1 = create_test_rule("rule1", MatchCondition {
-            path: Some(PathMatcher {
-                exact: Some("/api/posts".to_string()),
-                prefix: None,
-                regex: None,
-                compiled_regex: None,
-            }),
-            method: None,
-            headers: None,
-        });
-        
-        let rule2 = create_test_rule("rule2", MatchCondition {
-            path: Some(PathMatcher {
-                exact: Some("/api/users".to_string()),
-                prefix: None,
-                regex: None,
-                compiled_regex: None,
-            }),
-            method: None,
-            headers: None,
-        });
-        
-        let rule3 = create_test_rule("rule3", MatchCondition {
-            path: Some(PathMatcher {
-                prefix: Some("/api".to_string()),
-                exact: None,
-                regex: None,
-                compiled_regex: None,
-            }),
-            method: None,
-            headers: None,
-        });
-        
+
+        let rule1 = create_test_rule(
+            "rule1",
+            MatchCondition {
+                path: Some(PathMatcher {
+                    exact: Some("/api/posts".to_string()),
+                    prefix: None,
+                    regex: None,
+                    compiled_regex: None,
+                }),
+                method: None,
+                headers: None,
+            },
+        );
+
+        let rule2 = create_test_rule(
+            "rule2",
+            MatchCondition {
+                path: Some(PathMatcher {
+                    exact: Some("/api/users".to_string()),
+                    prefix: None,
+                    regex: None,
+                    compiled_regex: None,
+                }),
+                method: None,
+                headers: None,
+            },
+        );
+
+        let rule3 = create_test_rule(
+            "rule3",
+            MatchCondition {
+                path: Some(PathMatcher {
+                    prefix: Some("/api".to_string()),
+                    exact: None,
+                    regex: None,
+                    compiled_regex: None,
+                }),
+                method: None,
+                headers: None,
+            },
+        );
+
         let rules = vec![rule1, rule2, rule3];
-        
+
         let matched = find_first_match(&request_info, &rules).unwrap();
         assert_eq!(matched.name, "rule2"); // Should match the first applicable rule
     }
@@ -459,16 +492,16 @@ mod tests {
     #[test]
     fn test_no_conditions_matches_all() {
         let request_info = create_request_info("/any/path", "GET", vec![]);
-        
+
         let condition = MatchCondition {
             path: None,
             method: None,
             headers: None,
         };
-        
+
         let rule = create_test_rule("match-all", condition);
         let rules = vec![rule];
-        
+
         assert!(find_first_match(&request_info, &rules).is_some());
     }
 }

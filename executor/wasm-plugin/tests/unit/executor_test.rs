@@ -1,5 +1,5 @@
 /// Executor 单元测试 - 验证 Abort 和 Delay 故障类型的原子性和精度
-/// 
+///
 /// 本测试文件验证:
 /// 1. Abort 执行的原子性 - 确保状态不会泄露
 /// 2. Delay 执行的精度 - 延迟时间的准确性
@@ -7,7 +7,6 @@
 ///
 /// 注意: 这些测试是单元级别的，模拟了 HTTP 上下文和故障注入行为，
 /// 不依赖真实的 proxy-wasm 运行时。
-
 #[cfg(test)]
 mod executor_tests {
     use std::sync::{Arc, Mutex};
@@ -62,7 +61,7 @@ mod executor_tests {
     }
 
     /// 测试 Abort 故障注入的原子性
-    /// 
+    ///
     /// 验证当 Abort 被执行时:
     /// - HTTP 状态码被正确设置
     /// - 响应头完整无损
@@ -80,11 +79,7 @@ mod executor_tests {
         ctx.set_response_body(b"Service Unavailable");
 
         // 验证 Abort 状态
-        assert_eq!(
-            ctx.get_response_status(),
-            Some(503),
-            "应该设置 503 状态码"
-        );
+        assert_eq!(ctx.get_response_status(), Some(503), "应该设置 503 状态码");
         assert!(ctx.is_response_set(), "响应应该被设置");
 
         // 验证响应头
@@ -99,7 +94,7 @@ mod executor_tests {
     }
 
     /// 测试多个 Abort 状态码
-    /// 
+    ///
     /// 验证不同的 Abort 状态码都能被正确设置和保留
     #[test]
     fn test_abort_various_status_codes() {
@@ -132,7 +127,7 @@ mod executor_tests {
     }
 
     /// 测试 Abort 无中间状态泄露
-    /// 
+    ///
     /// 验证在设置 Abort 时，不会有任何中间状态暴露出来
     #[test]
     fn test_abort_no_intermediate_state() {
@@ -147,15 +142,12 @@ mod executor_tests {
         if ctx.get_response_status().is_some() {
             // 如果状态码被设置，所有其他设置应该也被设置
             let headers = ctx.get_response_headers();
-            assert!(
-                !headers.is_empty(),
-                "如果状态被设置，头部也应该被设置"
-            );
+            assert!(!headers.is_empty(), "如果状态被设置，头部也应该被设置");
         }
     }
 
     /// 测试 Delay 执行的精度
-    /// 
+    ///
     /// 验证延迟时间在可接受的范围内
     #[test]
     fn test_delay_precision() {
@@ -182,7 +174,7 @@ mod executor_tests {
     }
 
     /// 测试多个延迟值的精度
-    /// 
+    ///
     /// 验证不同的延迟时间都能被准确执行
     #[test]
     fn test_delay_various_durations() {
@@ -205,7 +197,7 @@ mod executor_tests {
     }
 
     /// 测试故障注入的概率准确性
-    /// 
+    ///
     /// 验证给定概率的故障注入次数在统计上是合理的
     #[test]
     fn test_fault_injection_probability() {
@@ -238,7 +230,7 @@ mod executor_tests {
     }
 
     /// 测试状态隔离 - 多个上下文的独立性
-    /// 
+    ///
     /// 验证多个上下文中的状态不会相互影响
     #[test]
     fn test_context_isolation() {
@@ -254,16 +246,8 @@ mod executor_tests {
         ctx2.set_response_header("X-Error", "ctx2");
 
         // 验证两个上下文的状态独立
-        assert_eq!(
-            ctx1.get_response_status(),
-            Some(503),
-            "ctx1 应该有 503"
-        );
-        assert_eq!(
-            ctx2.get_response_status(),
-            Some(400),
-            "ctx2 应该有 400"
-        );
+        assert_eq!(ctx1.get_response_status(), Some(503), "ctx1 应该有 503");
+        assert_eq!(ctx2.get_response_status(), Some(400), "ctx2 应该有 400");
 
         // 验证响应头独立
         let ctx1_headers = ctx1.get_response_headers();
@@ -274,7 +258,7 @@ mod executor_tests {
     }
 
     /// 测试 Delay 与并发的相互作用
-    /// 
+    ///
     /// 验证 Delay 在并发场景中保持独立
     #[test]
     fn test_delay_concurrency() {
@@ -310,7 +294,7 @@ mod executor_tests {
     }
 
     /// 测试故障注入的确定性
-    /// 
+    ///
     /// 给定相同的输入，应该产生相同的结果
     #[test]
     fn test_deterministic_behavior() {
@@ -321,10 +305,7 @@ mod executor_tests {
         let config2 = (503u32, 50u32);
 
         // 相同的配置应该产生相同的结果
-        assert_eq!(
-            config1, config2,
-            "相同的配置应该导致相同的行为"
-        );
+        assert_eq!(config1, config2, "相同的配置应该导致相同的行为");
     }
 }
 

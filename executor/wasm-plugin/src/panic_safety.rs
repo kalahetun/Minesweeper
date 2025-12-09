@@ -13,7 +13,12 @@ pub fn setup_panic_hook() {
         };
 
         let location = if let Some(location) = panic_info.location() {
-            format!("{}:{}:{}", location.file(), location.line(), location.column())
+            format!(
+                "{}:{}:{}",
+                location.file(),
+                location.line(),
+                location.column()
+            )
         } else {
             "Unknown location".to_string()
         };
@@ -30,7 +35,8 @@ pub fn setup_panic_hook() {
                 "[WASM PANIC] Payload: '{}', Location: {}",
                 payload, location
             ),
-        ).unwrap_or(());
+        )
+        .unwrap_or(());
     }));
 
     // 记录 panic hook 已设置
@@ -64,7 +70,8 @@ where
                     "[WASM SAFE_EXECUTE] Panic caught in '{}': {}",
                     operation_name, payload_str
                 ),
-            ).unwrap_or(());
+            )
+            .unwrap_or(());
 
             None
         }
@@ -103,9 +110,7 @@ mod tests {
 
     #[test]
     fn test_safe_execute_with_complex_type() {
-        let result = safe_execute("test_complex_type", || {
-            vec![1, 2, 3, 4, 5]
-        });
+        let result = safe_execute("test_complex_type", || vec![1, 2, 3, 4, 5]);
         assert_eq!(result, Some(vec![1, 2, 3, 4, 5]));
     }
 
@@ -160,7 +165,7 @@ mod tests {
                 #[allow(unreachable_code)]
                 0
             });
-            
+
             // inner_result should be None due to panic
             inner_result.unwrap_or(100)
         });
@@ -170,9 +175,7 @@ mod tests {
 
     #[test]
     fn test_safe_execute_string_operations() {
-        let result = safe_execute("string_op", || {
-            "Hello".to_string() + " " + "World"
-        });
+        let result = safe_execute("string_op", || "Hello".to_string() + " " + "World");
 
         assert_eq!(result, Some("Hello World".to_string()));
     }
@@ -213,11 +216,9 @@ mod tests {
 
     #[test]
     fn test_safe_execute_match_statement() {
-        let result = safe_execute("match_test", || {
-            match Some(42) {
-                Some(n) => n * 2,
-                None => 0,
-            }
+        let result = safe_execute("match_test", || match Some(42) {
+            Some(n) => n * 2,
+            None => 0,
         });
 
         assert_eq!(result, Some(84));
@@ -284,11 +285,9 @@ mod tests {
             name: String,
         }
 
-        let result = safe_execute("struct_op", || {
-            TestData {
-                value: 42,
-                name: "test".to_string(),
-            }
+        let result = safe_execute("struct_op", || TestData {
+            value: 42,
+            name: "test".to_string(),
         });
 
         let expected = TestData {

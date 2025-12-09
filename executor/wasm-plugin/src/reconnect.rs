@@ -1,4 +1,4 @@
-use log::{debug, warn, error};
+use log::{debug, error, warn};
 use std::time::Duration;
 
 /// Error classification for reconnection strategy (M2 improvement)
@@ -57,11 +57,7 @@ impl ReconnectManager {
     }
 
     /// 创建自定义配置的重连管理器
-    pub fn with_config(
-        initial_delay: Duration,
-        max_delay: Duration,
-        max_attempts: u32,
-    ) -> Self {
+    pub fn with_config(initial_delay: Duration, max_delay: Duration, max_attempts: u32) -> Self {
         Self {
             attempts: 0,
             initial_delay,
@@ -73,18 +69,18 @@ impl ReconnectManager {
     }
 
     /// 处理连接失败，计算下次重连延迟
-    /// 
+    ///
     /// 改进 (M2): 支持错误分类，对临时错误和永久错误采取不同策略
     /// - 临时错误（5xx、超时）：使用指数退避重连
     /// - 永久错误（4xx）：快速放弃或使用较长延迟
     pub fn on_failure(&mut self) -> Option<Duration> {
         self.on_failure_with_error_type(ErrorType::Temporary)
     }
-    
+
     /// Handle connection failure with error classification (M2)
     pub fn on_failure_with_error_type(&mut self, error_type: ErrorType) -> Option<Duration> {
         self.attempts += 1;
-        
+
         // For permanent errors, reduce max attempts or fail immediately
         let max_attempts = match error_type {
             ErrorType::Permanent => {
@@ -95,7 +91,7 @@ impl ReconnectManager {
             ErrorType::Temporary => self.max_attempts,
             ErrorType::Unknown => self.max_attempts,
         };
-        
+
         if self.attempts > max_attempts {
             error!(
                 "Max reconnection attempts reached: {}/{} (error type: {:?})",
@@ -105,10 +101,15 @@ impl ReconnectManager {
         }
 
         // 指数退避算法: delay = min(initial_delay * 2^attempts, max_delay)
-        let exponential_delay = self.initial_delay
-            .checked_mul(2_u32.checked_pow(self.attempts.saturating_sub(1)).unwrap_or(1))
+        let exponential_delay = self
+            .initial_delay
+            .checked_mul(
+                2_u32
+                    .checked_pow(self.attempts.saturating_sub(1))
+                    .unwrap_or(1),
+            )
             .unwrap_or(self.max_delay);
-        
+
         self.current_delay = std::cmp::min(exponential_delay, self.max_delay);
         self.is_reconnecting = true;
 
@@ -123,10 +124,7 @@ impl ReconnectManager {
     /// 处理连接成功，重置重连状态
     pub fn on_success(&mut self) {
         if self.attempts > 0 {
-            debug!(
-                "Reconnection successful after {} attempts",
-                self.attempts
-            );
+            debug!("Reconnection successful after {} attempts", self.attempts);
         }
 
         self.attempts = 0;
@@ -161,11 +159,8 @@ mod tests {
 
     #[test]
     fn test_exponential_backoff() {
-        let mut manager = ReconnectManager::with_config(
-            Duration::from_millis(100),
-            Duration::from_secs(10),
-            5,
-        );
+        let mut manager =
+            ReconnectManager::with_config(Duration::from_millis(100), Duration::from_secs(10), 5);
 
         // 第一次失败
         let delay1 = manager.on_failure().unwrap();
@@ -190,16 +185,13 @@ mod tests {
 
     #[test]
     fn test_max_attempts() {
-        let mut manager = ReconnectManager::with_config(
-            Duration::from_millis(100),
-            Duration::from_secs(10),
-            2,
-        );
+        let mut manager =
+            ReconnectManager::with_config(Duration::from_millis(100), Duration::from_secs(10), 2);
 
         // 前两次失败应该返回延迟
         assert!(manager.on_failure().is_some());
         assert!(manager.on_failure().is_some());
-        
+
         // 第三次失败应该返回 None（超过最大尝试次数）
         assert!(manager.on_failure().is_none());
     }
@@ -221,14 +213,14 @@ mod tests {
     #[test]
     fn test_reconnect_state_transitions() {
         let mut manager = ReconnectManager::new();
-        
+
         // 初始状态不在重连
         assert!(!manager.is_reconnecting());
-        
+
         // 失败后进入重连状态
         let _ = manager.on_failure();
         assert!(manager.is_reconnecting());
-        
+
         // 成功后退出重连状态
         manager.on_success();
         assert!(!manager.is_reconnecting());
@@ -240,13 +232,13 @@ mod tests {
         assert_eq!(ErrorType::from_status_code(500), ErrorType::Temporary);
         assert_eq!(ErrorType::from_status_code(503), ErrorType::Temporary);
         assert_eq!(ErrorType::from_status_code(504), ErrorType::Temporary);
-        
+
         // 4xx 错误是永久的
         assert_eq!(ErrorType::from_status_code(400), ErrorType::Permanent);
         assert_eq!(ErrorType::from_status_code(401), ErrorType::Permanent);
         assert_eq!(ErrorType::from_status_code(404), ErrorType::Permanent);
         assert_eq!(ErrorType::from_status_code(429), ErrorType::Permanent);
-        
+
         // 其他状态代码是未知的
         assert_eq!(ErrorType::from_status_code(200), ErrorType::Unknown);
         assert_eq!(ErrorType::from_status_code(301), ErrorType::Unknown);
@@ -254,11 +246,8 @@ mod tests {
 
     #[test]
     fn test_multiple_failure_recovery_cycles() {
-        let mut manager = ReconnectManager::with_config(
-            Duration::from_millis(50),
-            Duration::from_secs(5),
-            3,
-        );
+        let mut manager =
+            ReconnectManager::with_config(Duration::from_millis(50), Duration::from_secs(5), 3);
 
         // 第一个失败→恢复周期
         assert!(manager.on_failure().is_some());
@@ -276,11 +265,8 @@ mod tests {
 
     #[test]
     fn test_delay_values_increase_exponentially() {
-        let mut manager = ReconnectManager::with_config(
-            Duration::from_millis(100),
-            Duration::from_secs(60),
-            10,
-        );
+        let mut manager =
+            ReconnectManager::with_config(Duration::from_millis(100), Duration::from_secs(60), 10);
 
         let delay1 = manager.on_failure().unwrap();
         let delay2 = manager.on_failure().unwrap();
@@ -301,11 +287,8 @@ mod tests {
 
     #[test]
     fn test_attempts_counter_increments() {
-        let mut manager = ReconnectManager::with_config(
-            Duration::from_millis(100),
-            Duration::from_secs(10),
-            5,
-        );
+        let mut manager =
+            ReconnectManager::with_config(Duration::from_millis(100), Duration::from_secs(10), 5);
 
         for i in 1..=5 {
             manager.on_failure();
@@ -315,11 +298,8 @@ mod tests {
 
     #[test]
     fn test_success_resets_attempts() {
-        let mut manager = ReconnectManager::with_config(
-            Duration::from_millis(100),
-            Duration::from_secs(10),
-            5,
-        );
+        let mut manager =
+            ReconnectManager::with_config(Duration::from_millis(100), Duration::from_secs(10), 5);
 
         // 累积失败
         manager.on_failure();
@@ -334,11 +314,8 @@ mod tests {
 
     #[test]
     fn test_custom_config() {
-        let manager = ReconnectManager::with_config(
-            Duration::from_millis(200),
-            Duration::from_secs(30),
-            4,
-        );
+        let manager =
+            ReconnectManager::with_config(Duration::from_millis(200), Duration::from_secs(30), 4);
 
         assert_eq!(manager.initial_delay, Duration::from_millis(200));
         assert_eq!(manager.max_delay, Duration::from_secs(30));
@@ -347,11 +324,8 @@ mod tests {
 
     #[test]
     fn test_long_backoff_sequence() {
-        let mut manager = ReconnectManager::with_config(
-            Duration::from_millis(10),
-            Duration::from_secs(10),
-            8,
-        );
+        let mut manager =
+            ReconnectManager::with_config(Duration::from_millis(10), Duration::from_secs(10), 8);
 
         let mut prev_delay = Duration::from_millis(0);
         for _ in 0..8 {
@@ -370,17 +344,14 @@ mod tests {
 
     #[test]
     fn test_rapid_success_failure_cycles() {
-        let mut manager = ReconnectManager::with_config(
-            Duration::from_millis(50),
-            Duration::from_secs(5),
-            3,
-        );
+        let mut manager =
+            ReconnectManager::with_config(Duration::from_millis(50), Duration::from_secs(5), 3);
 
         for _ in 0..5 {
             // 失败一次
             assert!(manager.on_failure().is_some());
             assert_eq!(manager.get_attempts(), 1);
-            
+
             // 立即成功
             manager.on_success();
             assert_eq!(manager.get_attempts(), 0);

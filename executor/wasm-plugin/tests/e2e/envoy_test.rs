@@ -1,9 +1,7 @@
 #[cfg(test)]
 mod envoy_wasm_integration {
-    use std::process::Command;
-    use std::io::Write;
-    use std::fs;
     use std::path::Path;
+    use std::process::Command;
 
     /// Helper function to check if Docker is available
     fn is_docker_available() -> bool {
@@ -40,10 +38,7 @@ mod envoy_wasm_integration {
             .status()
             .expect("Failed to execute docker pull");
 
-        assert!(
-            status.success(),
-            "Failed to pull Envoy image"
-        );
+        assert!(status.success(), "Failed to pull Envoy image");
         println!("✓ Envoy image pulled successfully");
     }
 
@@ -60,7 +55,7 @@ mod envoy_wasm_integration {
             .unwrap()
             .as_secs();
         let container_name = format!("boifi-envoy-test-{}", timestamp);
-        
+
         // Use different ports to avoid conflicts
         let admin_port = 19000 + (timestamp % 1000) as u16;
         let upstream_port = 20000 + (timestamp % 1000) as u16;
@@ -78,11 +73,15 @@ mod envoy_wasm_integration {
             .args(&[
                 "run",
                 "-d",
-                "--name", &container_name,
-                "-p", &format!("{}:9000", admin_port),  // Admin interface
-                "-p", &format!("{}:10000", upstream_port), // Upstream
+                "--name",
+                &container_name,
+                "-p",
+                &format!("{}:9000", admin_port), // Admin interface
+                "-p",
+                &format!("{}:10000", upstream_port), // Upstream
                 "envoyproxy/envoy:v1.27-latest",
-                "-c", "/etc/envoy/envoy.yaml",
+                "-c",
+                "/etc/envoy/envoy.yaml",
             ])
             .output()
             .expect("Failed to execute docker run");
@@ -115,11 +114,7 @@ mod envoy_wasm_integration {
         ];
 
         for dir in test_dirs {
-            assert!(
-                Path::new(dir).exists(),
-                "Directory {} does not exist",
-                dir
-            );
+            assert!(Path::new(dir).exists(), "Directory {} does not exist", dir);
         }
         println!("✓ WASM plugin directory structure is correct");
     }
@@ -193,8 +188,10 @@ mod envoy_wasm_integration {
             .args(&[
                 "run",
                 "-d",
-                "--name", &container_name,
-                "-p", &format!("{}:9000", port),
+                "--name",
+                &container_name,
+                "-p",
+                &format!("{}:9000", port),
                 "envoyproxy/envoy:v1.27-latest",
             ])
             .output();
@@ -208,7 +205,7 @@ mod envoy_wasm_integration {
             .output();
 
         match output {
-            Ok(out) => {
+            Ok(_out) => {
                 // This test may or may not succeed depending on Envoy configuration
                 // We just verify the docker command execution
                 println!("✓ Envoy admin interface test completed");
@@ -227,8 +224,8 @@ mod envoy_wasm_integration {
 
         // Check environment variables or config files that would indicate
         // where the Control Plane is running
-        let control_plane_addr = std::env::var("CONTROL_PLANE_ADDR")
-            .unwrap_or_else(|_| "localhost:8080".to_string());
+        let control_plane_addr =
+            std::env::var("CONTROL_PLANE_ADDR").unwrap_or_else(|_| "localhost:8080".to_string());
 
         println!("✓ Control Plane address configured: {}", control_plane_addr);
 
@@ -246,10 +243,7 @@ mod envoy_wasm_integration {
     fn test_wasm_plugin_load_readiness() {
         // Check if WASM plugin files exist in expected locations
         // Tests are run from the wasm-plugin directory
-        let plugin_paths = vec![
-            "src",
-            "Cargo.toml",
-        ];
+        let plugin_paths = vec!["src", "Cargo.toml"];
 
         for path in plugin_paths {
             assert!(

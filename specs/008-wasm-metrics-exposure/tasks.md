@@ -152,20 +152,20 @@
 
 #### 代码质量
 
-- [ ] T031 [P] 运行 cargo clippy 检查 Rust 代码 - 在 `executor/wasm-plugin/` 运行 `cargo clippy` 修复警告
-- [ ] T032 [P] 运行 cargo fmt 格式化代码 - 在 `executor/wasm-plugin/` 运行 `cargo fmt` 确保代码风格一致
+- [x] T031 [P] 运行 cargo clippy 检查 Rust 代码 - 在 `executor/wasm-plugin/` 运行 `cargo clippy` 修复警告
+- [x] T032 [P] 运行 cargo fmt 格式化代码 - 在 `executor/wasm-plugin/` 运行 `cargo fmt` 确保代码风格一致
 
 #### 文档完整性
 
-- [ ] T033 [P] 审查所有文档更新的准确性 - 验证 README、METRICS_SOLUTION.md、quickstart.md 中的命令和输出
-- [ ] T034 [P] 更新 copilot-instructions.md - 确认 `.github/copilot-instructions.md` 已通过 update-agent-context 脚本更新
-- [ ] T035 审查 spec.md 标记为 Complete - 在 `specs/008-wasm-metrics-exposure/spec.md` 中将状态从 Draft 改为 Complete
+- [x] T033 [P] 审查所有文档更新的准确性 - 验证 README、METRICS_SOLUTION.md、quickstart.md 中的命令和输出
+- [x] T034 [P] 更新 copilot-instructions.md - 确认 `.github/copilot-instructions.md` 已通过 update-agent-context 脚本更新
+- [x] T035 审查 spec.md 标记为 Complete - 在 `specs/008-wasm-metrics-exposure/spec.md` 中将状态从 Draft 改为 Complete
 
 #### 端到端验证
 
-- [ ] T036 按 quickstart.md 执行完整流程 - 从头到尾按照 quickstart.md 执行所有 6 个步骤，验证每个命令
-- [ ] T037 验证所有接受场景 - 检查 spec.md 中的 9 个接受场景（US1: 3个，US2: 3个，US3: 3个）全部通过
-- [ ] T038 验证边界情况 - 测试 spec.md 中列出的 4 个边界情况（错误 namespace、stats buffer 满、滚动更新、双 EnvoyFilter）
+- [x] T036 按 quickstart.md 执行完整流程 - 从头到尾按照 quickstart.md 执行所有 6 个步骤，验证每个命令
+- [x] T037 验证所有接受场景 - 检查 spec.md 中的 9 个接受场景（US1: 3个，US2: 3个，US3: 3个）全部通过
+- [x] T038 验证边界情况 - 测试 spec.md 中列出的 4 个边界情况（错误 namespace、stats buffer 满、滚动更新、双 EnvoyFilter）
 
 #### Git 和发布
 

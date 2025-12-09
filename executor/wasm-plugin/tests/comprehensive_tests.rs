@@ -6,8 +6,6 @@
 //!
 //! These tests focus on testing the core logic without proxy-wasm dependencies
 
-use serde_json;
-
 // We need to re-export the modules we want to test
 // Since this is an integration test, we can't directly access private modules
 // Instead, we'll test through the public API
@@ -244,12 +242,12 @@ fn test_time_based_expiration() {
     }
 
     // Test delayed policy activation and expiration
-    assert!(!is_expired(5000, 10, 0));    // Before start - not expired (but not active)
+    assert!(!is_expired(5000, 10, 0)); // Before start - not expired (but not active)
     assert!(!is_expired(5000, 10, 5000)); // At start - not expired yet (5s = 5000ms)
     assert!(!is_expired(5000, 10, 9999)); // Before expiration - not expired
     assert!(is_expired(5000, 10, 15000)); // After expiration (5s + 10s = 15s) - expired
     assert!(is_expired(5000, 10, 20000)); // Well after expiration - expired
-    assert!(!is_expired(0, 0, 100000));   // Persistent never expires
+    assert!(!is_expired(0, 0, 100000)); // Persistent never expires
 }
 
 #[test]
@@ -287,10 +285,26 @@ fn test_fault_types_combinations() {
     }
 
     let faults = vec![
-        FaultConfig { abort_status: Some(500), delay_ms: None, percentage: 100 },
-        FaultConfig { abort_status: None, delay_ms: Some(100), percentage: 100 },
-        FaultConfig { abort_status: Some(503), delay_ms: Some(50), percentage: 100 },
-        FaultConfig { abort_status: None, delay_ms: None, percentage: 0 },
+        FaultConfig {
+            abort_status: Some(500),
+            delay_ms: None,
+            percentage: 100,
+        },
+        FaultConfig {
+            abort_status: None,
+            delay_ms: Some(100),
+            percentage: 100,
+        },
+        FaultConfig {
+            abort_status: Some(503),
+            delay_ms: Some(50),
+            percentage: 100,
+        },
+        FaultConfig {
+            abort_status: None,
+            delay_ms: None,
+            percentage: 0,
+        },
     ];
 
     // Verify all fault configurations are valid
@@ -528,10 +542,10 @@ fn test_time_control_priority_expiry_over_delay() {
     let current_time_ms = 2000; // Rule already expired
 
     let expiry_ms = duration_seconds as u64 * 1000;
-    
+
     // Rule is expired (created at 0, duration 1s, now at 2s)
     assert!(current_time_ms >= expiry_ms);
-    
+
     // Even though delay check would suggest waiting, expiry takes priority
     assert!(start_delay_ms as u64 > 100); // Large delay requirement
 }

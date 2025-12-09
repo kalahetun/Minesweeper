@@ -3,7 +3,6 @@
 
 #[cfg(test)]
 mod wasm_config_tests {
-    use serde_json::json;
 
     // Simplified type definitions for testing (mirroring config.rs)
     #[derive(Debug, serde::Deserialize, Clone)]
@@ -267,7 +266,10 @@ mod wasm_config_tests {
         let ruleset: CompiledRuleSet = serde_json::from_str(json_str).unwrap();
         let path = &ruleset.rules[0].match_condition.path;
         assert!(path.is_some());
-        assert_eq!(path.as_ref().unwrap().exact.as_ref().unwrap(), "/api/v1/users");
+        assert_eq!(
+            path.as_ref().unwrap().exact.as_ref().unwrap(),
+            "/api/v1/users"
+        );
     }
 
     #[test]

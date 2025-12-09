@@ -2,7 +2,7 @@
 
 **Feature Branch**: `008-wasm-metrics-exposure`  
 **Created**: 2025-12-09  
-**Status**: Draft  
+**Status**: Complete  
 **Input**: User description: "Expose Wasm custom Prometheus metrics using combined approach: wasmcustom prefix naming and EnvoyFilter configuration"
 
 ## User Scenarios & Testing *(mandatory)*

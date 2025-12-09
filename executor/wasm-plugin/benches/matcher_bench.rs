@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use regex::Regex;
 
 /// Simplified matcher for benchmarking purposes
@@ -15,7 +15,7 @@ impl SimpleMatcher {
         headers: Vec<(&str, &str)>,
     ) -> Result<Self, regex::Error> {
         let path_regex = path_regex.map(|p| Regex::new(p)).transpose()?;
-        
+
         Ok(SimpleMatcher {
             path_regex,
             methods: methods.into_iter().map(|s| s.to_string()).collect(),
@@ -41,10 +41,7 @@ impl SimpleMatcher {
 
         // Header matching
         for (key, value) in &self.headers {
-            if !req_headers
-                .iter()
-                .any(|(k, v)| k == key && v == value)
-            {
+            if !req_headers.iter().any(|(k, v)| k == key && v == value) {
                 return false;
             }
         }
@@ -90,7 +87,7 @@ fn benchmark_single_rule(c: &mut Criterion) {
 
 fn benchmark_multiple_rules(c: &mut Criterion) {
     let mut group = c.benchmark_group("multiple_rules");
-    
+
     for rule_count in [5, 10, 20].iter() {
         let matchers: Vec<_> = (0..*rule_count)
             .map(|i| {
@@ -134,10 +131,9 @@ fn benchmark_regex_patterns(c: &mut Criterion) {
     ];
 
     let mut group = c.benchmark_group("regex_patterns");
-    
+
     for (name, pattern) in patterns {
-        let matcher = SimpleMatcher::new(Some(pattern), vec!["GET"], vec![])
-            .unwrap();
+        let matcher = SimpleMatcher::new(Some(pattern), vec!["GET"], vec![]).unwrap();
 
         group.bench_with_input(
             BenchmarkId::from_parameter(name),
@@ -158,21 +154,18 @@ fn benchmark_regex_patterns(c: &mut Criterion) {
 
 fn benchmark_header_matching(c: &mut Criterion) {
     let mut group = c.benchmark_group("header_matching");
-    
+
     for header_count in [1, 3, 5].iter() {
         let headers: Vec<_> = (0..*header_count)
-            .map(|i| {
-                (
-                    format!("X-Custom-Header-{}", i),
-                    format!("value-{}", i),
-                )
-            })
+            .map(|i| (format!("X-Custom-Header-{}", i), format!("value-{}", i)))
             .collect();
 
-        let headers_ref: Vec<_> = headers.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        let headers_ref: Vec<_> = headers
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
 
-        let matcher = SimpleMatcher::new(Some("^/api/.*"), vec!["GET"], headers_ref)
-            .unwrap();
+        let matcher = SimpleMatcher::new(Some("^/api/.*"), vec!["GET"], headers_ref).unwrap();
 
         let request_headers: Vec<_> = headers
             .iter()

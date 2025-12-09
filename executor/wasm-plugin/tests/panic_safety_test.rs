@@ -125,7 +125,8 @@ mod panic_safety_tests {
                 panic!("Inner panic");
                 #[allow(unreachable_code)]
                 0
-            }).unwrap_or(99)
+            })
+            .unwrap_or(99)
         });
         assert_eq!(result, Some(99));
     }
@@ -160,9 +161,7 @@ mod panic_safety_tests {
 
     #[test]
     fn test_string_operations_success() {
-        let result = safe_execute("string_concat", || {
-            "Hello".to_string() + " " + "World"
-        });
+        let result = safe_execute("string_concat", || "Hello".to_string() + " " + "World");
         assert_eq!(result, Some("Hello World".to_string()));
     }
 
@@ -178,11 +177,9 @@ mod panic_safety_tests {
 
     #[test]
     fn test_match_expression() {
-        let result = safe_execute("match_expr", || {
-            match Some(42) {
-                Some(n) => n * 2,
-                None => 0,
-            }
+        let result = safe_execute("match_expr", || match Some(42) {
+            Some(n) => n * 2,
+            None => 0,
         });
         assert_eq!(result, Some(84));
     }
@@ -281,11 +278,9 @@ mod panic_safety_tests {
             name: String,
         }
 
-        let result = safe_execute("struct_create", || {
-            Config {
-                value: 42,
-                name: "test".to_string(),
-            }
+        let result = safe_execute("struct_create", || Config {
+            value: 42,
+            name: "test".to_string(),
         });
 
         let expected = Config {
@@ -347,12 +342,7 @@ mod panic_safety_tests {
     fn test_deeply_nested_safe_calls() {
         let result = safe_execute("level_1", || {
             safe_execute("level_2", || {
-                safe_execute("level_3", || {
-                    safe_execute("level_4", || {
-                        42
-                    }).unwrap_or(0)
-                })
-                .unwrap_or(0)
+                safe_execute("level_3", || safe_execute("level_4", || 42).unwrap_or(0)).unwrap_or(0)
             })
             .unwrap_or(0)
         });

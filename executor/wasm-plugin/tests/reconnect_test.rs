@@ -35,11 +35,7 @@ mod reconnect_tests {
 
     impl ReconnectManager {
         pub fn new() -> Self {
-            Self::with_config(
-                Duration::from_secs(1),
-                Duration::from_secs(30),
-                5,
-            )
+            Self::with_config(Duration::from_secs(1), Duration::from_secs(30), 5)
         }
 
         pub fn with_config(
@@ -93,16 +89,16 @@ mod reconnect_tests {
     #[test]
     fn test_reconnect_state_machine() {
         let mut manager = ReconnectManager::new();
-        
+
         // Initial state
         assert_eq!(manager.attempts, 0);
         assert!(!manager.is_reconnecting());
-        
+
         // First failure
         let _ = manager.on_failure();
         assert_eq!(manager.attempts, 1);
         assert!(manager.is_reconnecting());
-        
+
         // Success resets state
         manager.on_success();
         assert_eq!(manager.attempts, 0);
@@ -111,15 +107,10 @@ mod reconnect_tests {
 
     #[test]
     fn test_exponential_backoff_progression() {
-        let mut manager = ReconnectManager::with_config(
-            Duration::from_millis(100),
-            Duration::from_secs(10),
-            5,
-        );
+        let mut manager =
+            ReconnectManager::with_config(Duration::from_millis(100), Duration::from_secs(10), 5);
 
-        let delays: Vec<_> = (0..5)
-            .filter_map(|_| manager.on_failure())
-            .collect();
+        let delays: Vec<_> = (0..5).filter_map(|_| manager.on_failure()).collect();
 
         assert_eq!(delays[0], Duration::from_millis(100));
         assert_eq!(delays[1], Duration::from_millis(200));
@@ -149,11 +140,8 @@ mod reconnect_tests {
 
     #[test]
     fn test_max_attempts_enforced() {
-        let mut manager = ReconnectManager::with_config(
-            Duration::from_millis(50),
-            Duration::from_secs(5),
-            3,
-        );
+        let mut manager =
+            ReconnectManager::with_config(Duration::from_millis(50), Duration::from_secs(5), 3);
 
         // Should succeed 3 times
         assert!(manager.on_failure().is_some());
@@ -166,11 +154,8 @@ mod reconnect_tests {
 
     #[test]
     fn test_reset_after_success() {
-        let mut manager = ReconnectManager::with_config(
-            Duration::from_millis(100),
-            Duration::from_secs(10),
-            5,
-        );
+        let mut manager =
+            ReconnectManager::with_config(Duration::from_millis(100), Duration::from_secs(10), 5);
 
         // Accumulate failures
         manager.on_failure();
@@ -209,18 +194,15 @@ mod reconnect_tests {
 
     #[test]
     fn test_multiple_failure_recovery_cycles() {
-        let mut manager = ReconnectManager::with_config(
-            Duration::from_millis(50),
-            Duration::from_secs(5),
-            3,
-        );
+        let mut manager =
+            ReconnectManager::with_config(Duration::from_millis(50), Duration::from_secs(5), 3);
 
         for cycle in 0..3 {
             // Fail twice
             let _ = manager.on_failure();
             let _ = manager.on_failure();
             assert_eq!(manager.attempts, 2);
-            
+
             // Recover
             manager.on_success();
             assert_eq!(manager.attempts, 0);
@@ -229,16 +211,16 @@ mod reconnect_tests {
 
     #[test]
     fn test_delay_monotonically_increases() {
-        let mut manager = ReconnectManager::with_config(
-            Duration::from_millis(50),
-            Duration::from_secs(10),
-            10,
-        );
+        let mut manager =
+            ReconnectManager::with_config(Duration::from_millis(50), Duration::from_secs(10), 10);
 
         let mut prev_delay = Duration::from_millis(0);
         for _ in 0..8 {
             if let Some(delay) = manager.on_failure() {
-                assert!(delay >= prev_delay, "Delays should be monotonically increasing");
+                assert!(
+                    delay >= prev_delay,
+                    "Delays should be monotonically increasing"
+                );
                 prev_delay = delay;
             }
         }
@@ -246,11 +228,8 @@ mod reconnect_tests {
 
     #[test]
     fn test_custom_initial_delay() {
-        let manager = ReconnectManager::with_config(
-            Duration::from_millis(200),
-            Duration::from_secs(30),
-            5,
-        );
+        let manager =
+            ReconnectManager::with_config(Duration::from_millis(200), Duration::from_secs(30), 5);
 
         assert_eq!(manager.initial_delay, Duration::from_millis(200));
         assert_eq!(manager.current_delay, Duration::from_millis(200));
@@ -259,7 +238,7 @@ mod reconnect_tests {
     #[test]
     fn test_attempts_counter() {
         let mut manager = ReconnectManager::new();
-        
+
         for expected in 1..=5 {
             manager.on_failure();
             assert_eq!(manager.get_attempts(), expected);
@@ -288,16 +267,17 @@ mod reconnect_tests {
 
     #[test]
     fn test_graceful_degradation_under_sustained_failures() {
-        let mut manager = ReconnectManager::with_config(
-            Duration::from_millis(100),
-            Duration::from_secs(5),
-            5,
-        );
+        let mut manager =
+            ReconnectManager::with_config(Duration::from_millis(100), Duration::from_secs(5), 5);
 
         // Simulate sustained failures
         for attempt in 1..=5 {
             let result = manager.on_failure();
-            assert!(result.is_some(), "Should return delay for attempt {}", attempt);
+            assert!(
+                result.is_some(),
+                "Should return delay for attempt {}",
+                attempt
+            );
             assert_eq!(manager.attempts, attempt);
         }
 
@@ -309,11 +289,8 @@ mod reconnect_tests {
 
     #[test]
     fn test_recovery_from_failed_state() {
-        let mut manager = ReconnectManager::with_config(
-            Duration::from_millis(50),
-            Duration::from_secs(5),
-            3,
-        );
+        let mut manager =
+            ReconnectManager::with_config(Duration::from_millis(50), Duration::from_secs(5), 3);
 
         // Fail max attempts
         manager.on_failure();
@@ -324,7 +301,7 @@ mod reconnect_tests {
         // Try to recover
         manager.on_success();
         assert_eq!(manager.attempts, 0);
-        
+
         // Should be able to retry again
         assert!(manager.on_failure().is_some());
     }
@@ -346,7 +323,7 @@ mod reconnect_tests {
         manager.on_failure();
         manager.on_failure();
         assert_eq!(manager.max_attempts, max_attempts);
-        
+
         manager.on_success();
         assert_eq!(manager.initial_delay, initial_delay);
     }
