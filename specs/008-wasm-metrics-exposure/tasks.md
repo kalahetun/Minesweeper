@@ -65,13 +65,13 @@
 #### 构建和部署
 
 - [x] T006 [US1] 编译 Wasm 插件 - 在 `executor/wasm-plugin/` 目录运行 `make build` 构建更新的插件
-- [ ] T007 [US1] 构建 Docker 镜像 - 使用 `docker build` 创建包含新插件的镜像（如果使用容器部署）
-- [ ] T008 [US1] 更新 WasmPlugin CRD - 应用 `executor/k8s/plugin-multi-instance.yaml` 部署新版本插件
-- [ ] T009 [US1] 重启 demo namespace 的 pod - 运行 `kubectl rollout restart deployment -n demo` 使新插件生效
+- [x] T007 [US1] 构建 Docker 镜像 - 使用 `docker build` 创建包含新插件的镜像（如果使用容器部署）
+- [x] T008 [US1] 更新 WasmPlugin CRD - 应用 `executor/k8s/wasmplugin.yaml` 部署新版本插件
+- [x] T009 [US1] 重启 demo namespace 的 pod - 运行 `kubectl rollout restart deployment -n demo` 使新插件生效
 
 #### 验证
 
-- [ ] T010 [US1] 验证指标在 Envoy stats 中可见 - 使用 quickstart.md 步骤 3 中的 curl 命令检查 `/stats/prometheus` 端点
+- [x] T010 [US1] 验证指标在 Envoy stats 中可见 - 使用 quickstart.md 步骤 3 中的 curl 命令检查 `/stats/prometheus` 端点
 - [ ] T011 [US1] 应用 abort 策略并验证计数器递增 - 按 quickstart.md 步骤 4-5 触发故障并检查 `aborts_total` 指标
 - [ ] T012 [US1] 应用 delay 策略并验证计数器和直方图 - 触发延迟故障并检查 `delays_total` 和 `delay_duration_milliseconds` 指标
 - [ ] T013 [US1] 验证基线场景 - 删除所有策略后确认计数器为零

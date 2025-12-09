@@ -22,10 +22,9 @@ metadata:
 spec:
   # Selector: which workloads to apply the plugin to
   # Comment out to apply to all workloads in the namespace
-  selector:
-    matchLabels: {}
-    # Uncomment to target specific workloads:
-    # app: frontend
+  # selector:
+  #   matchLabels:
+  #     app: frontend
   
   # Plugin source: OCI image or HTTP URL
   # Option 1: OCI image (recommended for production)
