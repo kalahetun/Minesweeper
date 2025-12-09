@@ -16,7 +16,7 @@ data:
       kubeconfig: ""  # 使用 in-cluster 配置
     
     jaeger:
-      url: "http://jaeger-query.observability.svc.cluster.local:16686"
+      url: "http://tracing.istio-system.svc.cluster.local:80/jaeger"
       lookback: 1h
       timeout: 30s
     
@@ -97,34 +97,20 @@ spec:
         fsGroup: 1000
       containers:
         - name: service-discovery
-          image: boifi/service-discovery:latest
-          imagePullPolicy: IfNotPresent
+          image: service-discovery:latest
+          imagePullPolicy: Never
           args:
-            - "-c"
+            - "--config"
             - "/etc/service-discovery/config.yaml"
-          ports:
-            - name: http
-              containerPort: 8080
-              protocol: TCP
+            - "--full-discovery=true"
+            - "--extract-apis=true"
           resources:
             requests:
               cpu: 100m
               memory: 128Mi
             limits:
               cpu: 500m
-              memory: 256Mi
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: http
-            initialDelaySeconds: 10
-            periodSeconds: 30
-          readinessProbe:
-            httpGet:
-              path: /readyz
-              port: http
-            initialDelaySeconds: 5
-            periodSeconds: 10
+              memory: 512Mi
           volumeMounts:
             - name: config
               mountPath: /etc/service-discovery
