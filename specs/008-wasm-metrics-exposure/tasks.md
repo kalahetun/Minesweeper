@@ -126,21 +126,21 @@
 
 #### 文档更新
 
-- [ ] T022 [P] [US3] 更新 k8s/README.md 添加指标验证章节 - 在 `executor/k8s/README.md` 中添加"Metrics Verification"部分，包含验证命令和预期输出
-- [ ] T023 [P] [US3] 更新 cli/examples/README.md 添加指标观察示例 - 在 `executor/cli/examples/README.md` 中添加如何在应用策略后观察指标的示例
-- [ ] T024 [P] [US3] 更新 METRICS_SOLUTION.md 故障排查指南 - 在 `executor/k8s/METRICS_SOLUTION.md` 中扩展"故障排查"部分，覆盖所有常见失败模式
+- [x] T022 [P] [US3] 更新 k8s/README.md 添加指标验证章节 - 在 `executor/k8s/README.md` 中添加"Metrics Verification"部分，包含验证命令和预期输出
+- [x] T023 [P] [US3] 更新 cli/examples/README.md 添加指标观察示例 - 在 `executor/cli/examples/README.md` 中添加如何在应用策略后观察指标的示例
+- [x] T024 [P] [US3] 更新 METRICS_SOLUTION.md 故障排查指南 - 在 `executor/k8s/METRICS_SOLUTION.md` 中扩展"故障排查"部分，覆盖所有常见失败模式
 
 #### 集成测试脚本
 
-- [ ] T025 [US3] 创建指标专用 E2E 测试脚本 - 创建 `executor/k8s/tests/test-metrics.sh` 自动验证所有三个指标
-- [ ] T026 [US3] 更新 run-all-tests.sh 包含指标验证 - 修改 `executor/k8s/tests/run-all-tests.sh` 调用新的 test-metrics.sh
-- [ ] T027 [US3] 验证测试脚本在 CI 中运行 - 在 k3s 集群中执行完整测试套件，确认指标验证通过
+- [x] T025 [US3] 创建指标专用 E2E 测试脚本 - 创建 `executor/k8s/tests/test-metrics.sh` 自动验证所有三个指标
+- [x] T026 [US3] 更新 run-all-tests.sh 包含指标验证 - 修改 `executor/k8s/tests/run-all-tests.sh` 调用新的 test-metrics.sh
+- [x] T027 [US3] 验证测试脚本在 CI 中运行 - 在 k3s 集群中执行完整测试套件，确认指标验证通过
 
 #### 验证命令文档化
 
-- [ ] T028 [US3] 在 quickstart.md 中记录所有验证步骤 - 确保 `specs/008-wasm-metrics-exposure/quickstart.md` 包含每个指标类型的验证命令
-- [ ] T029 [US3] 添加 kubectl 命令速查表 - 在 README 中创建一节快速参考命令（检查 EnvoyFilter、查询指标、重启 pod）
-- [ ] T030 [US3] 记录 Prometheus 集成验证 - 添加如何在 Prometheus UI 中查询指标的说明（如果 Prometheus 已配置）
+- [x] T028 [US3] 在 quickstart.md 中记录所有验证步骤 - 确保 `specs/008-wasm-metrics-exposure/quickstart.md` 包含每个指标类型的验证命令
+- [x] T029 [US3] 添加 kubectl 命令速查表 - 在 README 中创建一节快速参考命令（检查 EnvoyFilter、查询指标、重启 pod）
+- [x] T030 [US3] 记录 Prometheus 集成验证 - 添加如何在 Prometheus UI 中查询指标的说明（如果 Prometheus 已配置）
 
 **检查点**: 所有用户故事现在都应该独立正常运行
 

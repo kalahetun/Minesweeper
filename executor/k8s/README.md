@@ -252,6 +252,202 @@ resources:
 └─────────────────┘    └─────────────────┘
 ```
 
+## 📊 Metrics Verification
+
+### Check Wasm Plugin Metrics
+
+The Wasm plugin exposes three Prometheus metrics for monitoring fault injection:
+
+```bash
+# Get a pod name with Istio sidecar
+POD=$(kubectl get pod -n demo -l app=frontend -o jsonpath='{.items[0].metadata.name}')
+
+# Query Envoy stats endpoint for HFI metrics
+kubectl exec -n demo $POD -c istio-proxy -- \
+  curl -s http://localhost:15090/stats/prometheus | grep wasmcustom_hfi_faults
+
+# Expected output (metric names with current values):
+# wasmcustom_hfi_faults_aborts_total 42
+# wasmcustom_hfi_faults_delays_total 15
+# wasmcustom_hfi_faults_delay_duration_milliseconds_bucket{le="50"} 5
+# wasmcustom_hfi_faults_delay_duration_milliseconds_bucket{le="100"} 10
+# ...
+# wasmcustom_hfi_faults_delay_duration_milliseconds_sum 3500
+# wasmcustom_hfi_faults_delay_duration_milliseconds_count 15
+```
+
+### Available Metrics
+
+| Metric Name | Type | Description |
+|-------------|------|-------------|
+| `wasmcustom_hfi_faults_aborts_total` | Counter | Total number of abort faults injected (HTTP errors) |
+| `wasmcustom_hfi_faults_delays_total` | Counter | Total number of delay faults injected |
+| `wasmcustom_hfi_faults_delay_duration_milliseconds` | Histogram | Distribution of delay durations (buckets from 0.5ms to 3600s) |
+
+### Verify Metrics After Policy Application
+
+```bash
+# 1. Apply an abort policy
+cd ../cli
+./hfi-cli policy apply -f examples/abort-policy.yaml
+
+# 2. Generate some traffic
+for i in {1..20}; do
+  kubectl exec -n demo $POD -c server -- curl -s http://localhost:8080/ > /dev/null
+  sleep 0.5
+done
+
+# 3. Check aborts_total incremented
+kubectl exec -n demo $POD -c istio-proxy -- \
+  curl -s http://localhost:15090/stats/prometheus | grep "wasmcustom_hfi_faults_aborts_total"
+
+# Expected: counter should have increased (e.g., from 42 to 52)
+```
+
+### Troubleshooting Missing Metrics
+
+**If metrics don't appear:**
+
+1. **Check Wasm plugin is loaded**
+   ```bash
+   kubectl logs -n demo $POD -c istio-proxy | grep -i wasm
+   # Look for: "wasm vm created" or similar
+   ```
+
+2. **Verify EnvoyFilter (if using)**
+   ```bash
+   kubectl get envoyfilter -n demo
+   kubectl describe envoyfilter hfi-wasm-metrics -n demo
+   ```
+
+3. **Check Envoy config_dump**
+   ```bash
+   kubectl exec -n demo $POD -c istio-proxy -- \
+     curl -s localhost:15000/config_dump | jq '.configs[] | 
+     select(.["@type"] == "type.googleapis.com/envoy.admin.v3.BootstrapConfigDump") | 
+     .bootstrap.stats_config.stats_matcher'
+   ```
+
+4. **Verify metric names are correct**
+   - Metrics must use `wasmcustom.` prefix to be exposed by Envoy
+   - Check plugin source code: `executor/wasm-plugin/src/lib.rs` lines 77, 91, 105
+
+**Common causes:**
+- Pod not restarted after EnvoyFilter deployment (BOOTSTRAP patch requires restart)
+- Old plugin version without `wasmcustom.*` prefix
+- Prometheus scrape config not targeting `/stats/prometheus` endpoint
+
+See [METRICS_SOLUTION.md](METRICS_SOLUTION.md) for detailed troubleshooting guide.
+
+## 📝 Quick Reference Commands
+
+### Metrics Verification
+
+```bash
+# Get a pod with Istio sidecar
+POD=$(kubectl get pod -n demo -l app=frontend -o jsonpath='{.items[0].metadata.name}')
+
+# Check all HFI metrics
+kubectl exec -n demo $POD -c istio-proxy -- \
+  curl -s http://localhost:15090/stats/prometheus | grep wasmcustom_hfi_faults
+
+# Check specific metric
+kubectl exec -n demo $POD -c istio-proxy -- \
+  curl -s http://localhost:15090/stats/prometheus | grep "wasmcustom_hfi_faults_aborts_total"
+```
+
+### EnvoyFilter Management
+
+```bash
+# List EnvoyFilters in namespace
+kubectl get envoyfilter -n demo
+
+# Describe EnvoyFilter
+kubectl describe envoyfilter hfi-wasm-metrics -n demo
+
+# Apply EnvoyFilter
+kubectl apply -f envoyfilter-wasm-stats.yaml
+
+# Delete EnvoyFilter
+kubectl delete envoyfilter hfi-wasm-metrics -n demo
+```
+
+### Pod Restart (for BOOTSTRAP changes)
+
+```bash
+# Restart all deployments in namespace
+kubectl rollout restart deployment -n demo
+
+# Restart specific deployment
+kubectl rollout restart deployment frontend -n demo
+
+# Force pod restart by deletion
+kubectl delete pod -n demo $POD
+
+# Wait for pods to be ready
+kubectl wait --for=condition=ready pod -l app=frontend -n demo --timeout=90s
+```
+
+### Wasm Plugin Management
+
+```bash
+# List WasmPlugins in namespace
+kubectl get wasmplugin -n demo
+
+# Describe WasmPlugin
+kubectl describe wasmplugin boifi-fault-injection -n demo
+
+# Apply WasmPlugin
+kubectl apply -f wasmplugin.yaml
+
+# Check Wasm plugin logs
+kubectl logs -n demo $POD -c istio-proxy | grep -i wasm
+```
+
+### Policy Management (via CLI)
+
+```bash
+# Port forward to control plane (if needed)
+kubectl port-forward -n boifi svc/hfi-control-plane 8080:8080 &
+
+# List policies
+cd executor/cli
+./hfi-cli policy list --control-plane-addr http://localhost:8080
+
+# Apply policy
+./hfi-cli policy apply -f examples/abort-policy.yaml
+
+# Delete policy
+./hfi-cli policy delete <policy-id>
+
+# Describe policy
+./hfi-cli policy describe <policy-id>
+```
+
+### Troubleshooting Commands
+
+```bash
+# Check Envoy config_dump for stats_matcher
+kubectl exec -n demo $POD -c istio-proxy -- \
+  curl -s localhost:15000/config_dump | \
+  jq '.configs[] | select(.["@type"] == "type.googleapis.com/envoy.admin.v3.BootstrapConfigDump") | 
+      .bootstrap.stats_config.stats_matcher'
+
+# Check Envoy admin stats (raw format)
+kubectl exec -n demo $POD -c istio-proxy -- \
+  curl -s http://localhost:15000/stats | grep -E "(wasm|hfi)"
+
+# Check pod labels
+kubectl get pod -n demo $POD --show-labels
+
+# Check Istio proxy logs
+kubectl logs -n demo $POD -c istio-proxy --tail=100
+
+# Check control plane health
+kubectl get pods -n boifi -l app=hfi-control-plane
+kubectl logs -n boifi <control-plane-pod> --tail=50
+```
+
 ## 🐛 Troubleshooting
 
 ### Common Issues

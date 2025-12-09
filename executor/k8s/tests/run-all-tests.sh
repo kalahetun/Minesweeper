@@ -256,6 +256,7 @@ main() {
         "$SCRIPT_DIR/test-us4-pod-identity.sh"
         "$SCRIPT_DIR/test-us5-multi-pod.sh"
         "$SCRIPT_DIR/test-us6-observability.sh"
+        "$SCRIPT_DIR/test-metrics.sh"
     )
     
     # Run each test
