@@ -110,10 +110,10 @@
 
 - [x] T033 运行 `cargo test` 确保所有单元测试通过在 `executor/wasm-plugin/`
 - [x] T034 运行 `cargo clippy` 确保无 lint 警告在 `executor/wasm-plugin/`
-- [ ] T035 运行 `./validate-basic.sh` E2E 验证在 `executor/cli/examples/scripts/`
-- [ ] T036 验证 delay 测试通过：响应时间增加约 500ms (±10%)
-- [ ] T037 检查 Envoy 日志无 "dispatch_http_call: BadArgument" 错误
-- [ ] T038 更新 quickstart.md 验证步骤在 `specs/010-fix-wasm-delay-bug/quickstart.md`
+- [x] T035 运行 `./validate-basic.sh` E2E 验证在 `executor/cli/examples/scripts/`
+- [x] T036 验证 delay 测试通过：响应时间增加约 500ms (±10%)
+- [x] T037 检查 Envoy 日志无 "dispatch_http_call: BadArgument" 错误
+- [x] T038 更新 quickstart.md 验证步骤在 `specs/010-fix-wasm-delay-bug/quickstart.md`
 - [x] T039 [P] 代码清理：确认 config.rs imports 已正确使用（无未使用 imports）
 
 ---
