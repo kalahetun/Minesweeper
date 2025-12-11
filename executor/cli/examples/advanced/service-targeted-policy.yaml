@@ -1,0 +1,120 @@
+# ============================================================================
+# 服务定向故障注入策略 (Service Selector 完整示例)
+# ============================================================================
+#
+# 功能：演示如何使用 selector 字段精确控制故障注入的目标服务
+# 场景：在多服务微服务环境中，只影响特定服务而不干扰其他服务
+#
+# 关键概念：
+#   - selector.service: 匹配 K8s workload 的 app 标签
+#   - selector.namespace: 匹配 K8s 命名空间
+#   - 通配符 "*": 匹配所有
+#   - 省略 selector: 等同于 {service: "*", namespace: "*"}
+#
+# ============================================================================
+
+# 示例 1: 精确匹配 - 仅针对 frontend 服务
+# 只有 demo 命名空间的 frontend 服务会受到影响
+metadata:
+  name: "frontend-delay"
+spec:
+  selector:
+    service: frontend          # 仅应用到 frontend 服务
+    namespace: demo            # 在 demo 命名空间中
+  rules:
+    - match:
+        method:
+          exact: "GET"
+        path:
+          prefix: "/"
+      fault:
+        percentage: 50
+        delay:
+          fixed_delay: "500ms"
+
+---
+# 示例 2: 通配符策略 - 应用到所有服务
+# 所有命名空间的所有服务都会受到影响
+metadata:
+  name: "global-abort"
+spec:
+  selector:
+    service: "*"               # 匹配所有服务
+    namespace: "*"             # 匹配所有命名空间
+  rules:
+    - match:
+        method:
+          exact: "POST"
+        path:
+          prefix: "/api/"
+      fault:
+        percentage: 10
+        abort:
+          httpStatus: 500
+
+---
+# 示例 3: 命名空间级别策略
+# 特定命名空间的所有服务都会受到影响
+metadata:
+  name: "namespace-delay"
+spec:
+  selector:
+    service: "*"               # 匹配该命名空间的所有服务
+    namespace: demo            # 仅 demo 命名空间
+  rules:
+    - match:
+        path:
+          prefix: "/"
+      fault:
+        percentage: 5
+        delay:
+          fixed_delay: "1s"
+
+---
+# 示例 4: 无 selector - 默认为通配符 (向后兼容)
+# 没有 selector 字段等同于 {service: "*", namespace: "*"}
+metadata:
+  name: "legacy-policy"
+spec:
+  # 省略 selector 字段，默认匹配所有服务（向后兼容旧策略）
+  rules:
+    - match:
+        method:
+          exact: "GET"
+        path:
+          exact: "/health"
+      fault:
+        percentage: 0          # 0% = 禁用
+        delay:
+          fixed_delay: "100ms"
+
+# ============================================================================
+# Selector 匹配规则速查表
+# ============================================================================
+#
+# | Selector 配置                              | 匹配范围                    |
+# |--------------------------------------------|-----------------------------|
+# | 省略 selector                               | 所有服务（所有命名空间）       |
+# | {service: "*", namespace: "*"}             | 所有服务（所有命名空间）       |
+# | {service: "frontend", namespace: "*"}      | 所有命名空间的 frontend       |
+# | {service: "*", namespace: "demo"}          | demo 命名空间的所有服务       |
+# | {service: "frontend", namespace: "demo"}   | demo 命名空间的 frontend      |
+#
+# ============================================================================
+# 工作原理
+# ============================================================================
+#
+# 1. Wasm 插件启动时从 Envoy 元数据获取当前 Pod 的身份：
+#    - node.metadata.WORKLOAD_NAME → 服务名
+#    - node.metadata.NAMESPACE → 命名空间
+#
+# 2. 收到请求时，插件检查策略的 selector 是否匹配当前身份
+#
+# 3. 匹配逻辑：
+#    - service 字段为 "*" 或空 → 匹配任何服务
+#    - namespace 字段为 "*" 或空 → 匹配任何命名空间
+#    - 两者都匹配时，策略才会应用
+#
+# 4. 如果策略不匹配，请求直接放行，不注入故障
+#
+# ============================================================================

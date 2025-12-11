@@ -1,0 +1,78 @@
+# ============================================================================
+# Header 匹配故障注入策略 (带服务选择器)
+# ============================================================================
+#
+# 功能：仅对包含特定 HTTP Header 的请求注入故障
+# 场景：针对特定用户、请求类型或测试流量注入故障
+#
+# 关键字段说明：
+#   - selector: 指定策略应用的目标服务和命名空间
+#   - headers: HTTP Header 匹配条件列表
+#
+# 使用方法：
+#   hfi-cli policy apply -f advanced/header-policy.yaml
+#
+# 测试方法：
+#   curl -H "x-user-id: test" http://frontend.demo.svc.cluster.local/
+#
+# ============================================================================
+
+metadata:
+  name: "header-policy"
+
+spec:
+  # 服务选择器
+  selector:
+    service: frontend           # 目标服务名
+    namespace: demo             # 目标命名空间
+
+  rules:
+    - match:
+        method:
+          exact: "GET"          # 仅匹配 GET 请求
+        path:
+          exact: "/"            # 仅匹配根路径
+        
+        # Header 匹配条件
+        headers:
+          - name: "x-user-id"   # Header 名称（区分大小写）
+            exact: "test"       # 精确匹配值
+            # 其他匹配方式：
+            #   prefix: "test-"       # 前缀匹配
+            #   regex: "^test-[0-9]+$" # 正则匹配
+          
+          # 可以添加多个 Header 条件（AND 关系）：
+          # - name: "x-canary"
+          #   exact: "true"
+      
+      fault:
+        percentage: 100         # 100% 触发（仅针对匹配的请求）
+        delay:
+          fixed_delay: "800ms"  # 延迟 800ms
+
+# ============================================================================
+# 使用场景示例
+# ============================================================================
+#
+# 1. 针对测试用户注入故障：
+#    headers:
+#      - name: "x-user-id"
+#        prefix: "test-"
+#
+# 2. 针对金丝雀流量注入故障：
+#    headers:
+#      - name: "x-canary"
+#        exact: "true"
+#
+# 3. 针对特定客户端版本：
+#    headers:
+#      - name: "x-client-version"
+#        regex: "^1\\.[0-9]+\\.[0-9]+$"
+#
+# 4. 组合条件（测试用户 + 特定区域）：
+#    headers:
+#      - name: "x-user-type"
+#        exact: "test"
+#      - name: "x-region"
+#        exact: "us-west-2"
+# ============================================================================

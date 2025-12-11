@@ -25,12 +25,12 @@
 
 **Purpose**: 创建新的目录结构，为后续任务做准备
 
-- [ ] T001 创建目录结构 `executor/cli/examples/basic/`
-- [ ] T002 [P] 创建目录结构 `executor/cli/examples/advanced/`
-- [ ] T003 [P] 创建目录结构 `executor/cli/examples/scenarios/online-boutique/`
-- [ ] T004 [P] 创建目录结构 `executor/cli/examples/scripts/`
+- [x] T001 创建目录结构 `executor/cli/examples/basic/`
+- [x] T002 [P] 创建目录结构 `executor/cli/examples/advanced/`
+- [x] T003 [P] 创建目录结构 `executor/cli/examples/scenarios/online-boutique/`
+- [x] T004 [P] 创建目录结构 `executor/cli/examples/scripts/`
 
-**Checkpoint**: 目录结构就绪，可以开始迁移和创建文件
+**Checkpoint**: ✅ 目录结构就绪，可以开始迁移和创建文件
 
 ---
 
@@ -38,7 +38,7 @@
 
 **Purpose**: 创建验证脚本的共享函数库，被所有验证脚本依赖
 
-- [ ] T005 创建共享函数库 `executor/cli/examples/scripts/common.sh`，包含：
+- [x] T005 创建共享函数库 `executor/cli/examples/scripts/common.sh`，包含：
   - 日志输出函数（log_info, log_error, log_test）
   - 颜色定义
   - 前置检查函数（check_kubectl, check_control_plane, check_wasmplugin）
@@ -46,7 +46,7 @@
   - 请求发送和结果统计函数
   - 清理函数
 
-**Checkpoint**: 共享库就绪，验证脚本可以开始实现
+**Checkpoint**: ✅ 共享库就绪，验证脚本可以开始实现
 
 ---
 
@@ -60,22 +60,22 @@
 
 #### Basic 策略（移动 + 更新）
 
-- [ ] T006 [P] [US1] 创建 `executor/cli/examples/basic/abort-policy.yaml`，添加 `selector: {service: frontend, namespace: demo}` 和详细注释
-- [ ] T007 [P] [US1] 创建 `executor/cli/examples/basic/delay-policy.yaml`，添加 `selector` 字段和详细注释
-- [ ] T008 [P] [US1] 创建 `executor/cli/examples/basic/percentage-policy.yaml`，添加 `selector` 字段和详细注释
+- [x] T006 [P] [US1] 创建 `executor/cli/examples/basic/abort-policy.yaml`，添加 `selector: {service: frontend, namespace: demo}` 和详细注释
+- [x] T007 [P] [US1] 创建 `executor/cli/examples/basic/delay-policy.yaml`，添加 `selector` 字段和详细注释
+- [x] T008 [P] [US1] 创建 `executor/cli/examples/basic/percentage-policy.yaml`，添加 `selector` 字段和详细注释
 
 #### Advanced 策略（移动 + 更新）
 
-- [ ] T009 [P] [US1] 创建 `executor/cli/examples/advanced/header-policy.yaml`，添加 `selector` 字段
-- [ ] T010 [P] [US1] 创建 `executor/cli/examples/advanced/time-limited-policy.yaml`，添加 `selector` 字段（演示 duration_seconds）
-- [ ] T011 [P] [US1] 创建 `executor/cli/examples/advanced/late-stage-policy.yaml`，添加 `selector` 字段（演示 start_delay_ms）
-- [ ] T012 [P] [US1] 移动现有 `executor/cli/examples/service-targeted-policy.yaml` 到 `executor/cli/examples/advanced/service-targeted-policy.yaml`
+- [x] T009 [P] [US1] 创建 `executor/cli/examples/advanced/header-policy.yaml`，添加 `selector` 字段
+- [x] T010 [P] [US1] 创建 `executor/cli/examples/advanced/time-limited-policy.yaml`，添加 `selector` 字段（演示 duration_seconds）
+- [x] T011 [P] [US1] 创建 `executor/cli/examples/advanced/late-stage-policy.yaml`，添加 `selector` 字段（演示 start_delay_ms）
+- [x] T012 [P] [US1] 移动现有 `executor/cli/examples/service-targeted-policy.yaml` 到 `executor/cli/examples/advanced/service-targeted-policy.yaml`
 
 #### 清理旧文件
 
-- [ ] T013 [US1] 删除根目录下的旧策略文件（abort-policy.yaml, delay-policy.yaml 等），保留 README.md
+- [x] T013 [US1] 删除根目录下的旧策略文件（abort-policy.yaml, delay-policy.yaml 等），保留 README.md
 
-**Checkpoint**: User Story 1 完成 - 所有策略示例已更新并包含 selector 字段
+**Checkpoint**: ✅ User Story 1 完成 - 所有策略示例已更新并包含 selector 字段
 
 ---
 
@@ -87,16 +87,16 @@
 
 ### Implementation for User Story 2
 
-- [ ] T014 [US2] 创建 `executor/cli/examples/scripts/validate-basic.sh`，实现：
+- [x] T014 [US2] 创建 `executor/cli/examples/scripts/validate-basic.sh`，实现：
   - 前置检查（调用 common.sh）
   - Abort 策略验证（创建策略 → 等待传播 → 发送请求 → 验证 503 → 清理）
   - Delay 策略验证（创建策略 → 等待传播 → 发送请求 → 验证延迟 → 清理）
   - 结果摘要输出
   - 正确的退出码（0=成功，1=失败，2=前置检查失败）
-- [ ] T015 [US2] 使脚本可执行 `chmod +x executor/cli/examples/scripts/validate-basic.sh`
+- [x] T015 [US2] 使脚本可执行 `chmod +x executor/cli/examples/scripts/validate-basic.sh`
 - [ ] T016 [US2] 在 k3s 集群上测试脚本，确保端到端流程正常
 
-**Checkpoint**: User Story 2 完成 - 基础验证脚本可用
+**Checkpoint**: User Story 2 完成 - 基础验证脚本可用 ✅ (T016 待运行时测试)
 
 ---
 

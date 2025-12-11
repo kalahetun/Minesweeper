@@ -1,0 +1,50 @@
+# ============================================================================
+# Abort 故障注入策略 (带服务选择器)
+# ============================================================================
+#
+# 功能：立即返回指定的 HTTP 错误状态码
+# 场景：测试服务对上游故障的处理能力（熔断、降级、重试等）
+#
+# 关键字段说明：
+#   - selector: 指定策略应用的目标服务和命名空间
+#   - percentage: 故障触发概率 (0-100)
+#   - httpStatus: 返回的 HTTP 状态码 (400-599)
+#
+# 使用方法：
+#   hfi-cli policy apply -f basic/abort-policy.yaml
+#
+# ============================================================================
+
+metadata:
+  name: "abort-policy"
+
+spec:
+  # 服务选择器 - 指定策略应用范围
+  # 只有匹配的服务才会执行故障注入，其他服务不受影响
+  selector:
+    service: frontend           # 目标服务名（对应 K8s workload 的 app 标签）
+    namespace: demo             # 目标命名空间
+    # 通配符用法：
+    #   service: "*"            # 匹配所有服务
+    #   namespace: "*"          # 匹配所有命名空间
+    #   两者都为 "*" 或省略 selector 等同于应用到所有服务
+
+  rules:
+    - match:
+        method:
+          exact: "GET"          # 仅匹配 GET 请求
+        path:
+          exact: "/"            # 仅匹配根路径
+          # 其他匹配方式：
+          #   prefix: "/api"    # 前缀匹配
+          #   regex: "^/users/[0-9]+$"  # 正则匹配
+      
+      fault:
+        percentage: 100         # 100% 触发 - 生产环境建议使用较低值如 10-30%
+        abort:
+          httpStatus: 503       # 返回 503 Service Unavailable
+          # 常用状态码：
+          #   500: Internal Server Error
+          #   502: Bad Gateway
+          #   503: Service Unavailable
+          #   504: Gateway Timeout
