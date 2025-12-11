@@ -274,9 +274,8 @@ impl Context for PluginRootContext {
                                         }
                                         if let Some(ref delay) = rule.fault.delay {
                                             debug!(
-                                                "  - Delay: {} ({}ms)",
-                                                delay.fixed_delay,
-                                                delay.parsed_duration_ms.unwrap_or(0)
+                                                "  - Delay: {}ms",
+                                                delay.fixed_delay_ms
                                             );
                                         }
                                     }
@@ -485,7 +484,8 @@ impl Context for PluginHttpContext {
 
                 // 检查是否有 delay fault 需要执行
                 if let Some(delay) = &fault.delay {
-                    if let Some(duration_ms) = delay.parsed_duration_ms {
+                    if delay.fixed_delay_ms > 0 {
+                        let duration_ms = delay.fixed_delay_ms.min(config::MAX_DELAY_MS);
                         info!(
                             "Executing delay fault after start_delay: {}ms for context {}",
                             duration_ms, self.context_id
@@ -713,7 +713,15 @@ impl HttpContext for PluginHttpContext {
 
             // Check if this is a delay fault - we need special handling
             if let Some(delay) = &matched_rule.fault.delay {
-                if let Some(duration_ms) = delay.parsed_duration_ms {
+                if delay.fixed_delay_ms > 0 {
+                    let duration_ms = delay.fixed_delay_ms.min(config::MAX_DELAY_MS);
+                    if delay.fixed_delay_ms > config::MAX_DELAY_MS {
+                        warn!(
+                            "Delay {} exceeds maximum {}, clamping for context {}",
+                            delay.fixed_delay_ms, config::MAX_DELAY_MS, self.context_id
+                        );
+                    }
+
                     info!(
                         "Executing delay fault: {}ms for context {}",
                         duration_ms, self.context_id
@@ -722,15 +730,15 @@ impl HttpContext for PluginHttpContext {
                     // Set pending action for delay fault
                     self.pending_action = Some(PendingAction::DelayFault);
 
-                    // Use dispatch_http_call with timeout to implement delay
+                    // Use dispatch_http_call with existing control plane cluster to implement delay
                     let timeout = Duration::from_millis(duration_ms);
 
                     match self.dispatch_http_call(
-                        "hfi_delay_cluster",
+                        CONTROL_PLANE_CLUSTER,
                         vec![
                             (":method", "GET"),
-                            (":path", "/delay"),
-                            (":authority", "delay.local"),
+                            (":path", "/__delay"),
+                            (":authority", "hfi-control-plane"),
                         ],
                         None,
                         vec![],

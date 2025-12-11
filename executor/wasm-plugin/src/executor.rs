@@ -1,4 +1,4 @@
-use crate::config::{AbortAction, DelayAction, Fault};
+use crate::config::{self, AbortAction, DelayAction, Fault};
 use crate::metrics::FaultInjectionMetrics;
 use crate::time_control::{should_inject_fault, RequestTiming, RuleTiming, TimeControlDecision};
 use log::{debug, info, warn};
@@ -28,7 +28,7 @@ pub fn execute_fault(
         info!("Executing abort fault with status {}", abort.http_status);
         execute_abort(abort, http_context, metrics)
     } else if let Some(ref delay) = fault.delay {
-        info!("Executing delay fault: {}", delay.fixed_delay);
+        info!("Executing delay fault: {}ms", delay.fixed_delay_ms);
         execute_delay(delay, context_id, metrics)
     } else {
         warn!("No fault action specified, continuing");
@@ -158,9 +158,7 @@ pub fn execute_fault_with_metrics(
             if let Some(ref _abort) = fault.abort {
                 metrics_collector.record_abort_fault();
             } else if let Some(ref delay) = fault.delay {
-                if let Some(duration_ms) = delay.parsed_duration_ms {
-                    metrics_collector.record_delay_fault(duration_ms);
-                }
+                metrics_collector.record_delay_fault(delay.fixed_delay_ms);
             }
 
             execute_fault(fault, http_context, context_id, metrics_ids)
@@ -232,42 +230,51 @@ fn execute_abort(
 /// - Or integrate external delay service
 /// - Or defer to Lua filter that supports async delays
 fn execute_delay(delay: &DelayAction, context_id: u32, metrics: MetricsIds) -> Action {
-    if let Some(duration_ms) = delay.parsed_duration_ms {
-        info!(
-            "Delay fault triggered for context {} - {}ms",
-            context_id, duration_ms
-        );
-
-        // Increment delay counter metric
-        if let Some(metric_id) = metrics.delays_total {
-            if let Err(e) = increment_counter(metric_id, 1) {
-                warn!("Failed to increment delay counter: {:?}", e);
-            } else {
-                debug!("Incremented wasmcustom.hfi_faults_delays_total counter");
-            }
-        }
-
-        // Record delay duration in histogram
-        if let Some(metric_id) = metrics.delay_duration_histogram {
-            if let Err(e) = record_histogram(metric_id, duration_ms) {
-                warn!("Failed to record delay duration histogram: {:?}", e);
-            } else {
-                debug!("Recorded delay duration {}ms in histogram", duration_ms);
-            }
-        }
-
-        // Return Pause to indicate the request should be delayed
-        // Note: Actual delay implementation depends on Envoy/WASM host support
-        // This is currently a placeholder that tells Envoy to pause the request
-        debug!(
-            "Request paused for delay ({}ms) - context {}",
-            duration_ms, context_id
-        );
-        Action::Pause
-    } else {
-        warn!("Delay duration not parsed correctly: {}", delay.fixed_delay);
-        Action::Continue
+    if delay.fixed_delay_ms == 0 {
+        // Zero delay means no delay fault
+        debug!("Delay fault has zero duration, skipping - context {}", context_id);
+        return Action::Continue;
     }
+
+    let duration_ms = delay.fixed_delay_ms.min(config::MAX_DELAY_MS);
+    if delay.fixed_delay_ms > config::MAX_DELAY_MS {
+        warn!(
+            "Delay {} exceeds maximum {}, clamping for context {}",
+            delay.fixed_delay_ms, config::MAX_DELAY_MS, context_id
+        );
+    }
+
+    info!(
+        "Delay fault triggered for context {} - {}ms",
+        context_id, duration_ms
+    );
+
+    // Increment delay counter metric
+    if let Some(metric_id) = metrics.delays_total {
+        if let Err(e) = increment_counter(metric_id, 1) {
+            warn!("Failed to increment delay counter: {:?}", e);
+        } else {
+            debug!("Incremented wasmcustom.hfi_faults_delays_total counter");
+        }
+    }
+
+    // Record delay duration in histogram
+    if let Some(metric_id) = metrics.delay_duration_histogram {
+        if let Err(e) = record_histogram(metric_id, duration_ms) {
+            warn!("Failed to record delay duration histogram: {:?}", e);
+        } else {
+            debug!("Recorded delay duration {}ms in histogram", duration_ms);
+        }
+    }
+
+    // Return Pause to indicate the request should be delayed
+    // Note: Actual delay implementation depends on Envoy/WASM host support
+    // This is currently a placeholder that tells Envoy to pause the request
+    debug!(
+        "Request paused for delay ({}ms) - context {}",
+        duration_ms, context_id
+    );
+    Action::Pause
 }
 
 /// Generate random percentage (0-100)

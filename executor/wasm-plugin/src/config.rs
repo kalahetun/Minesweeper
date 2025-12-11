@@ -1,6 +1,9 @@
 use regex::Regex;
 use serde::{Deserialize, Deserializer};
 
+/// Maximum allowed delay in milliseconds (30 seconds)
+pub const MAX_DELAY_MS: u64 = 30_000;
+
 // Re-export ServiceSelector from identity module for convenience
 pub use crate::identity::ServiceSelector;
 
@@ -118,10 +121,8 @@ pub struct AbortAction {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DelayAction {
-    #[serde(rename = "fixed_delay")]
-    pub fixed_delay: String,
-    #[serde(skip)]
-    pub parsed_duration_ms: Option<u64>,
+    #[serde(rename = "fixed_delay_ms")]
+    pub fixed_delay_ms: u64,
 }
 
 // Custom deserializers for matchers to handle regex compilation
@@ -233,22 +234,9 @@ impl CompiledRuleSet {
     /// Parse configuration from bytes and precompile all regular expressions and durations
     #[allow(dead_code)]
     pub fn from_slice(bytes: &[u8]) -> Result<Self, serde_json::Error> {
-        let mut ruleset: CompiledRuleSet = serde_json::from_slice(bytes)?;
+        let ruleset: CompiledRuleSet = serde_json::from_slice(bytes)?;
 
-        // Pre-process delay durations for each rule
-        for rule in &mut ruleset.rules {
-            if let Some(ref mut delay) = rule.fault.delay {
-                delay.parsed_duration_ms = parse_duration(&delay.fixed_delay);
-                if delay.parsed_duration_ms.is_some() {
-                    log::debug!(
-                        "Parsed delay '{}' to {}ms for rule '{}'",
-                        delay.fixed_delay,
-                        delay.parsed_duration_ms.unwrap(),
-                        rule.name
-                    );
-                }
-            }
-        }
+        // No preprocessing needed - fixed_delay_ms is already in milliseconds as u64
 
         Ok(ruleset)
     }
@@ -356,69 +344,20 @@ impl CompiledRuleSet {
             );
         }
 
-        let mut ruleset = CompiledRuleSet {
+        let ruleset = CompiledRuleSet {
             version: "1.0".to_string(),
             rules,
         };
 
-        // Pre-process delay durations for each rule
-        for rule in &mut ruleset.rules {
-            if let Some(ref mut delay) = rule.fault.delay {
-                delay.parsed_duration_ms = parse_duration(&delay.fixed_delay);
-                if delay.parsed_duration_ms.is_some() {
-                    log::debug!(
-                        "Parsed delay '{}' to {}ms for rule '{}'",
-                        delay.fixed_delay,
-                        delay.parsed_duration_ms.unwrap(),
-                        rule.name
-                    );
-                }
-            }
-        }
+        // No preprocessing needed - fixed_delay_ms is already in milliseconds as u64
 
         Ok(ruleset)
     }
 }
 
-/// Parse duration string (e.g., "2s", "100ms") to milliseconds
-fn parse_duration(duration_str: &str) -> Option<u64> {
-    let duration_str = duration_str.trim().to_lowercase();
-
-    if duration_str.ends_with("ms") {
-        if let Ok(ms) = duration_str[..duration_str.len() - 2].parse::<u64>() {
-            return Some(ms);
-        }
-    } else if duration_str.ends_with('s') {
-        if let Ok(s) = duration_str[..duration_str.len() - 1].parse::<u64>() {
-            return Some(s * 1000);
-        }
-    } else if duration_str.ends_with('m') {
-        if let Ok(m) = duration_str[..duration_str.len() - 1].parse::<u64>() {
-            return Some(m * 60 * 1000);
-        }
-    }
-
-    // Try parsing as plain number (assume milliseconds)
-    if let Ok(ms) = duration_str.parse::<u64>() {
-        return Some(ms);
-    }
-
-    log::warn!("Failed to parse duration: {}", duration_str);
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_parse_duration() {
-        assert_eq!(parse_duration("100ms"), Some(100));
-        assert_eq!(parse_duration("2s"), Some(2000));
-        assert_eq!(parse_duration("1m"), Some(60000));
-        assert_eq!(parse_duration("500"), Some(500));
-        assert_eq!(parse_duration("invalid"), None);
-    }
 
     #[test]
     fn test_compiled_ruleset_from_json() {

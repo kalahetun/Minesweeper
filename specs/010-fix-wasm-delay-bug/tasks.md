@@ -19,9 +19,9 @@
 
 **Purpose**: 确认当前状态，准备开发环境
 
-- [ ] T001 确认分支为 `010-fix-wasm-delay-bug` 并同步最新代码
-- [ ] T002 [P] 阅读并理解当前 delay 实现在 `executor/wasm-plugin/src/lib.rs`
-- [ ] T003 [P] 阅读并理解 `executor/wasm-plugin/src/config.rs` 中 DelayAction 结构
+- [x] T001 确认分支为 `010-fix-wasm-delay-bug` 并同步最新代码
+- [x] T002 [P] 阅读并理解当前 delay 实现在 `executor/wasm-plugin/src/lib.rs`
+- [x] T003 [P] 阅读并理解 `executor/wasm-plugin/src/config.rs` 中 DelayAction 结构
 
 ---
 
@@ -31,13 +31,13 @@
 
 **⚠️ CRITICAL**: 用户故事实现必须等此阶段完成
 
-- [ ] T004 修改 `DelayAction` 结构体：将 `fixed_delay: String` 改为 `fixed_delay_ms: u64` 在 `executor/wasm-plugin/src/config.rs`
-- [ ] T005 删除 `parsed_duration_ms` 字段从 `DelayAction` 在 `executor/wasm-plugin/src/config.rs`
-- [ ] T006 删除 `parse_duration` 函数在 `executor/wasm-plugin/src/config.rs`
-- [ ] T007 删除 `test_parse_duration` 测试在 `executor/wasm-plugin/src/config.rs`
-- [ ] T008 添加 `MAX_DELAY_MS` 常量 (30000) 在 `executor/wasm-plugin/src/config.rs`
-- [ ] T009 更新预处理逻辑：移除 delay duration 解析代码在 `executor/wasm-plugin/src/config.rs`
-- [ ] T010 运行 `cargo check` 确认编译通过在 `executor/wasm-plugin/`
+- [x] T004 修改 `DelayAction` 结构体：将 `fixed_delay: String` 改为 `fixed_delay_ms: u64` 在 `executor/wasm-plugin/src/config.rs`
+- [x] T005 删除 `parsed_duration_ms` 字段从 `DelayAction` 在 `executor/wasm-plugin/src/config.rs`
+- [x] T006 删除 `parse_duration` 函数在 `executor/wasm-plugin/src/config.rs`
+- [x] T007 删除 `test_parse_duration` 测试在 `executor/wasm-plugin/src/config.rs`
+- [x] T008 添加 `MAX_DELAY_MS` 常量 (30000) 在 `executor/wasm-plugin/src/config.rs`
+- [x] T009 更新预处理逻辑：移除 delay duration 解析代码在 `executor/wasm-plugin/src/config.rs`
+- [x] T010 运行 `cargo check` 确认编译通过在 `executor/wasm-plugin/`
 
 **Checkpoint**: 数据结构变更完成，编译通过
 
@@ -51,14 +51,14 @@
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] 修复 `dispatch_http_call` 调用：将 `"hfi_delay_cluster"` 替换为 `CONTROL_PLANE_CLUSTER` 在 `executor/wasm-plugin/src/lib.rs` (约第 728 行)
-- [ ] T012 [US1] 更新 delay 读取逻辑：直接使用 `delay.fixed_delay_ms` 替代 `delay.parsed_duration_ms` 在 `executor/wasm-plugin/src/lib.rs`
-- [ ] T013 [US1] 添加最大延迟限制 (clamp to MAX_DELAY_MS) 在 delay 执行前 `executor/wasm-plugin/src/lib.rs`
-- [ ] T014 [US1] 更新 `execute_delay` 函数签名和实现在 `executor/wasm-plugin/src/executor.rs`
-- [ ] T015 [US1] 处理零延迟情况 (`fixed_delay_ms == 0` 跳过故障注入) 在 `executor/wasm-plugin/src/lib.rs`
-- [ ] T016 [US1] 运行 `cargo build --target wasm32-unknown-unknown --release` 构建新 plugin.wasm
-- [ ] T017 [US1] 复制新 plugin.wasm 到测试目录 `/tmp/wasm-plugin/`
-- [ ] T018 [US1] 重启 WasmPlugin 使新代码生效 (kubectl rollout restart)
+- [x] T011 [US1] 修复 `dispatch_http_call` 调用：将 `"hfi_delay_cluster"` 替换为 `CONTROL_PLANE_CLUSTER` 在 `executor/wasm-plugin/src/lib.rs` (约第 728 行)
+- [x] T012 [US1] 更新 delay 读取逻辑：直接使用 `delay.fixed_delay_ms` 替代 `delay.parsed_duration_ms` 在 `executor/wasm-plugin/src/lib.rs`
+- [x] T013 [US1] 添加最大延迟限制 (clamp to MAX_DELAY_MS) 在 delay 执行前 `executor/wasm-plugin/src/lib.rs`
+- [x] T014 [US1] 更新 `execute_delay` 函数签名和实现在 `executor/wasm-plugin/src/executor.rs`
+- [x] T015 [US1] 处理零延迟情况 (`fixed_delay_ms == 0` 跳过故障注入) 在 `executor/wasm-plugin/src/lib.rs`
+- [x] T016 [US1] 运行 `cargo build --target wasm32-unknown-unknown --release` 构建新 plugin.wasm
+- [x] T017 [US1] 复制新 plugin.wasm 到测试目录 `/tmp/wasm-plugin/`
+- [x] T018 [US1] 重启 WasmPlugin 使新代码生效 (kubectl rollout restart)
 
 **Checkpoint**: Delay 故障注入功能恢复正常
 
