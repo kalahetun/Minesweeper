@@ -62,7 +62,7 @@ type FaultAction struct {
 
 // DelayAction injects delay
 type DelayAction struct {
-	FixedDelay string `json:"fixed_delay" yaml:"fixed_delay"`
+	FixedDelayMs int64 `json:"fixed_delay_ms" yaml:"fixed_delay_ms"`
 }
 
 // AbortAction aborts requests

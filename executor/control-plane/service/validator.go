@@ -49,7 +49,7 @@ func (s *PolicyService) validateRule(rule storage.Rule, fieldPath string) error 
 
 	// Validate fault configuration
 	hasFaultAction := false
-	if rule.Fault.Delay != nil && rule.Fault.Delay.FixedDelay != "" {
+	if rule.Fault.Delay != nil && rule.Fault.Delay.FixedDelayMs > 0 {
 		hasFaultAction = true
 	}
 	if rule.Fault.Abort != nil && rule.Fault.Abort.HTTPStatus > 0 {

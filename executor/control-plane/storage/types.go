@@ -71,7 +71,7 @@ type FaultAction struct {
 
 // DelayAction defines a delay fault injection action.
 type DelayAction struct {
-	FixedDelay string `json:"fixed_delay"`
+	FixedDelayMs int64 `json:"fixed_delay_ms"`
 }
 
 // AbortAction defines an abort fault injection action.

@@ -128,7 +128,7 @@ func outputPolicyTable(policies []*types.FaultInjectionPolicy) error {
 	for _, policy := range policies {
 		name := policy.Metadata.Name
 		rulesCount := strconv.Itoa(len(policy.Spec.Rules))
-		
+
 		// Summarize matches and faults
 		matches := summarizeMatches(policy.Spec.Rules)
 		faults := summarizeFaults(policy.Spec.Rules)
@@ -142,16 +142,16 @@ func outputPolicyTable(policies []*types.FaultInjectionPolicy) error {
 // summarizeMatches creates a summary of match conditions
 func summarizeMatches(rules []types.Rule) string {
 	var matches []string
-	
+
 	for _, rule := range rules {
 		var ruleSummary []string
-		
+
 		if rule.Match.Method != nil {
 			if rule.Match.Method.Exact != "" {
 				ruleSummary = append(ruleSummary, fmt.Sprintf("method=%s", rule.Match.Method.Exact))
 			}
 		}
-		
+
 		if rule.Match.Path != nil {
 			if rule.Match.Path.Exact != "" {
 				ruleSummary = append(ruleSummary, fmt.Sprintf("path=%s", rule.Match.Path.Exact))
@@ -161,43 +161,43 @@ func summarizeMatches(rules []types.Rule) string {
 				ruleSummary = append(ruleSummary, fmt.Sprintf("path~%s", rule.Match.Path.Regex))
 			}
 		}
-		
+
 		if len(rule.Match.Headers) > 0 {
 			ruleSummary = append(ruleSummary, fmt.Sprintf("headers(%d)", len(rule.Match.Headers)))
 		}
-		
+
 		if len(ruleSummary) > 0 {
 			matches = append(matches, strings.Join(ruleSummary, ","))
 		}
 	}
-	
+
 	if len(matches) == 0 {
 		return "any"
 	}
-	
+
 	// If there are multiple rules, show first rule + count
 	if len(matches) > 1 {
 		return fmt.Sprintf("%s (+%d more)", matches[0], len(matches)-1)
 	}
-	
+
 	return matches[0]
 }
 
 // summarizeFaults creates a summary of fault types
 func summarizeFaults(rules []types.Rule) string {
 	var faults []string
-	
+
 	for _, rule := range rules {
 		var ruleFaults []string
-		
+
 		if rule.Fault.Delay != nil {
-			ruleFaults = append(ruleFaults, fmt.Sprintf("delay(%s)", rule.Fault.Delay.FixedDelay))
+			ruleFaults = append(ruleFaults, fmt.Sprintf("delay(%dms)", rule.Fault.Delay.FixedDelayMs))
 		}
-		
+
 		if rule.Fault.Abort != nil {
 			ruleFaults = append(ruleFaults, fmt.Sprintf("abort(%d)", rule.Fault.Abort.HTTPStatus))
 		}
-		
+
 		// Add percentage info
 		if len(ruleFaults) > 0 && rule.Fault.Percentage > 0 {
 			percentage := fmt.Sprintf("%d%%", rule.Fault.Percentage)
@@ -205,18 +205,18 @@ func summarizeFaults(rules []types.Rule) string {
 				ruleFaults[i] = fmt.Sprintf("%s@%s", ruleFaults[i], percentage)
 			}
 		}
-		
+
 		faults = append(faults, ruleFaults...)
 	}
-	
+
 	if len(faults) == 0 {
 		return "none"
 	}
-	
+
 	// If there are multiple faults, show first + count
 	if len(faults) > 1 {
 		return fmt.Sprintf("%s (+%d more)", faults[0], len(faults)-1)
 	}
-	
+
 	return faults[0]
 }

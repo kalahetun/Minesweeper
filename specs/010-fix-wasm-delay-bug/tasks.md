@@ -72,16 +72,16 @@
 
 ### Implementation for User Story 2
 
-- [ ] T019 [US2] 更新 `executor/cli/examples/basic/delay-policy.yaml`：`fixed_delay: "1000ms"` → `fixed_delay_ms: 1000`
-- [ ] T020 [P] [US2] 更新 `executor/cli/examples/basic/percentage-policy.yaml`：`fixed_delay: "500ms"` → `fixed_delay_ms: 500`
-- [ ] T021 [P] [US2] 更新 `executor/cli/examples/advanced/header-policy.yaml`：`fixed_delay: "800ms"` → `fixed_delay_ms: 800`
-- [ ] T022 [P] [US2] 更新 `executor/cli/examples/advanced/time-limited-policy.yaml`：`fixed_delay: "500ms"` → `fixed_delay_ms: 500`
-- [ ] T023 [P] [US2] 更新 `executor/cli/examples/advanced/late-stage-policy.yaml`：所有 fixed_delay 字段
-- [ ] T024 [P] [US2] 更新 `executor/cli/examples/advanced/service-targeted-policy.yaml`：所有 fixed_delay 字段 (3处)
-- [ ] T025 [US2] 更新 CLI types：`executor/cli/types/policy.go` 中 `DelayAction` 结构体
-- [ ] T026 [US2] 更新 Control Plane types：`executor/control-plane/api/types.go` 中 `DelayAction` 结构体 (如果存在)
-- [ ] T027 [US2] 更新 README 文档示例在 `executor/cli/examples/README.md`
-- [ ] T028 [US2] 更新 validate-basic.sh 中的 delay 策略格式在 `executor/cli/examples/scripts/validate-basic.sh`
+- [x] T019 [US2] 更新 `executor/cli/examples/basic/delay-policy.yaml`：`fixed_delay: "1000ms"` → `fixed_delay_ms: 1000`
+- [x] T020 [P] [US2] 更新 `executor/cli/examples/basic/percentage-policy.yaml`：`fixed_delay: "500ms"` → `fixed_delay_ms: 500`
+- [x] T021 [P] [US2] 更新 `executor/cli/examples/advanced/header-policy.yaml`：`fixed_delay: "800ms"` → `fixed_delay_ms: 800`
+- [x] T022 [P] [US2] 更新 `executor/cli/examples/advanced/time-limited-policy.yaml`：`fixed_delay: "500ms"` → `fixed_delay_ms: 500`
+- [x] T023 [P] [US2] 更新 `executor/cli/examples/advanced/late-stage-policy.yaml`：所有 fixed_delay 字段
+- [x] T024 [P] [US2] 更新 `executor/cli/examples/advanced/service-targeted-policy.yaml`：所有 fixed_delay 字段 (3处)
+- [x] T025 [US2] 更新 CLI types：`executor/cli/types/policy.go` 中 `DelayAction` 结构体
+- [x] T026 [US2] 更新 Control Plane types：`executor/control-plane/storage/types.go` 中 `DelayAction` 结构体 (如果存在)
+- [x] T027 [US2] 更新 README 文档示例在 `executor/cli/examples/README.md`
+- [x] T028 [US2] 更新 validate-basic.sh 中的 delay 策略格式在 `executor/cli/examples/scripts/validate-basic.sh`
 
 **Checkpoint**: 所有配置文件使用新格式，CLI 和 Control Plane 类型同步
 
@@ -95,9 +95,9 @@
 
 ### Implementation for User Story 3
 
-- [ ] T029 [US3] 验证 `execute_delay` 中 metrics 记录逻辑正确在 `executor/wasm-plugin/src/executor.rs`
-- [ ] T030 [US3] 确保 delay 成功时递增 `delays_total` 计数器在 `executor/wasm-plugin/src/lib.rs`
-- [ ] T031 [US3] 确保 histogram 记录使用正确的 duration 值在 `executor/wasm-plugin/src/executor.rs`
+- [x] T029 [US3] 验证 `execute_delay` 中 metrics 记录逻辑正确在 `executor/wasm-plugin/src/executor.rs`
+- [x] T030 [US3] 确保 delay 成功时递增 `delays_total` 计数器在 `executor/wasm-plugin/src/lib.rs`
+- [x] T031 [US3] 确保 histogram 记录使用正确的 duration 值在 `executor/wasm-plugin/src/executor.rs`
 - [ ] T032 [US3] 手动验证：应用 delay 策略，发送请求，查询 `/stats/prometheus` 确认指标递增
 
 **Checkpoint**: Metrics 正确记录
@@ -108,13 +108,13 @@
 
 **Purpose**: 端到端验证，确保所有功能正常工作
 
-- [ ] T033 运行 `cargo test` 确保所有单元测试通过在 `executor/wasm-plugin/`
-- [ ] T034 运行 `cargo clippy` 确保无 lint 警告在 `executor/wasm-plugin/`
+- [x] T033 运行 `cargo test` 确保所有单元测试通过在 `executor/wasm-plugin/`
+- [x] T034 运行 `cargo clippy` 确保无 lint 警告在 `executor/wasm-plugin/`
 - [ ] T035 运行 `./validate-basic.sh` E2E 验证在 `executor/cli/examples/scripts/`
 - [ ] T036 验证 delay 测试通过：响应时间增加约 500ms (±10%)
 - [ ] T037 检查 Envoy 日志无 "dispatch_http_call: BadArgument" 错误
 - [ ] T038 更新 quickstart.md 验证步骤在 `specs/010-fix-wasm-delay-bug/quickstart.md`
-- [ ] T039 [P] 代码清理：移除未使用的 imports 在 `executor/wasm-plugin/src/config.rs`
+- [x] T039 [P] 代码清理：确认 config.rs imports 已正确使用（无未使用 imports）
 
 ---
 

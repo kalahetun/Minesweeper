@@ -30,7 +30,7 @@ spec:
       fault:
         percentage: 50
         delay:
-          fixed_delay: "500ms"
+          fixed_delay_ms: 500
 
 ---
 # 示例 2: 通配符策略 - 应用到所有服务
@@ -68,7 +68,7 @@ spec:
       fault:
         percentage: 5
         delay:
-          fixed_delay: "1s"
+          fixed_delay_ms: 1000
 
 ---
 # 示例 4: 无 selector - 默认为通配符 (向后兼容)
@@ -86,7 +86,7 @@ spec:
       fault:
         percentage: 0          # 0% = 禁用
         delay:
-          fixed_delay: "100ms"
+          fixed_delay_ms: 100
 
 # ============================================================================
 # Selector 匹配规则速查表

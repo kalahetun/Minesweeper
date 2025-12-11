@@ -593,7 +593,7 @@ func TestCLILifecycleComplexRules(t *testing.T) {
 						Percentage:   100,
 						StartDelayMs: 500,
 						Delay: &types.DelayAction{
-							FixedDelay: "100ms",
+							FixedDelayMs: 100,
 						},
 					},
 				},

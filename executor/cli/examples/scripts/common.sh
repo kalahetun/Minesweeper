@@ -212,7 +212,7 @@ EOF
         "selector": {"service": "$selector_service", "namespace": "$selector_namespace"},
         "rules": [{
             "match": {"method": {"exact": "GET"}, "path": {"prefix": "/"}},
-            "fault": {"percentage": $percentage, "delay": {"fixed_delay": "${delay_ms}ms"}}
+            "fault": {"percentage": $percentage, "delay": {"fixed_delay_ms": $delay_ms}}
         }]
     }
 }

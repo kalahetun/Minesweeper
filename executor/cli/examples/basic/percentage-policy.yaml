@@ -39,7 +39,7 @@ spec:
         #   100% - 完全故障，测试降级策略
         
         delay:
-          fixed_delay: "500ms"  # 延迟 500ms
+          fixed_delay_ms: 500   # 延迟 500ms
         
         # 也可以使用 abort 代替 delay：
         # abort:

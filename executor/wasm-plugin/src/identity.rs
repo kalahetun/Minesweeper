@@ -211,6 +211,7 @@ mod tests {
             namespace: "demo".to_string(),
             pod_name: None,
             cluster: None,
+            is_valid: true,
         };
 
         let selector = ServiceSelector::wildcard();
@@ -224,6 +225,7 @@ mod tests {
             namespace: "demo".to_string(),
             pod_name: None,
             cluster: None,
+            is_valid: true,
         };
 
         let selector = ServiceSelector::new("frontend", "demo");
@@ -237,6 +239,7 @@ mod tests {
             namespace: "demo".to_string(),
             pod_name: None,
             cluster: None,
+            is_valid: true,
         };
 
         let selector = ServiceSelector::new("backend", "demo");
@@ -250,6 +253,7 @@ mod tests {
             namespace: "demo".to_string(),
             pod_name: None,
             cluster: None,
+            is_valid: true,
         };
 
         let selector = ServiceSelector::new("frontend", "production");
@@ -263,6 +267,7 @@ mod tests {
             namespace: "demo".to_string(),
             pod_name: None,
             cluster: None,
+            is_valid: true,
         };
 
         // Service-only selector (namespace wildcard)
@@ -281,6 +286,7 @@ mod tests {
             namespace: "demo".to_string(),
             pod_name: None,
             cluster: None,
+            is_valid: true,
         };
 
         let selector = ServiceSelector {

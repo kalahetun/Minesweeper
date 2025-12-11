@@ -448,8 +448,7 @@ mod tests {
     #[test]
     fn test_execute_delay_fault() {
         let delay = DelayAction {
-            fixed_delay: "100ms".to_string(),
-            parsed_duration_ms: Some(100),
+            fixed_delay_ms: 100,
         };
 
         let fault = Fault {
@@ -765,8 +764,7 @@ mod tests {
             percentage: 100,
             abort: None,
             delay: Some(DelayAction {
-                fixed_delay: "500ms".to_string(),
-                parsed_duration_ms: Some(500),
+                fixed_delay_ms: 500,
             }),
             start_delay_ms: 0,
             duration_seconds: 0,

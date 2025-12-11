@@ -49,7 +49,7 @@ fault:
 fault:
   duration_seconds: 300  # 5 分钟后自动过期
   delay:
-    fixed_delay: "500ms"
+    fixed_delay_ms: 500
 ```
 
 ## Usage
@@ -113,7 +113,7 @@ spec:
         abort:                  # Fault type 1: return error
           httpStatus: 503
         delay:                  # Fault type 2: add latency
-          fixed_delay: "1000ms"
+          fixed_delay_ms: 1000
 ```
 
 ## Service Selector (Istio/K8s Deployments)
@@ -154,7 +154,7 @@ spec:
       fault:
         percentage: 10
         delay:
-          fixed_delay: "200ms"
+          fixed_delay_ms: 200
 ```
 
 ### Selector Behavior

@@ -131,7 +131,7 @@ func outputPolicyDetailedTable(policy *types.FaultInjectionPolicy) error {
 		fmt.Printf("    Duration: %d seconds\n", rule.Fault.DurationSeconds)
 
 		if rule.Fault.Delay != nil {
-			fmt.Printf("    Delay: %s\n", rule.Fault.Delay.FixedDelay)
+			fmt.Printf("    Delay: %d ms\n", rule.Fault.Delay.FixedDelayMs)
 		}
 
 		if rule.Fault.Abort != nil {

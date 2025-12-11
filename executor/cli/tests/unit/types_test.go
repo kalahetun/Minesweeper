@@ -83,7 +83,7 @@ spec:
       fault:
         percentage: 100
         delay:
-          fixed_delay: 5s
+          fixed_delay_ms: 5000
 `
 
 	var policy types.FaultInjectionPolicy
@@ -96,8 +96,8 @@ spec:
 		t.Error("Expected delay action, got nil")
 	}
 
-	if policy.Spec.Rules[0].Fault.Delay.FixedDelay != "5s" {
-		t.Errorf("Expected fixed_delay '5s', got '%s'", policy.Spec.Rules[0].Fault.Delay.FixedDelay)
+	if policy.Spec.Rules[0].Fault.Delay.FixedDelayMs != 5000 {
+		t.Errorf("Expected fixed_delay_ms 5000, got %d", policy.Spec.Rules[0].Fault.Delay.FixedDelayMs)
 	}
 
 	t.Logf("✓ Policy with delay parsed correctly")
@@ -123,7 +123,7 @@ spec:
       fault:
         percentage: 75
         delay:
-          fixed_delay: 2s
+          fixed_delay_ms: 2000
     - match:
         method:
           exact: POST
@@ -149,7 +149,7 @@ spec:
 	}
 
 	// 验证第二个规则
-	if policy.Spec.Rules[1].Fault.Delay.FixedDelay != "2s" {
+	if policy.Spec.Rules[1].Fault.Delay.FixedDelayMs != 2000 {
 		t.Error("Second rule delay mismatch")
 	}
 

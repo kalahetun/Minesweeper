@@ -430,11 +430,7 @@ mod tests {
         let ruleset = CompiledRuleSet::from_slice(json.as_bytes()).unwrap();
         let rule = &ruleset.rules[0];
 
-        assert_eq!(rule.fault.delay.as_ref().unwrap().fixed_delay, "2s");
-        assert_eq!(
-            rule.fault.delay.as_ref().unwrap().parsed_duration_ms,
-            Some(2000)
-        );
+        assert_eq!(rule.fault.delay.as_ref().unwrap().fixed_delay_ms, 2000);
     }
 
     #[test]
