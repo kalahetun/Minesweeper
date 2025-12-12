@@ -22,6 +22,7 @@ help:
 	@echo ""
 	@echo "☸️  Kubernetes 部署:"
 	@echo "  make deploy-all         - 完整 K8s 部署 (命名空间 + 所有组件)"
+	@echo "  make deploy-k3s-quick   - K3s 快速部署 (构建+导入+部署)"
 	@echo "  make deploy-namespace   - 创建命名空间"
 	@echo "  make deploy-wasm-server - 部署 Wasm 插件服务器"
 	@echo "  make deploy-control-plane - 部署控制平面"
@@ -35,10 +36,10 @@ help:
 	@echo "📊 监控与调试:"
 	@echo "  make logs-wasm-plugin       - 查看 Wasm 插件日志"
 	@echo "  make logs-control-plane     - 查看控制平面日志"
-	@echo "  make port-forward-control-plane - 端口转发控制平面 (8080)"
 	@echo ""
 	@echo "🐳 Docker 目标:"
 	@echo "  make docker-build           - 构建 Docker 镜像"
+	@echo "  make docker-build-k3s       - 构建镜像并导入到 k3s containerd"
 	@echo "  make run-local              - 本地 Docker 环境启动"
 	@echo "  make stop-local             - 本地 Docker 环境停止"
 	@echo ""
@@ -131,7 +132,7 @@ coverage:
 # 启动本地开发环境
 run-local:
 	@echo "🚀 启动本地开发环境..."
-	@docker-compose up -d
+	@cd docker && docker-compose up -d
 	@echo "等待服务启动..."
 	@sleep 10
 	@echo "✅ 本地环境启动完成"
@@ -146,7 +147,7 @@ run-local:
 # 停止本地开发环境
 stop-local:
 	@echo "🛑 停止本地开发环境..."
-	@docker-compose down -v
+	@cd docker && docker-compose down -v
 	@echo "✅ 本地环境已停止"
 
 # 验证构建和测试
@@ -201,9 +202,19 @@ security:
 # Docker 镜像构建
 docker-build:
 	@echo "🐳 构建 Docker 镜像..."
-	@docker build -f Dockerfile.controlplane -t hfi/control-plane:latest .
-	@docker build -f Dockerfile.wasm -t hfi/wasm-plugin:latest .
+	@docker build -f docker/Dockerfile.controlplane -t boifi/control-plane:latest .
+	@docker build -f docker/Dockerfile.wasm -t boifi/wasm-plugin:latest .
 	@echo "✅ Docker 镜像构建完成"
+
+# 构建并导入控制平面镜像到 k3s containerd
+docker-build-k3s: docker-build
+	@echo "🚀 导入控制平面镜像到 k3s containerd..."
+	@which sudo > /dev/null || (echo "❌ sudo 不可用"; exit 1)
+	@which ctr > /dev/null || (echo "❌ ctr 不可用"; exit 1)
+	@docker save boifi/control-plane:latest | sudo ctr -a /run/k3s/containerd/containerd.sock -n k8s.io images import -
+	@echo "✅ 镜像导入完成"
+	@echo ""
+	@echo "下一步: make deploy-control-plane"
 
 # 集成测试
 integration-test: run-local
@@ -223,6 +234,17 @@ deploy-all: build-wasm-plugin deploy-namespace deploy-wasm-server deploy-control
 	@echo ""
 	@echo "📊 部署状态:"
 	@make status-k8s
+
+# K3s 快速部署 (构建+导入+部署)
+deploy-k3s-quick: docker-build-k3s deploy-namespace deploy-control-plane
+	@echo "✅ K3s 快速部署完成"
+	@echo ""
+	@echo "📊 部署状态:"
+	@make status-k8s
+	@echo ""
+	@echo "🌐 访问服务:"
+	@echo "  Control Plane: http://localhost:8080"
+	@echo "  CLI 默认端点: hfi-cli policy list"
 
 # 创建命名空间
 deploy-namespace:
@@ -335,11 +357,6 @@ test-k8s-all:
 	@echo "🧪 运行所有 K8s 测试..."
 	@bash k8s/tests/run-all-tests.sh
 	@echo "✅ 所有 K8s 测试完成"
-
-# 端口转发 - 控制平面
-port-forward-control-plane:
-	@echo "🔌 端口转发控制平面 (8080 -> 8080)..."
-	@kubectl port-forward -n boifi svc/hfi-control-plane 8080:8080
 
 # 端口转发 - Wasm Server
 port-forward-wasm-server:
