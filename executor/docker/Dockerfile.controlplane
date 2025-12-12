@@ -1,7 +1,7 @@
-# Use a specific version of the Go image for reproducibility.
-FROM golang:1.24.3-alpine
+# Stage 1: Build stage
+FROM golang:1.24.3-alpine AS builder
 
-# Install curl for healthcheck
+# Install build dependencies
 RUN apk add --no-cache curl
 
 # Set the working directory inside the container.
@@ -18,7 +18,16 @@ COPY control-plane/. .
 # Build the Go application.
 # -o specifies the output file name.
 # CGO_ENABLED=0 is important for creating a static binary that works in minimal containers like Alpine.
-RUN CGO_ENABLED=0 go build -o /hfi-control-plane .
+RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o /hfi-control-plane .
+
+# Stage 2: Runtime stage (minimal)
+FROM alpine:latest
+
+# Install curl for healthcheck (minimal layer)
+RUN apk add --no-cache curl
+
+# Copy the compiled binary from builder stage
+COPY --from=builder /hfi-control-plane /hfi-control-plane
 
 # Expose the port the application runs on.
 EXPOSE 8080
